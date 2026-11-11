@@ -41,6 +41,12 @@ def create_app(settings_override: Optional[Settings] = None) -> FastAPI:
             migration_result.current_version,
         )
 
+        # Detect and recover any jobs left in-flight from an unclean shutdown
+        from app.services.jobs import JobOrchestrator
+        recovered = JobOrchestrator(settings=settings, db_path=layout.db_file).recover_interrupted_jobs()
+        if recovered:
+            logger.warning("Recovered %d interrupted job(s) on startup: %s", len(recovered), recovered)
+
         app.state.settings = settings
         app.state.storage = layout
         app.state.migration_result = migration_result

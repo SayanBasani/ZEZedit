@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
-import { Film, Menu, Shield, X } from 'lucide-react';
+import { Film, FolderKanban, Menu, Shield, X } from 'lucide-react';
 import { FoundationOverview } from '../features/dashboard/FoundationOverview';
+import { ProjectsView } from '../features/projects/ProjectsView';
+
+type NavTab = 'health' | 'projects';
 
 export const App: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<NavTab>('health');
 
   return (
     <div className="h-screen max-h-screen w-screen overflow-hidden flex bg-canvas text-slate-100">
-      {/* Stationary Left Sidebar (Desktop) + Slide-over (Mobile) */}
+      {/* Stationary Left Sidebar */}
       <aside
         className={`${
           mobileMenuOpen ? 'fixed inset-y-0 left-0 z-40 flex' : 'hidden md:flex'
@@ -33,13 +37,39 @@ export const App: React.FC = () => {
         </div>
 
         <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-1">
-          <div className="px-3 py-2 rounded-lg bg-indigo-600/15 border border-indigo-500/30 text-xs font-medium text-indigo-300 flex items-center gap-2">
+          <button
+            onClick={() => {
+              setActiveTab('health');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
+              activeTab === 'health'
+                ? 'bg-indigo-600/20 border border-indigo-500/40 text-indigo-300'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
             <Shield className="w-4 h-4 text-indigo-400" />
-            System Foundation &amp; Health
+            System Health &amp; Diagnostics
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('projects');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full px-3 py-2 rounded-lg text-xs font-medium flex items-center gap-2 transition ${
+              activeTab === 'projects'
+                ? 'bg-indigo-600/20 border border-indigo-500/40 text-indigo-300'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
+          >
+            <FolderKanban className="w-4 h-4 text-sky-400" />
+            Projects (Milestone 2)
+          </button>
+
+          <div className="pt-4 px-3 text-[11px] text-slate-500 leading-relaxed">
+            Upcoming modules (Media Importer, Timeline, AI Editor, Reframing, Characters) arrive in Milestones 3–10.
           </div>
-          <p className="px-3 pt-4 text-[11px] text-slate-500 leading-relaxed">
-            Future workspace tabs (Projects, Media Library, Timeline, AI Editor, Characters, Exports) unlock in Milestones 2–10.
-          </p>
         </nav>
 
         <div className="px-4 py-3 border-t border-border text-[11px] text-slate-500 shrink-0 font-mono">
@@ -47,7 +77,7 @@ export const App: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Content Area with Fixed Top Header & Independent Scroll */}
+      {/* Main Content Area */}
       <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-hidden">
         <header className="h-12 shrink-0 border-b border-border bg-surface/60 px-4 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -59,16 +89,16 @@ export const App: React.FC = () => {
               <Menu className="w-4 h-4" />
             </button>
             <span className="text-xs font-medium text-slate-300">
-              Workspace Diagnostics
+              {activeTab === 'health' ? 'System Health & Diagnostics' : 'Project Management Workspace'}
             </span>
           </div>
           <span className="text-[11px] font-mono text-slate-400">
-            API Proxy: /api/v1
+            API: /api/v1
           </span>
         </header>
 
         <main className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain">
-          <FoundationOverview />
+          {activeTab === 'health' ? <FoundationOverview /> : <ProjectsView />}
         </main>
       </div>
     </div>
