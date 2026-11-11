@@ -40,10 +40,28 @@ export interface MediaAssetItem {
   availability_status: 'present' | 'missing' | 'deleted';
   proxy_reference_path: string | null;
   thumbnail_reference_path: string | null;
+  proxy_status: 'none' | 'generating' | 'ready' | 'failed';
   metadata_status: string;
   metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
+}
+
+export interface MediaImportLocalPayload {
+  file_path: string;
+  copy_to_storage?: boolean;
+  generate_proxy?: boolean;
+  generate_thumbnail?: boolean;
+}
+
+export interface MediaStorageStats {
+  project_id: string;
+  total_media_count: number;
+  total_media_bytes: number;
+  total_proxy_bytes: number;
+  total_thumbnail_bytes: number;
+  managed_files_count: number;
+  external_files_count: number;
 }
 
 export interface MediaAssetListResponse {

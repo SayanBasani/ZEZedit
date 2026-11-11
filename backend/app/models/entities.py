@@ -41,6 +41,7 @@ class MediaAssetRecord:
     metadata: Dict[str, Any]
     created_at: str
     updated_at: str
+    proxy_status: str = "none"
 
 
 @dataclass

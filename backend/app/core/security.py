@@ -94,6 +94,16 @@ def resolve_contained_path(base_dir: Path, relative_or_child: str | Path) -> Pat
     return resolved_target
 
 
+def is_path_confined(candidate: str | Path, base_dir: str | Path) -> bool:
+    """Return True if candidate path resides within base_dir, False otherwise."""
+    try:
+        resolved_base = Path(base_dir).resolve(strict=False)
+        resolved_target = Path(candidate).resolve(strict=False)
+        return resolved_target.is_relative_to(resolved_base)
+    except (ValueError, OSError):
+        return False
+
+
 def safe_delete_directory(
     target_dir: Path,
     allowed_parent: Path,

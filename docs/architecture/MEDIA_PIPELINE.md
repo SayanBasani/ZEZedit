@@ -51,7 +51,36 @@ Preserving verified architectural solutions from historical Milestone 13M.12–1
 
 ---
 
-## 4. Final Rendering & Output Validation
+## 5. Milestone 4 Implementation Details: Media Ingestion & Proxies
+
+### Supported Media Formats
+- **Video:** MP4, MOV, MKV, WebM, AVI, M4V, MPEG/MPG, TS, FLV, WMV
+- **Audio:** MP3, WAV, AAC, M4A, FLAC, OGG, Opus, WMA
+- **Images:** JPEG, PNG, WEBP, GIF, BMP, TIFF
+
+### Ingestion Workflows
+1. **Local External Reference (`is_external = True`):**
+   - Validates file existence and permissions.
+   - Preserves source file at user's existing filesystem location without duplication.
+   - Extracts complete FFprobe technical metadata and generates a cached preview thumbnail.
+2. **Managed Storage Copy (`is_external = False`):**
+   - Verifies available disk space (ensuring $>100\text{ MB}$ headroom).
+   - Streams source into `storage/media/{project_subdir}/{uuid}_{filename}` in $1\text{ MB}$ chunks via `shutil.copyfileobj`.
+   - Never loads the complete file into RAM, enabling safe handling of $1-2\text{ GB}+$ assets on Intel i3 hardware.
+3. **Chunked HTTP Upload:**
+   - Endpoint: `POST /api/v1/projects/{project_id}/media/upload`.
+   - Streams multipart chunks directly to disk without intermediate in-memory buffering.
+
+### Deterministic Thumbnail & Proxy Paths
+- **Thumbnails:** `storage/thumbnails/{asset_id}.jpg` (JPEG Lanczos-scaled to $\min(640, \text{iw})$)
+- **Proxies:** `storage/proxies/{asset_id}_proxy_{profile}.mp4`
+  - Profiles: `360p` ($\min(640, \text{iw}):-2$), `480p` ($\min(854, \text{iw}):-2$), `720p` ($\min(1280, \text{iw}):-2$)
+  - Encoding: `libx264`, `veryfast`, `crf 26`, `aac` $128\text{k}$, `-threads 4`, `+faststart` for zero-lag HTML5 scrubbing.
+
+### Safety & Deletion Guarantees
+- Deleting an asset removes its project record and purges derivative proxies/thumbnails.
+- Original source files for **external** assets are never deleted or modified.
+- Managed copies are only deleted from disk if the user explicitly confirms `delete_source=True`.
 
 Every export job runs two mandatory stages:
 1. **Deterministic FFmpeg Execution:**

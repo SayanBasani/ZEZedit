@@ -7,6 +7,7 @@ import {
   Plus,
   Scissors,
   Sparkles,
+  Video,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -174,6 +175,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <Film className="w-4 h-4" />
                 </div>
                 <span className="text-xs font-medium text-text-primary">Projects</span>
+                <span className="text-[10px] text-emerald-400 font-mono">Ready</span>
+              </div>
+
+              <div
+                onClick={() => onNavigate('media')}
+                className="p-3.5 rounded-xl bg-surface border border-border hover:border-brand cursor-pointer transition flex flex-col items-center text-center space-y-2"
+              >
+                <div className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400">
+                  <Video className="w-4 h-4" />
+                </div>
+                <span className="text-xs font-medium text-text-primary">Media Library</span>
                 <span className="text-[10px] text-emerald-400 font-mono">Ready</span>
               </div>
 

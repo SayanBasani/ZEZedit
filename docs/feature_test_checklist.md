@@ -51,3 +51,23 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] Vitest and React Testing Library setup installed with jsdom environment.
 - [x] Automated frontend unit test suite passes 17/17 tests (`src/test/designSystem.test.tsx` and `src/test/features.test.tsx`).
 - [x] Production build (`npm run build`) compiles cleanly in under 2 seconds with zero TypeScript errors.
+
+---
+
+## Milestone 4 — Media Ingestion, Import & Media Library
+- [x] Forward migration `0003_media_pipeline.sql` adds `proxy_status` column and indexing non-destructively with pre-migration snapshot.
+- [x] FFprobe inspection service (`media_probe.py`) extracts container, duration, file size, bitrate, width, height, fps, DAR, orientation, video/audio codecs, sample rate, and channels.
+- [x] Corrupt and empty media files rejected with structured `CORRUPT_MEDIA` and `EMPTY_MEDIA_FILE` errors.
+- [x] FFmpeg thumbnail generator (`media_thumbnail.py`) creates representative downscaled JPEG frames at deterministic paths (`storage/thumbnails/{asset_id}.jpg`).
+- [x] FFmpeg proxy generator (`media_proxy.py`) creates lightweight H.264 scrub proxies with fast-start atoms (`storage/proxies/{asset_id}_proxy_{profile}.mp4`) bounded by CPU thread constraints.
+- [x] Ingestion pipeline supports both **External Reference** mode (zero file duplication) and **Managed Copy** mode (stream copied to `storage/media/{project_subdir}/`).
+- [x] Large file handling avoids full RAM buffering via bounded 1 MB streaming chunks and verifies disk free space ($>100\text{ MB}$ margin).
+- [x] Streaming HTTP upload endpoint (`POST /projects/{pid}/media/upload`) accepts multipart uploads directly to disk without memory bloat.
+- [x] Media assets deletion purges derivative thumbnails and proxies, and only deletes source media if explicitly confirmed and managed (external files strictly protected).
+- [x] Frontend Media Library interface (`MediaLibraryView.tsx`) with Grid and List view modes, storage statistics cards, search filtering, media type tabs, availability/proxy status filters, and sorting.
+- [x] Import Dialog with Local Path and File Upload tabs, storage copy toggle, and immediate proxy generation checkbox.
+- [x] Technical Metadata Drawer displaying full FFprobe parameters, codecs, aspect ratios, and full storage paths.
+- [x] Missing media indicators with one-click Relink dialog restoring access to moved files.
+- [x] Automated backend test suite passes 18/18 tests (including 6 real FFmpeg/FFprobe tests in `test_milestone4_media.py`).
+- [x] Automated frontend test suite passes 23/23 tests (including 6 tests in `mediaLibrary.test.tsx`).
+- [x] Live end-to-end HTTP verification confirms real FFmpeg video generation, import, thumbnail serving, proxy generation, and stream serving.

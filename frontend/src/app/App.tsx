@@ -23,6 +23,7 @@ import { Button } from '../components/ui/Button';
 import { useTheme } from '../context/ThemeContext';
 import { DashboardView } from '../features/dashboard/DashboardView';
 import { FoundationOverview } from '../features/dashboard/FoundationOverview';
+import { MediaLibraryView } from '../features/media/MediaLibraryView';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -31,11 +32,13 @@ import {
   deleteProject,
   fetchHealth,
   fetchJobs,
+  fetchMediaStats,
+  fetchProjectMedia,
   fetchProjects,
   restoreProject,
 } from '../services/apiClient';
 import { HealthResponse } from '../types/health';
-import { JobItem, ProjectItem } from '../types/projects';
+import { JobItem, MediaAssetItem, MediaStorageStats, ProjectItem } from '../types/projects';
 
 export type NavSection =
   | 'dashboard'
@@ -56,10 +59,32 @@ export const App: React.FC = () => {
 
   // Global Centralized State (avoiding repeated duplicate polling)
   const [projects, setProjects] = useState<ProjectItem[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [projectMedia, setProjectMedia] = useState<MediaAssetItem[]>([]);
+  const [mediaStats, setMediaStats] = useState<MediaStorageStats | null>(null);
+  const [mediaLoading, setMediaLoading] = useState<boolean>(false);
+
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [globalError, setGlobalError] = useState<string | null>(null);
+
+  const loadProjectMedia = useCallback(async (pid: string) => {
+    if (!pid) return;
+    setMediaLoading(true);
+    try {
+      const [mediaRes, statsRes] = await Promise.all([
+        fetchProjectMedia(pid),
+        fetchMediaStats(pid).catch(() => null),
+      ]);
+      setProjectMedia(mediaRes.items);
+      setMediaStats(statsRes);
+    } catch {
+      // ignore
+    } finally {
+      setMediaLoading(false);
+    }
+  }, []);
 
   const loadGlobalData = useCallback(async () => {
     setLoading(true);
@@ -73,12 +98,25 @@ export const App: React.FC = () => {
       setProjects(projRes.items);
       setJobs(jobsRes.items);
       setHealth(healthRes);
+
+      const activeList = projRes.items.filter((p) => p.status === 'active');
+      const targetPid = selectedProjectId || (activeList[0]?.id || projRes.items[0]?.id);
+      if (targetPid) {
+        setSelectedProjectId(targetPid);
+        void loadProjectMedia(targetPid);
+      }
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : 'Backend unreachable');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedProjectId, loadProjectMedia]);
+
+  useEffect(() => {
+    if (selectedProjectId) {
+      void loadProjectMedia(selectedProjectId);
+    }
+  }, [selectedProjectId, loadProjectMedia]);
 
   useEffect(() => {
     void loadGlobalData();
@@ -193,9 +231,11 @@ export const App: React.FC = () => {
             collapsed={sidebarCollapsed}
             icon={<Video className="w-4 h-4" />}
             label="Media Library"
-            badge="M4"
-            disabled
-            title="Scheduled for Milestone 4 (Streaming Ingestion & Proxies)"
+            badge={projectMedia.length ? String(projectMedia.length) : undefined}
+            onClick={() => {
+              setActiveTab('media');
+              setMobileMenuOpen(false);
+            }}
           />
 
           <SidebarNavButton
@@ -356,7 +396,10 @@ export const App: React.FC = () => {
               loading={loading}
               onNavigate={(tab) => setActiveTab(tab)}
               onCreateProject={() => setActiveTab('projects')}
-              onOpenProject={() => setActiveTab('projects')}
+              onOpenProject={(pid) => {
+                setSelectedProjectId(pid);
+                setActiveTab('media');
+              }}
             />
           )}
 
@@ -368,6 +411,21 @@ export const App: React.FC = () => {
               onCreate={handleCreateProject}
               onArchiveToggle={handleArchiveToggle}
               onDelete={handleDeleteProject}
+            />
+          )}
+
+          {activeTab === 'media' && (
+            <MediaLibraryView
+              projects={projects}
+              currentProjectId={selectedProjectId || (projects[0]?.id || '')}
+              onSelectProject={(id) => {
+                setSelectedProjectId(id);
+                void loadProjectMedia(id);
+              }}
+              media={projectMedia}
+              stats={mediaStats}
+              loading={mediaLoading}
+              onRefresh={() => void loadProjectMedia(selectedProjectId || (projects[0]?.id || ''))}
             />
           )}
 

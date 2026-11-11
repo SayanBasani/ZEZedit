@@ -83,6 +83,28 @@ cd D:\ZezEdit\backend
 .\.venv\Scripts\pytest
 ```
 
+Run frontend unit tests:
+
+```powershell
+cd D:\ZezEdit\frontend
+npm test
+```
+
+---
+
+## Media Ingestion, Formats & Proxy Pipeline (Milestone 4)
+
+- **Supported Video Formats:** MP4, MOV, MKV, WebM, AVI, M4V, MPEG/MPG, TS, FLV, WMV
+- **Supported Audio Formats:** MP3, WAV, AAC, M4A, FLAC, OGG, Opus, WMA
+- **Supported Image Formats:** JPEG, PNG, WEBP, GIF, BMP, TIFF
+- **Import Workflows:**
+  - *External Reference:* References original files on disk with zero duplication, extracting metadata and generating cached thumbnails.
+  - *Managed Copy:* Streams large files into `storage/media/{project_subdir}/` in 1 MB chunks without buffering entire files in memory.
+  - *Streaming Upload:* `POST /api/v1/projects/{project_id}/media/upload` accepts chunked uploads directly to storage.
+- **Scrub Proxies:** Downscaled H.264 MP4 proxies (`360p`, `480p`, `720p`) generated via FFmpeg bounded by CPU worker thread constraints (default 4 threads), with fast-start MP4 atoms for instantaneous seeking.
+- **Thumbnails:** Deterministic JPEG frames saved to `storage/thumbnails/{asset_id}.jpg`.
+- **Relinking:** Missing external files can be relinked to new filesystem paths without data loss.
+
 ---
 
 ## Architecture & Documentation

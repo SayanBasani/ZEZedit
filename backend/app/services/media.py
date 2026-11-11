@@ -35,6 +35,10 @@ class MediaService:
         video_codec: Optional[str] = None,
         audio_codec: Optional[str] = None,
         metadata: Optional[dict] = None,
+        thumbnail_reference_path: Optional[str] = None,
+        proxy_reference_path: Optional[str] = None,
+        proxy_status: str = "none",
+        metadata_status: str = "unextracted",
     ) -> MediaAssetRecord:
         """Register a media asset record associated with a project."""
         asset_id = f"med_{uuid.uuid4().hex[:12]}"
@@ -58,8 +62,8 @@ class MediaService:
                     media_type, file_size_bytes, mime_type, duration_seconds,
                     width, height, fps, video_codec, audio_codec, availability_status,
                     proxy_reference_path, thumbnail_reference_path, metadata_status,
-                    metadata_json, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', NULL, NULL, 'unextracted', ?, ?, ?)
+                    metadata_json, created_at, updated_at, proxy_status
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     asset_id,
@@ -76,9 +80,13 @@ class MediaService:
                     fps,
                     video_codec,
                     audio_codec,
+                    proxy_reference_path,
+                    thumbnail_reference_path,
+                    metadata_status,
                     meta_json,
                     now,
                     now,
+                    proxy_status,
                 ),
             )
             # Record project activity event
@@ -100,14 +108,29 @@ class MediaService:
         return self.get_media_asset(project_id, asset_id)
 
     def list_media_assets(
-        self, project_id: str, availability: Optional[str] = None
+        self,
+        project_id: str,
+        availability: Optional[str] = None,
+        media_type: Optional[str] = None,
+        proxy_status: Optional[str] = None,
+        search: Optional[str] = None,
     ) -> List[MediaAssetRecord]:
-        """List all media assets for a project."""
+        """List all media assets for a project with optional filtering."""
         query = "SELECT * FROM media_assets WHERE project_id = ?"
-        params = [project_id]
+        params: list = [project_id]
         if availability:
             query += " AND availability_status = ?"
             params.append(availability)
+        if media_type:
+            query += " AND media_type = ?"
+            params.append(media_type)
+        if proxy_status:
+            query += " AND proxy_status = ?"
+            params.append(proxy_status)
+        if search and search.strip():
+            query += " AND original_filename LIKE ?"
+            params.append(f"%{search.strip()}%")
+
         query += " ORDER BY created_at DESC"
 
         with sqlite_session(self.db_path) as conn:
@@ -157,6 +180,9 @@ class MediaService:
                     video_codec = COALESCE(?, video_codec),
                     audio_codec = COALESCE(?, audio_codec),
                     metadata_status = COALESCE(?, metadata_status),
+                    proxy_status = COALESCE(?, proxy_status),
+                    proxy_reference_path = COALESCE(?, proxy_reference_path),
+                    thumbnail_reference_path = COALESCE(?, thumbnail_reference_path),
                     metadata_json = ?,
                     updated_at = ?
                 WHERE project_id = ? AND id = ?
@@ -171,6 +197,9 @@ class MediaService:
                     updates.get("video_codec"),
                     updates.get("audio_codec"),
                     updates.get("metadata_status"),
+                    updates.get("proxy_status"),
+                    updates.get("proxy_reference_path"),
+                    updates.get("thumbnail_reference_path"),
                     json.dumps(meta_dict),
                     now,
                     project_id,
@@ -179,6 +208,28 @@ class MediaService:
             )
 
         return self.get_media_asset(project_id, asset_id)
+
+    def delete_media_asset(self, project_id: str, asset_id: str) -> None:
+        """Unregister media asset record from project."""
+        self.get_media_asset(project_id, asset_id)
+        now = datetime.now(timezone.utc).isoformat()
+
+        with sqlite_session(self.db_path) as conn:
+            conn.execute("DELETE FROM media_assets WHERE project_id = ? AND id = ?", (project_id, asset_id))
+            event_id = f"evt_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO project_events (id, project_id, event_type, event_summary, payload_json, created_at)
+                VALUES (?, ?, 'media_deleted', ?, ?, ?)
+                """,
+                (
+                    event_id,
+                    project_id,
+                    f"Media asset '{asset_id}' removed from project",
+                    json.dumps({"asset_id": asset_id}),
+                    now,
+                ),
+            )
 
     def mark_missing(self, project_id: str, asset_id: str) -> MediaAssetRecord:
         """Mark an external media file as missing without deleting project state."""
@@ -232,6 +283,7 @@ class MediaService:
         return self.get_media_asset(project_id, asset_id)
 
     def _row_to_record(self, row) -> MediaAssetRecord:
+        keys = row.keys() if hasattr(row, "keys") else []
         return MediaAssetRecord(
             id=row["id"],
             project_id=row["project_id"],
@@ -250,6 +302,7 @@ class MediaService:
             availability_status=row["availability_status"],
             proxy_reference_path=row["proxy_reference_path"],
             thumbnail_reference_path=row["thumbnail_reference_path"],
+            proxy_status=row["proxy_status"] if "proxy_status" in keys else "none",
             metadata_status=row["metadata_status"],
             metadata=json.loads(row["metadata_json"] or "{}"),
             created_at=row["created_at"],

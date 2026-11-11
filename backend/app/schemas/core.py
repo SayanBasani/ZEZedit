@@ -80,6 +80,27 @@ class MediaRelinkRequest(BaseModel):
     new_storage_path: str = Field(..., min_length=1)
 
 
+class MediaImportLocalRequest(BaseModel):
+    file_path: str = Field(..., min_length=1)
+    copy_to_storage: bool = False
+    generate_proxy: bool = False
+    generate_thumbnail: bool = True
+
+
+class MediaProxyGenerateRequest(BaseModel):
+    profile: str = Field("480p", pattern="^(360p|480p|720p)$")
+
+
+class MediaStorageStatsResponse(BaseModel):
+    project_id: str
+    total_media_count: int
+    total_media_bytes: int
+    total_proxy_bytes: int
+    total_thumbnail_bytes: int
+    managed_files_count: int
+    external_files_count: int
+
+
 class MediaAssetResponse(BaseModel):
     id: str
     project_id: str
@@ -98,6 +119,7 @@ class MediaAssetResponse(BaseModel):
     availability_status: str
     proxy_reference_path: Optional[str]
     thumbnail_reference_path: Optional[str]
+    proxy_status: str = "none"
     metadata_status: str
     metadata: Dict[str, Any]
     created_at: str

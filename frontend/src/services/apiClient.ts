@@ -3,7 +3,10 @@ import {
   AppSettingsData,
   JobItem,
   JobListResponse,
+  MediaAssetItem,
   MediaAssetListResponse,
+  MediaImportLocalPayload,
+  MediaStorageStats,
   ProjectCreatePayload,
   ProjectItem,
   ProjectListResponse,
@@ -114,8 +117,118 @@ export function deleteProject(projectId: string): Promise<void> {
 }
 
 // ==================== MEDIA ASSETS ====================
-export function fetchProjectMedia(projectId: string): Promise<MediaAssetListResponse> {
-  return request<MediaAssetListResponse>(`/projects/${projectId}/media`);
+export function fetchProjectMedia(
+  projectId: string,
+  params?: {
+    media_type?: string;
+    availability?: string;
+    proxy_status?: string;
+    search?: string;
+  }
+): Promise<MediaAssetListResponse> {
+  const query = new URLSearchParams();
+  if (params?.media_type && params.media_type !== 'all') query.set('media_type', params.media_type);
+  if (params?.availability && params.availability !== 'all') query.set('availability', params.availability);
+  if (params?.proxy_status && params.proxy_status !== 'all') query.set('proxy_status', params.proxy_status);
+  if (params?.search && params.search.trim()) query.set('search', params.search.trim());
+
+  const q = query.toString() ? `?${query.toString()}` : '';
+  return request<MediaAssetListResponse>(`/projects/${projectId}/media${q}`);
+}
+
+export function importLocalMedia(
+  projectId: string,
+  payload: MediaImportLocalPayload
+): Promise<MediaAssetItem> {
+  return request<MediaAssetItem>(`/projects/${projectId}/media/import-local`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadMediaFile(
+  projectId: string,
+  file: File,
+  generateProxy = false,
+  generateThumbnail = true
+): Promise<MediaAssetItem> {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const res = await fetch(
+    `${API_BASE}/projects/${projectId}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`,
+    {
+      method: 'POST',
+      body: formData,
+    }
+  );
+
+  if (!res.ok) {
+    let msg = `Upload failed with status ${res.status}`;
+    try {
+      const err = await res.json();
+      if (err.error?.message) msg = err.error.message;
+    } catch {
+      // ignore
+    }
+    throw new ApiClientError(msg, `HTTP_${res.status}`);
+  }
+
+  return (await res.json()) as MediaAssetItem;
+}
+
+export function generateProxy(
+  projectId: string,
+  assetId: string,
+  profile = '480p'
+): Promise<MediaAssetItem> {
+  return request<MediaAssetItem>(`/projects/${projectId}/media/${assetId}/proxy`, {
+    method: 'POST',
+    body: JSON.stringify({ profile }),
+  });
+}
+
+export function regenerateThumbnail(
+  projectId: string,
+  assetId: string
+): Promise<MediaAssetItem> {
+  return request<MediaAssetItem>(`/projects/${projectId}/media/${assetId}/thumbnail/regenerate`, {
+    method: 'POST',
+  });
+}
+
+export function relinkMedia(
+  projectId: string,
+  assetId: string,
+  newStoragePath: string
+): Promise<MediaAssetItem> {
+  return request<MediaAssetItem>(`/projects/${projectId}/media/${assetId}/relink`, {
+    method: 'POST',
+    body: JSON.stringify({ new_storage_path: newStoragePath }),
+  });
+}
+
+export function deleteMediaAsset(
+  projectId: string,
+  assetId: string,
+  deleteSource = false
+): Promise<void> {
+  return request<void>(
+    `/projects/${projectId}/media/${assetId}?delete_source=${deleteSource}`,
+    { method: 'DELETE' }
+  );
+}
+
+export function fetchMediaStats(projectId: string): Promise<MediaStorageStats> {
+  return request<MediaStorageStats>(`/projects/${projectId}/media/storage-stats`);
+}
+
+export function getThumbnailUrl(projectId: string, assetId: string): string {
+  return `${API_BASE}/projects/${projectId}/media/${assetId}/thumbnail`;
+}
+
+export function getProxyUrl(projectId: string, assetId: string): string {
+  return `${API_BASE}/projects/${projectId}/media/${assetId}/proxy`;
 }
 
 // ==================== JOBS ====================

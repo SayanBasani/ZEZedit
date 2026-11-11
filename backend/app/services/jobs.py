@@ -14,8 +14,8 @@ from app.models.entities import JobRecord
 # Valid state transition matrix
 VALID_TRANSITIONS: Dict[str, set[str]] = {
     "queued": {"running", "cancelling", "cancelled"},
-    "running": {"cancelling", "completed", "failed", "interrupted"},
-    "cancelling": {"cancelled", "failed"},
+    "running": {"running", "cancelling", "completed", "failed", "interrupted"},
+    "cancelling": {"cancelling", "cancelled", "failed"},
     "cancelled": {"queued"},  # Re-enqueue
     "completed": set(),       # Terminal
     "failed": {"queued"},     # Retry

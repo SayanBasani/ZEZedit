@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-11  
-**Active Milestone:** Milestone 3 Completed — Frontend Application Shell, Dashboard & Design System
+**Active Milestone:** Milestone 4 Completed — Media Ingestion, Import & Media Library
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -59,13 +59,27 @@ Status legend:
 
 ---
 
+## Media Ingestion, Import & Media Library (Milestone 4)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M4-01 | Database Migration `0003_media_pipeline.sql` | DB / Migrations | Implemented | `backend/migrations/0003_media_pipeline.sql` | Adds `proxy_status` column and indexing to `media_assets` |
+| M4-02 | FFprobe Technical Metadata Extraction Service | Media Services | Implemented | `backend/app/services/media_probe.py` | Robust parsing of video, audio, image streams, fps, DAR, orientation |
+| M4-03 | FFmpeg Deterministic Thumbnail Generation | Media Services | Implemented | `backend/app/services/media_thumbnail.py` | Representative video frame seeks, downscaled JPEGs, artwork extraction |
+| M4-04 | FFmpeg Proxy Transcode Engine (360p, 480p, 720p) | Media Services | Implemented | `backend/app/services/media_proxy.py` | CPU-bounded H.264 transcoding, fast-start atoms, thread confinement |
+| M4-05 | Streaming Media Import Pipeline | Media Services | Implemented | `backend/app/services/media_pipeline.py` | Supports reference mode, copy mode, chunked streaming, disk space check |
+| M4-06 | Versioned Media REST Endpoints | Backend API | Implemented | `backend/app/api/v1/media.py` | Import, streaming upload, thumbnail serving, proxy stream, stats, relink |
+| M4-07 | Frontend Media Library View | Features / Media | Implemented | `frontend/src/features/media/MediaLibraryView.tsx` | Grid/list view, metrics cards, search/filter/sort, details drawer, import modal |
+| M4-08 | Backend Media Integration Test Suite (6 tests) | Testing | Implemented | `backend/tests/test_milestone4_media.py` | Real FFmpeg/FFprobe tests, synthetic video/audio, proxies, 100% pass |
+| M4-09 | Frontend Media Vitest Suite (6 tests) | Testing | Implemented | `frontend/src/test/mediaLibrary.test.tsx` | Covers grid/list toggle, type/status filtering, search, import dialog |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-B1 | Actual Streaming Media File Import, H.264 Proxies & Waveforms | B: Media Library | Planned | Milestone 4 |
-| MOD-J1 | Full Background Worker Process Subprocess Execution & PID Kill | Core / Workers | Planned | Milestone 4 |
-| MOD-J2 | Full Ollama Model Pull Stream & Settings Diagnostics | J: Settings | Planned | Milestone 4 |
+| MOD-J2 | Full Ollama Model Pull Stream & Settings Diagnostics | J: Settings | Planned | Milestone 5 |
 | MOD-C1 | Scene Cut Detection, Faster-Whisper Transcription & Frame Sampling | C: Video Analysis | Planned | Milestone 5 |
 | MOD-D1 | Context-Aware Highlight Discovery & Candidate Ranking | D: Highlights | Planned | Milestone 5 |
 | MOD-E1 | Dynamic Subject Tracking, Portrait Crop Math Parity & Manual Revisions | E: Reframing | Planned | Milestone 6 |
