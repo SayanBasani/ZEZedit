@@ -111,3 +111,19 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] Automated frontend test suite passes 31/31 tests across 5 suites (`npm test -- --run`, including 5 tests in `highlights.test.tsx`).
 - [x] Production build passes cleanly in 2.23s with 0 TypeScript errors.
 - [x] Live end-to-end HTTP verification confirms project creation, media import, video analysis, highlight discovery, boundary modification (`is_user_modified=True`), candidate approval, and render queue toggling.
+
+---
+
+## Milestone 7: Smart Reframing, Subject Tracking & Portrait Composition Checklist
+
+- [x] **Database Schema & Migrations:** Forward-only migration `0006_smart_reframing.sql` creates `reframing_plans` and `reframing_revisions` tables with range indexing and JSON keyframe storage.
+- [x] **CPU-First Subject Tracking:** OpenCV Haar Cascades (`frontalface`, `profileface`, `upperbody`) + saliency fallback extract multi-subject trajectories with IoU/centroid association and 1.2s gap bridging.
+- [x] **Aspect Ratio & Geometry Clamping:** Framing engine computes exact 9:16, 1:1, and 16:9 crops with even integer dimensions, minimum subject framing, and strict boundaries within source video limits ($0 \le x \le W-w$, $0 \le y \le H-h$).
+- [x] **Dynamic Framing Strategies:** Supports `single_subject`, `two_person`, `group`, and centered `fallback` strategies with adjustable headroom factor ($0.0 \dots 0.4$) and base zoom.
+- [x] **Velocity-Constrained Smoothing & Scene-Cut Isolation:** Camera trajectory is smoothed using windowed moving averages while respecting `max_pan_velocity`. Scene-cut timestamps enforce instantaneous step jumps, preventing unnatural cross-shot blur pans.
+- [x] **Preview / Renderer Mathematical Parity:** Both `interpolate_crop_at(t)` and `build_crop_filter_expression(keyframes)` share the exact same piecewise linear mathematical formulas, guaranteeing 100% parity between preview viewport and rendered video.
+- [x] **Real FFmpeg Filtergraph Rendering:** Renders real vertical 9:16 MP4 videos using time-varying `crop=w:h:x:y` expressions and high-quality libx264 encoding with audio sync.
+- [x] **Non-Destructive Revision History:** Every manual crop override creates a new immutable revision (`active_revision_id` increments) while preserving prior revisions with 1-click restore.
+- [x] **Reframing Review Workspace UI:** Dual viewports (Source Landscape with animated crop box + Subject Overlays, and True 9:16 Portrait Canvas), horizontal pan offset controls, zoom & headroom sliders, keyframe setting, revision modal, and 1-click render.
+- [x] **Automated Testing:** 34/34 backend pytest tests pass (100%), 36/36 frontend vitest tests pass (100%), and TypeScript compilation compiles with 0 errors.
+- [x] **Real Video Scenario Validation:** Validated against 3 diverse test scenarios (Single Moving Subject, Two People Conversing, and 2.4:1 Letterbox with Scene Cut), rendering vertical 1080x1920 MP4s and generating visual contact sheets.

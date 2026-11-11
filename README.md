@@ -131,6 +131,19 @@ npm test
 
 ---
 
+## Smart Reframing, Subject Tracking & Portrait Composition (Milestone 7)
+
+- **CPU-First Subject Tracking:** OpenCV Haar Cascades (`haarcascade_frontalface_default.xml`, `haarcascade_profileface.xml`, `haarcascade_upperbody.xml`) combined with saliency fallback, temporal IoU/centroid association across frames, and 1.2-second gap bridging.
+- **Authoritative Crop Geometry:** Computes vertical `9:16`, square `1:1`, and landscape `16:9` crops with even integer dimensions, minimum subject framing, and strict boundary clamping ($0 \le x \le W-w$, $0 \le y \le H-h$).
+- **Intelligent Framing Strategies:** Supports `single_subject`, `two_person` (joint conversational framing bounding both speakers), `group`, and centered `fallback` strategies with adjustable headroom factor ($0.0 \dots 0.4$) and base zoom.
+- **Velocity-Constrained Smoothing & Scene-Cut Isolation:** Smooths camera trajectory with windowed moving averages while enforcing `max_pan_velocity` limits. Strictly terminates and resets tracking across visual scene cuts, preventing unnatural sliding pans across shots.
+- **Preview / Renderer Mathematical Parity:** Both `FramingEngine.interpolate_crop_at(t)` (used in the interactive review UI) and `build_crop_filter_expression(keyframes)` (used in FFmpeg rendering) consume identical piecewise linear interpolation equations, guaranteeing that the preview canvas matches the rendered MP4 pixel-for-pixel.
+- **Dynamic FFmpeg Filtergraph Rendering:** Renders full-resolution vertical videos using time-varying `crop=w:h:x:y` expressions and high-quality libx264 encoding with audio sync.
+- **Non-Destructive Revision History:** Every manual crop override creates a new versioned revision in `reframing_revisions` while retaining prior revisions with 1-click restore.
+- **Reframing Review Workspace UI:** Dual synchronized viewports (Source Landscape with animated crop box & detected subject overlays, alongside True 9:16 Portrait Canvas), pan offset buttons/sliders, zoom & headroom controls, keyframe toggles, revision history drawer, and one-click render trigger.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)

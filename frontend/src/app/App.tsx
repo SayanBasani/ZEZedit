@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
   AlertCircle,
+  Camera,
   ChevronLeft,
   ChevronRight,
   Film,
@@ -26,6 +27,7 @@ import { FoundationOverview } from '../features/dashboard/FoundationOverview';
 import { MediaLibraryView } from '../features/media/MediaLibraryView';
 import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
 import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace';
+import { ReframingWorkspace } from '../features/reframing/ReframingWorkspace';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -48,6 +50,7 @@ export type NavSection =
   | 'media'
   | 'analysis'
   | 'highlights'
+  | 'reframing'
   | 'timeline'
   | 'ai-editor'
   | 'characters'
@@ -268,6 +271,18 @@ export const App: React.FC = () => {
           />
 
           <SidebarNavButton
+            active={activeTab === 'reframing'}
+            collapsed={sidebarCollapsed}
+            icon={<Camera className="w-4 h-4 text-emerald-400" />}
+            label="Smart Reframing"
+            badge="M7"
+            onClick={() => {
+              setActiveTab('reframing');
+              setMobileMenuOpen(false);
+            }}
+          />
+
+          <SidebarNavButton
             active={activeTab === 'timeline'}
             collapsed={sidebarCollapsed}
             icon={<Scissors className="w-4 h-4" />}
@@ -371,6 +386,8 @@ export const App: React.FC = () => {
                 ? 'Video Analysis Workspace'
                 : activeTab === 'highlights'
                 ? 'AI Highlights & Shorts Studio'
+                : activeTab === 'reframing'
+                ? 'Smart Reframing & Subject Tracking Studio'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -497,6 +514,23 @@ export const App: React.FC = () => {
                 setActiveTab('analysis');
               }}
             />
+          )}
+
+          {activeTab === 'reframing' && (
+            (analysisAsset || projectMedia[0]) ? (
+              <ReframingWorkspace
+                projectId={selectedProjectId || (projects[0]?.id || '')}
+                mediaAsset={analysisAsset || projectMedia[0]}
+                onBack={() => setActiveTab('highlights')}
+              />
+            ) : (
+              <div className="p-8 text-center text-text-muted">
+                <p>Please import or select a video asset to open the Smart Reframing Studio.</p>
+                <Button className="mt-4" size="sm" onClick={() => setActiveTab('media')}>
+                  Go to Media Library
+                </Button>
+              </div>
+            )
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

@@ -123,3 +123,31 @@ flowchart TD
 6. **Visual Understanding (`visual_understanding.py`):** Queries local Ollama (`qwen3-vl:4b-instruct`) for factual observations (setting, subjects, text, activity) with graceful deterministic heuristic fallback when Ollama is offline or uninstalled.
 7. **Temporal Aggregator (`temporal_aggregator.py`):** Unifies scenes, speech turns, transcript segments, and visual observations into high-speed temporal window queries (`get_temporal_context_at`).
 8. **Analysis Workspace (`AnalysisWorkspace.tsx`):** Split-view UI with synchronized player, interactive scrub bar, searchable transcript, scene cuts strip, and live context inspector.
+
+---
+
+## 6. Smart Reframing & Dynamic Crop Renderer (Milestone 7)
+
+```mermaid
+flowchart TD
+    Video["Source Video (Landscape / 2.4:1 / 4:3)"] --> Tracker["OpenCV Haar Cascades + Saliency Tracking"]
+    Tracker --> Assoc["IoU / Centroid Association (1.2s gap bridging)"]
+    Assoc --> Engine["Framing Engine (Target Aspect, Headroom, Bounds Clamping)"]
+    Engine --> Smooth["Velocity-Constrained Moving Average (Scene Cut Breaks)"]
+    Smooth --> Plan["Reframing Plan & Keyframes (DB 0006)"]
+    Plan --> Preview["Live Preview (interpolate_crop_at)"]
+    Plan --> Renderer["Dynamic FFmpeg Filtergraph (crop=w:h:x:y)"]
+    Preview --> Parity["Mathematical WYSIWYG Parity"]
+    Renderer --> Parity
+    Renderer --> Output["Vertical 9:16 Video (storage/shorts/{proj}/{id}.mp4)"]
+    Manual["Manual Pan/Zoom/Keyframe Overrides"] --> NewRev["New Revision (reframing_revisions)"]
+    NewRev --> Plan
+```
+
+### Components
+1. **Subject Tracker (`subject_tracker.py`):** Multi-cascade face and upper-body detector with OpenCV saliency fallback. Associates detections across sampled intervals, bridges momentary occlusions up to 1.2s, and halts tracks at scene cuts.
+2. **Framing Engine (`framing_engine.py`):** Computes aspect crops (`9:16`, `1:1`, `16:9`) respecting target aspect ratio, even integer constraints, and strict video boundary clamping. Implements single-subject, two-person conversation framing, and fallback strategies.
+3. **Trajectory Smoothing:** Windowed moving average with `max_pan_velocity` limits. Splits trajectory by scene cuts so camera position steps instantly across shots without blurry pans.
+4. **Authoritative Crop Parity:** `FramingEngine.interpolate_crop_at(t)` and `build_crop_filter_expression(keyframes)` use identical piecewise-linear mathematics.
+5. **FFmpeg Piecewise-Linear Renderer (`reframing_renderer.py`):** Compiles keyframes into time-varying FFmpeg crop expressions (`crop=w:h:x:y`), applies `scale=1080:1920`, encodes with `libx264` (`yuv420p`), synchronizes audio, and executes post-render FFprobe verification.
+6. **Non-Destructive Revisions & UI:** User edits generate versioned revisions in `reframing_revisions`. Dual viewports (Source with dynamic overlay + 9:16 Canvas) in `ReframingWorkspace.tsx` allow real-time adjustment and one-click render.

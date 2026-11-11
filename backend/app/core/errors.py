@@ -88,6 +88,18 @@ class NotFoundError(AppError):
         )
 
 
+class ValidationError(AppError):
+    """Raised when input parameters, coordinates, or interval values are invalid."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            code="VALIDATION_ERROR",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details,
+        )
+
+
 class ProcessingError(AppError):
     """Raised when media processing, transcription, or vision extraction fails."""
 

@@ -14,6 +14,12 @@ import {
   UpdateCandidatePayload,
 } from '../types/highlights';
 import {
+  CropPreviewData,
+  ReframingPlanItem,
+  ReframingRevisionItem,
+  RenderResultPayload,
+} from '../types/reframing';
+import {
   AppSettingsData,
   JobItem,
   JobListResponse,
@@ -449,3 +455,110 @@ export function fetchCandidateAlternatives(
 ): Promise<CandidateItem[]> {
   return request<CandidateItem[]>(`/projects/${projectId}/highlights/${candidateId}/alternatives`);
 }
+
+// ==================== SMART REFRAMING & PORTRAIT COMPOSITION ====================
+export function analyzeReframing(
+  projectId: string,
+  mediaAssetId: string,
+  options: {
+    candidate_id?: string;
+    target_aspect_ratio?: string;
+    framing_strategy?: string;
+    base_zoom?: number;
+    headroom_factor?: number;
+    smoothing_window?: number;
+  } = {}
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(
+    `/projects/${projectId}/media/${mediaAssetId}/reframing/analyze`,
+    {
+      method: 'POST',
+      body: JSON.stringify(options),
+    },
+    60000
+  );
+}
+
+export function fetchReframingPlan(
+  projectId: string,
+  planId: string
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(`/projects/${projectId}/reframing/${planId}`);
+}
+
+export function fetchCropPreview(
+  projectId: string,
+  planId: string,
+  timestamp: number
+): Promise<CropPreviewData> {
+  return request<CropPreviewData>(
+    `/projects/${projectId}/reframing/${planId}/preview?timestamp=${timestamp}`
+  );
+}
+
+export function saveCropOverrides(
+  projectId: string,
+  planId: string,
+  overrides: Array<{
+    timestamp: number;
+    crop_x?: number;
+    crop_y?: number;
+    zoom?: number;
+    headroom?: number;
+    target_center_x?: number;
+    target_center_y?: number;
+    action?: string;
+  }>,
+  revisionLabel?: string
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(`/projects/${projectId}/reframing/${planId}/overrides`, {
+    method: 'POST',
+    body: JSON.stringify({
+      manual_overrides: overrides,
+      revision_label: revisionLabel,
+    }),
+  });
+}
+
+export function fetchReframingRevisions(
+  projectId: string,
+  planId: string
+): Promise<ReframingRevisionItem[]> {
+  return request<ReframingRevisionItem[]>(`/projects/${projectId}/reframing/${planId}/revisions`);
+}
+
+export function restoreReframingRevision(
+  projectId: string,
+  planId: string,
+  revisionId: string
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(
+    `/projects/${projectId}/reframing/${planId}/revisions/${revisionId}/restore`,
+    { method: 'POST' }
+  );
+}
+
+export function renderReframingRevision(
+  projectId: string,
+  planId: string,
+  revisionId?: string
+): Promise<RenderResultPayload> {
+  return request<RenderResultPayload>(
+    `/projects/${projectId}/reframing/${planId}/render`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ revision_id: revisionId }),
+    },
+    120000
+  );
+}
+
+export function getRenderedVideoUrl(
+  projectId: string,
+  planId: string,
+  revisionId?: string
+): string {
+  const qs = revisionId ? `?revision_id=${revisionId}` : '';
+  return `${API_BASE}/projects/${projectId}/reframing/${planId}/video${qs}`;
+}
+

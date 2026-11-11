@@ -89,9 +89,17 @@ All unhandled exceptions, Pydantic `RequestValidationError`s, and domain `AppErr
   - `POST /api/v1/projects/{pid}/highlights/{cid}/queue-render` — Toggle candidate inclusion in Shorts render queue.
   - `POST /api/v1/projects/{pid}/highlights/bulk-review` — Perform bulk approval, rejection, or restoration across candidate IDs.
   - `GET /api/v1/projects/{pid}/highlights/{cid}/alternatives` — Retrieve alternative temporal cuts (IoU $\ge 0.65$) sharing `overlap_group_id`.
+- **Smart Reframing & Dynamic Crop (M7):**
+  - `POST /api/v1/projects/{pid}/media/{aid}/reframing/analyze` — Run OpenCV subject tracking and generate authoritative reframing plan (`9:16`, `1:1`, `16:9`).
+  - `GET /api/v1/projects/{pid}/reframing/{plan_id}` — Retrieve active reframing plan, keyframes, smoothing config, and active revision ID.
+  - `GET /api/v1/projects/{pid}/reframing/{plan_id}/preview?timestamp={t}` — Live mathematical preview crop geometry and active subjects at timestamp $t$.
+  - `POST /api/v1/projects/{pid}/reframing/{plan_id}/overrides` — Save manual pan offset, zoom, and headroom adjustments; creates new versioned revision in `reframing_revisions`.
+  - `GET /api/v1/projects/{pid}/reframing/{plan_id}/revisions` — List all immutable historical revisions for this plan.
+  - `POST /api/v1/projects/{pid}/reframing/{plan_id}/revisions/{rev_id}/restore` — Restore prior revision keyframes and parameters.
+  - `POST /api/v1/projects/{pid}/reframing/{plan_id}/render` — Execute real FFmpeg filtergraph render producing vertical MP4 in `storage/shorts/`.
+  - `GET /api/v1/projects/{pid}/reframing/{plan_id}/video` — Stream rendered reframed vertical video with HTTP 206 byte-range support.
 
-### Planned Endpoints (Milestones 7–11)
-- **Smart Reframing (M7):** `/api/v1/projects/{id}/shorts/{short_id}/reframing`, `/api/v1/projects/{id}/reframing/preview-frame`, `/api/v1/projects/{id}/shorts/{short_id}/revisions`
+### Planned Endpoints (Milestones 8–11)
 - **Timeline Editor (M8):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
 - **AI Video Editor (M9):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
 - **Character Extraction (M10):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`

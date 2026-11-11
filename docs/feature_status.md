@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-12  
-**Active Milestone:** Milestone 6 Completed — AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking
+**Active Milestone:** Milestone 7 Completed — Smart Reframing, Subject Tracking & Portrait Composition
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -112,11 +112,28 @@ Status legend:
 
 ---
 
+## Smart Reframing, Subject Tracking & Portrait Composition (Milestone 7)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M7-01 | Database Migration `0006_smart_reframing.sql` | DB / Migrations | Implemented | `backend/migrations/0006_smart_reframing.sql` | Schema for `reframing_plans` and `reframing_revisions` with range indexing |
+| M7-02 | Subject Detection & Tracking Service | Reframing Engine | Implemented | `backend/app/services/subject_tracker.py` | CPU-first OpenCV Haar Cascades (frontal/profile face, upper body), saliency fallback, IoU/centroid association, 1.2s gap bridging |
+| M7-03 | Framing Engine & Geometry Resolution | Reframing Engine | Implemented | `backend/app/services/framing_engine.py` | Aspect ratios (9:16, 1:1, 16:9), even integer dimension clamping, single/two-person/group strategies, headroom factor |
+| M7-04 | Velocity-Constrained Dynamic Crop Smoothing | Reframing Engine | Implemented | `backend/app/services/framing_engine.py` | Window-weighted smoothing with `max_pan_velocity` limits, strict scene-cut isolation (instant step, zero blurring across cuts) |
+| M7-05 | Preview / Renderer Mathematical Parity | Reframing Engine | Implemented | `backend/app/services/framing_engine.py`, `backend/app/services/reframing_renderer.py` | Consumes identical piecewise linear interpolation formula `interpolate_crop_at(t)` and filter expressions |
+| M7-06 | Dynamic FFmpeg Filtergraph Renderer | Reframing Engine | Implemented | `backend/app/services/reframing_renderer.py` | Piecewise-linear time-varying crop filter (`crop=w:h:x:y`), scale to target (1080x1920), libx264, yuv420p, audio sync |
+| M7-07 | Non-Destructive Revision History Ledger | Reframing Services | Implemented | `backend/app/services/reframing_service.py` | Versioned plan revisions, manual override retention, restore revision, render dispatch |
+| M7-08 | Smart Reframing REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/reframing.py` | Analyze plan, preview crop, manual override patch, revisions list, restore revision, render revision, video stream |
+| M7-09 | Reframing Review Workspace Frontend | Features / Reframing | Implemented | `frontend/src/features/reframing/ReframingWorkspace.tsx` | Dual viewports (source landscape overlay & true 9:16 portrait viewport), manual crop sliders, zoom/headroom, revisions modal, render trigger |
+| M7-10 | Backend Automated Test Suite (6 tests) | Testing | Implemented | `backend/tests/test_milestone7_reframing.py` | Geometry, strategies, smoothing, expression parity, real FFmpeg rendering, API lifecycle & revisions (100% pass) |
+| M7-11 | Frontend Vitest Test Suite (5 tests) | Testing | Implemented | `frontend/src/test/reframing.test.tsx` | Dual viewports, manual adjustment, revision drawer, restore revision, render action (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-E1 | Dynamic Subject Tracking, Portrait Crop Math Parity & Manual Revisions | E: Reframing | Planned | Milestone 7 |
 | MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 8 |
 | MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 9 |
 | MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 10 |

@@ -92,6 +92,10 @@ erDiagram
 5. **`0005_highlight_candidates.sql`**:
    - `shorts_candidates`: Shorts clip records with boundaries (`start_time`, `end_time`, `suggested_start_time`, `suggested_end_time`, `is_user_modified`), scores (`quality_score`, `score_breakdown_json`), gates (`gate_results_json`, `warnings_json`, `missing_evidence_json`, `review_status`, `rejection_reason`), citations (`transcript_references_json`, `scene_references_json`, `visual_evidence_json`, `audio_evidence_json`, `ai_explanation_json`), overlap tracking (`overlap_group_id`, `alternative_of_candidate_id`), `scoring_version="2.0.0-m6"`, and `queued_for_render`.
 
+6. **`0006_smart_reframing.sql`**:
+   - `reframing_plans`: Primary reframing plan for a media asset (`id`, `project_id`, `media_asset_id`, `target_aspect_ratio`, `framing_strategy`, `base_zoom`, `headroom_factor`, `smoothing_window`, `tracking_data_json`, `keyframes_json`, `active_revision_id`, `created_at`, `updated_at`).
+   - `reframing_revisions`: Immutable versioned ledger of reframing iterations (`id`, `plan_id`, `project_id`, `revision_number`, `note`, `keyframes_json`, `manual_overrides_json`, `rendered_output_path`, `render_status`, `created_at`).
+
 ---
 
 ### Planned Tables for Subsequent Milestones (Schema Blueprint)
