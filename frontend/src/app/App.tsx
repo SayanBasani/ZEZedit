@@ -28,6 +28,7 @@ import { MediaLibraryView } from '../features/media/MediaLibraryView';
 import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
 import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace';
 import { ReframingWorkspace } from '../features/reframing/ReframingWorkspace';
+import { ExportStudio } from '../features/exports/ExportStudio';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -283,6 +284,18 @@ export const App: React.FC = () => {
           />
 
           <SidebarNavButton
+            active={activeTab === 'exports'}
+            collapsed={sidebarCollapsed}
+            icon={<Film className="w-4 h-4 text-purple-400" />}
+            label="Shorts Export"
+            badge="M8"
+            onClick={() => {
+              setActiveTab('exports');
+              setMobileMenuOpen(false);
+            }}
+          />
+
+          <SidebarNavButton
             active={activeTab === 'timeline'}
             collapsed={sidebarCollapsed}
             icon={<Scissors className="w-4 h-4" />}
@@ -388,6 +401,8 @@ export const App: React.FC = () => {
                 ? 'AI Highlights & Shorts Studio'
                 : activeTab === 'reframing'
                 ? 'Smart Reframing & Subject Tracking Studio'
+                : activeTab === 'exports'
+                ? 'Shorts Rendering & Export Studio'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -531,6 +546,19 @@ export const App: React.FC = () => {
                 </Button>
               </div>
             )
+          )}
+
+          {activeTab === 'exports' && (
+            <ExportStudio
+              projectId={selectedProjectId || (projects[0]?.id || '')}
+              mediaAssets={projectMedia}
+              onNavigateToHighlights={() => setActiveTab('highlights')}
+              onNavigateToReframing={(aid) => {
+                const found = projectMedia.find((m) => m.id === aid);
+                if (found) setAnalysisAsset(found);
+                setActiveTab('reframing');
+              }}
+            />
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

@@ -62,6 +62,9 @@ def create_app(settings_override: Optional[Settings] = None) -> FastAPI:
         lifespan=lifespan,
     )
 
+    app.state.settings = settings
+    app.state.storage = StorageLayout.from_root(settings.storage_root)
+
     register_exception_handlers(app)
 
     app.add_middleware(

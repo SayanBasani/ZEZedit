@@ -96,6 +96,9 @@ erDiagram
    - `reframing_plans`: Primary reframing plan for a media asset (`id`, `project_id`, `media_asset_id`, `target_aspect_ratio`, `framing_strategy`, `base_zoom`, `headroom_factor`, `smoothing_window`, `tracking_data_json`, `keyframes_json`, `active_revision_id`, `created_at`, `updated_at`).
    - `reframing_revisions`: Immutable versioned ledger of reframing iterations (`id`, `plan_id`, `project_id`, `revision_number`, `note`, `keyframes_json`, `manual_overrides_json`, `rendered_output_path`, `render_status`, `created_at`).
 
+7. **`0007_export_pipeline.sql`**:
+   - `exports`: Rendered export metadata and status tracking (`id`, `project_id`, `candidate_id`, `media_asset_id`, `reframing_plan_id`, `framing_revision_id`, `render_job_id`, `title`, `export_preset`, `target_aspect_ratio`, `target_width`, `target_height`, `video_codec`, `audio_codec`, `pixel_fmt`, `fps`, `crf`, `video_bitrate`, `audio_bitrate`, `caption_config_json`, `audio_config_json`, `output_path`, `output_filename`, `file_size_bytes`, `duration_seconds`, `status`, `validation_status`, `validation_details_json`, `error_message`, `created_at`, `completed_at`).
+
 ---
 
 ### Planned Tables for Subsequent Milestones (Schema Blueprint)

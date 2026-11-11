@@ -144,6 +144,33 @@ npm test
 
 ---
 
+## Rendering Engine, Export Pipeline & Automatic Shorts Generation (Milestone 8)
+
+- **Standard Export Presets:**
+  - *YouTube Shorts / Instagram Reels (`shorts_reels_9_16`):* Vertical 1080x1920, H.264 (`yuv420p`), AAC stereo 48 kHz.
+  - *Widescreen Landscape (`landscape_16_9`):* Standard 1920x1080, H.264, AAC stereo.
+  - *Square Social (`square_1_1`):* Square 1080x1080, H.264, AAC stereo.
+- **Dynamic Smart Reframing Integration:** Directly consumes piecewise-linear crop expressions from Milestone 7 with automatic target scaling and scene-cut isolation.
+- **Configurable Caption & Subtitle Engine:**
+  - Converts Whisper word timestamps into Advanced Substation Alpha (`.ass`) subtitle files.
+  - Modes: `none`, `word_highlight` (TikTok-style karaoke spoken-word color highlights), `phrase` (3–5 word bursts), `sentence` (speech turns), and `standard`.
+  - Full customization: font family, point size, bold, base text color, highlight color, outline width, drop shadow, and safe bottom margins.
+- **Audio Processing Pipeline:**
+  - Volume scaling ($0.0 \dots 2.0\times$), linear fade-in and fade-out buffers.
+  - Optional broadcast-standard EBU R128 loudness normalization (`loudnorm=I=-16:TP=-1.5:LRA=11`).
+  - Automatic silent stereo audio synthesis (`anullsrc`) for video-only source media.
+- **15-Stage Modular Pipeline:** Request validation $\to$ Candidate resolution $\to$ Media verification $\to$ Framing keyframes $\to$ Filtergraph compilation $\to$ Subtitle generation $\to$ Audio filtering $\to$ FFmpeg execution $\to$ Output validation gate $\to$ Publishing to `storage/exports/`.
+- **Subprocess Tracking & Clean Cancellation:** Active render jobs track `subprocess.Popen` PIDs and parse real-time progress percentages from `out_time_us`. Cancellation gracefully terminates the process tree and purges scratch files.
+- **Output Validation Gate:** Post-render inspection via FFprobe verifying file existence, non-zero size, container readability, resolution, duration tolerances ($\pm 0.5$s), codec compliance, and test frame decoding.
+- **Shorts Export Studio Workspace (`ExportStudio.tsx`):** Split layout with candidate selector, profile cards, caption/audio styling accordions, live animated progress monitor, HTML5 player with HTTP 206 byte-range seeking, and export history.
+
+### Troubleshooting & Common Issues
+- **Subtitles not appearing:** Ensure analysis transcript has completed (`status="completed"`) and candidate interval falls within speech segments.
+- **Source video has no audio:** The engine automatically synthesizes an aligned silent stereo track so exports comply with YouTube Shorts / Reels audio requirements.
+- **FFmpeg path override:** Set `ZEZEDIT_FFMPEG_PATH` and `ZEZEDIT_FFPROBE_PATH` in `.env` if using a custom build.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)

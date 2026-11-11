@@ -115,7 +115,8 @@ All features MUST comply with these baseline constraints:
 - **Milestone 5 (Completed):** Video Analysis Engine (FFmpeg Scenes, Faster-Whisper CPU Transcription, Frame Sampling, Ollama/Fallback Visual Understanding, Multimodal Context Aggregation).
 - **Milestone 6 (Completed):** AI Highlight Discovery, Contextual Clip Selection, Explainable 9-Component Scoring Engine, Quality Gates & Shorts Candidate Studio.
 - **Milestone 7 (Completed):** Smart Reframing Engine, CPU-First Subject Tracking, Dynamic Trajectory Smoothing, Scene-Cut Isolation, Preview/Render Math Parity, Dual Viewports Review Workspace, Non-Destructive Revisions & Real FFmpeg Rendering.
-- **Milestone 8 (Next):** Multi-Track Timeline Editor (Shared Model, Bounded NLE UI, Undo/Redo, Autosave).
-- **Milestone 9:** Conversational AI Video Editor (Intent Router, Schema-Validated Edit Plans, Safe Executor).
-- **Milestone 10:** Character Extraction Studio & Persistent Character Library.
-- **Milestone 11:** Final Export Manager, Effects/Captions/Audio Polish, Backup/Restore & End-to-End Verification.
+- **Milestone 8 (Completed):** Rendering Engine, Export Pipeline & Automatic Shorts Generation (15-Stage Modular Pipeline, Presets, Caption & ASS Subtitle Engine, Audio Processing, Process Tracking, Output Validation Gate, Export Studio).
+- **Milestone 9 (Next):** Multi-Track Timeline Editor (Shared Model, Bounded NLE UI, Undo/Redo, Autosave).
+- **Milestone 10:** Conversational AI Video Editor (Intent Router, Schema-Validated Edit Plans, Safe Executor).
+- **Milestone 11:** Character Extraction Studio & Persistent Character Library.
+- **Milestone 12:** Final Packaging, Multi-Format Archiving & Project Backup.

@@ -151,3 +151,29 @@ flowchart TD
 4. **Authoritative Crop Parity:** `FramingEngine.interpolate_crop_at(t)` and `build_crop_filter_expression(keyframes)` use identical piecewise-linear mathematics.
 5. **FFmpeg Piecewise-Linear Renderer (`reframing_renderer.py`):** Compiles keyframes into time-varying FFmpeg crop expressions (`crop=w:h:x:y`), applies `scale=1080:1920`, encodes with `libx264` (`yuv420p`), synchronizes audio, and executes post-render FFprobe verification.
 6. **Non-Destructive Revisions & UI:** User edits generate versioned revisions in `reframing_revisions`. Dual viewports (Source with dynamic overlay + 9:16 Canvas) in `ReframingWorkspace.tsx` allow real-time adjustment and one-click render.
+
+---
+
+## 7. Rendering Engine & Export Pipeline (Milestone 8)
+
+```mermaid
+flowchart TD
+    Candidate["Approved Candidate (start_time, end_time)"] --> Stage1["1. Validate Request & Bounds"]
+    Stage1 --> Stage2["2. Resolve Original Media"]
+    Stage2 --> Stage3["3. Load Framing Keyframes (M7)"]
+    Stage3 --> Stage4["4. Compile Piecewise Dynamic Crop"]
+    Stage4 --> Stage5["5. Apply Scaling (1080x1920 / 1920x1080 / 1080x1080)"]
+    Stage5 --> Stage6["6. ASS Subtitle Engine (Word-Highlight / Phrase / Sentence)"]
+    Stage6 --> Stage7["7. Audio Pipeline (Volume / Fades / EBU R128 / Silent Fallback)"]
+    Stage7 --> Stage8["8. Subprocess Execution & Progress Tracking (out_time_us)"]
+    Stage8 --> Stage9["9. Output Validator (FFprobe & Frame Decoding)"]
+    Stage9 --> Stage10["10. Publish to storage/exports/ and DB 0007"]
+```
+
+### Components
+1. **Export Presets (`export.py`):** Standard profiles for YouTube Shorts/Reels (`1080x1920`), Widescreen (`1920x1080`), and Square (`1080x1080`).
+2. **Caption Engine (`caption_engine.py`):** Generates `.ass` subtitles with word-by-word highlight colors (`{\c&H...&}`), phrase bursts, sentences, custom fonts, outline/shadow, and safe bottom margins.
+3. **Audio Pipeline (`audio_pipeline.py`):** Implements linear volume scaling, audio fade-in/out, EBU R128 loudness normalization, 48kHz stereo resampling, and synthesizes silent stereo audio if source is video-only.
+4. **15-Stage Modular Coordinator (`export_service.py`):** Manages end-to-end rendering in temporary scratch spaces, streaming progress to `JobOrchestrator`, tracking PIDs, and handling cancellation.
+5. **Output Validator Gate (`output_validator.py`):** Validates file existence, non-zero size, container readability, resolution, duration tolerances, and tests frame decodability via FFmpeg null sink.
+6. **Shorts Export Studio (`ExportStudio.tsx`):** Split-view frontend with configuration tabs, live progress monitoring, HTML5 video player, and export history.

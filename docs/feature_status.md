@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-12  
-**Active Milestone:** Milestone 7 Completed — Smart Reframing, Subject Tracking & Portrait Composition
+**Active Milestone:** Milestone 8 Completed — Rendering Engine, Export Pipeline & Automatic Shorts Generation
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -130,11 +130,29 @@ Status legend:
 
 ---
 
+## Rendering Engine, Export Pipeline & Automatic Shorts Generation (Milestone 8)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M8-01 | Database Migration `0007_export_pipeline.sql` | DB / Migrations | Implemented | `backend/migrations/0007_export_pipeline.sql` | Schema for `exports` table with preset, configuration JSON, validation details, and indexes |
+| M8-02 | Standard Export Presets Catalog | Export Services | Implemented | `backend/app/models/export.py` | YouTube Shorts / Reels (9:16), Landscape (16:9), Square Social (1:1) with CRF and codec defaults |
+| M8-03 | Configurable Caption & Subtitle Engine | Export Services | Implemented | `backend/app/services/caption_engine.py` | ASS subtitle generator supporting word-highlight, phrase bursts, sentences, styling, and safe margins |
+| M8-04 | Audio Processing & Fallback Synthesis | Export Services | Implemented | `backend/app/services/audio_pipeline.py` | Volume controls, fade in/out, EBU R128 loudness normalization, resample 48kHz, silent audio fallback |
+| M8-05 | 15-Stage Modular Rendering Pipeline | Export Services | Implemented | `backend/app/services/export_service.py` | End-to-end coordinator integrating smart reframing keyframes, scaling, ASS burn-in, audio, and publishing |
+| M8-06 | Subprocess Tracking & Real Process Cancellation | Export Services | Implemented | `backend/app/services/export_service.py` | Popen process registration, real-time progress parsing (`out_time_us`), and graceful process termination |
+| M8-07 | Post-Render Output Validation Gate | Export Services | Implemented | `backend/app/services/output_validator.py` | Rigorous FFprobe stream inspection (dimensions, duration tolerance, codecs) + test frame decoding |
+| M8-08 | Export REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/exports.py` | Presets, submit render, fast preview, list exports, export details, cancel, delete, HTTP 206 video stream |
+| M8-09 | Frontend Shorts Export Studio Workspace | Features / Exports | Implemented | `frontend/src/features/exports/ExportStudio.tsx` | Preset selector, caption customization, audio sliders, live progress monitor, video player, export history |
+| M8-10 | Backend Automated Pytest Suite (7 tests) | Testing | Implemented | `backend/tests/test_milestone8_export.py` | Presets, captions, audio filters, validation gate, full render, API lifecycle, cancellation (100% pass) |
+| M8-11 | Frontend Vitest Test Suite (5 tests) | Testing | Implemented | `frontend/src/test/exports.test.tsx` | Studio rendering, tab switching, caption styling, render job monitor, export history (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 8 |
-| MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 9 |
-| MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 10 |
-| MOD-I1 | Multi-Format Rendering, Output Validation, Captions & Export Manager | I: Export | Planned | Milestone 11 |
+| MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 9 |
+| MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 10 |
+| MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 11 |
+| MOD-I1 | Final Packaging, Multi-Format Archiving & Project Backup | I: Export | Planned | Milestone 12 |

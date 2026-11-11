@@ -257,6 +257,10 @@ export function fetchJobs(projectId?: string): Promise<JobListResponse> {
   return request<JobListResponse>(`/jobs${q}`);
 }
 
+export function fetchJob(jobId: string): Promise<JobItem> {
+  return request<JobItem>(`/jobs/${jobId}`);
+}
+
 export function cancelJob(jobId: string): Promise<JobItem> {
   return request<JobItem>(`/jobs/${jobId}/cancel`, { method: 'POST' });
 }
@@ -561,4 +565,82 @@ export function getRenderedVideoUrl(
   const qs = revisionId ? `?revision_id=${revisionId}` : '';
   return `${API_BASE}/projects/${projectId}/reframing/${planId}/video${qs}`;
 }
+
+// ==================== RENDERING ENGINE, EXPORT & SHORTS ====================
+import {
+  ExportItem,
+  ExportPresetItem,
+  RenderExportPayload,
+} from '../types/exports';
+
+export function fetchExportPresets(projectId: string): Promise<ExportPresetItem[]> {
+  return request<ExportPresetItem[]>(`/projects/${projectId}/exports/presets`);
+}
+
+export function submitExportRender(
+  projectId: string,
+  payload: RenderExportPayload,
+  runSynchronously: boolean = false
+): Promise<{ export_id: string; job_id: string; status: string; output_filename: string }> {
+  const qs = runSynchronously ? '?run_synchronously=true' : '';
+  return request<{ export_id: string; job_id: string; status: string; output_filename: string }>(
+    `/projects/${projectId}/exports/render${qs}`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    runSynchronously ? 180000 : 30000
+  );
+}
+
+export function submitExportPreview(
+  projectId: string,
+  payload: RenderExportPayload
+): Promise<{ export_id: string; job_id: string; status: string; preview_result: any }> {
+  return request<{ export_id: string; job_id: string; status: string; preview_result: any }>(
+    `/projects/${projectId}/exports/preview`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    90000
+  );
+}
+
+export function fetchProjectExports(
+  projectId: string,
+  candidateId?: string
+): Promise<{ items: ExportItem[]; count: number }> {
+  const qs = candidateId ? `?candidate_id=${candidateId}` : '';
+  return request<{ items: ExportItem[]; count: number }>(`/projects/${projectId}/exports${qs}`);
+}
+
+export function fetchExportDetails(projectId: string, exportId: string): Promise<ExportItem> {
+  return request<ExportItem>(`/projects/${projectId}/exports/${exportId}`);
+}
+
+export function cancelExportRender(
+  projectId: string,
+  exportId: string
+): Promise<{ export_id: string; job_id: string; status: string }> {
+  return request<{ export_id: string; job_id: string; status: string }>(
+    `/projects/${projectId}/exports/${exportId}/cancel`,
+    { method: 'POST' }
+  );
+}
+
+export function deleteExport(
+  projectId: string,
+  exportId: string
+): Promise<{ export_id: string; deleted: boolean }> {
+  return request<{ export_id: string; deleted: boolean }>(
+    `/projects/${projectId}/exports/${exportId}`,
+    { method: 'DELETE' }
+  );
+}
+
+export function getExportVideoUrl(projectId: string, exportId: string): string {
+  return `${API_BASE}/projects/${projectId}/exports/${exportId}/video`;
+}
+
 

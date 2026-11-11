@@ -127,3 +127,19 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] **Reframing Review Workspace UI:** Dual viewports (Source Landscape with animated crop box + Subject Overlays, and True 9:16 Portrait Canvas), horizontal pan offset controls, zoom & headroom sliders, keyframe setting, revision modal, and 1-click render.
 - [x] **Automated Testing:** 34/34 backend pytest tests pass (100%), 36/36 frontend vitest tests pass (100%), and TypeScript compilation compiles with 0 errors.
 - [x] **Real Video Scenario Validation:** Validated against 3 diverse test scenarios (Single Moving Subject, Two People Conversing, and 2.4:1 Letterbox with Scene Cut), rendering vertical 1080x1920 MP4s and generating visual contact sheets.
+
+---
+
+## Milestone 8: Rendering Engine, Export Pipeline & Automatic Shorts Generation Checklist
+
+- [x] **Database Schema & Migrations:** Forward-only migration `0007_export_pipeline.sql` creates `exports` table with preset, configuration JSON, validation details, and indexes.
+- [x] **Configurable Export Presets:** Implements YouTube Shorts / Reels (9:16 portrait, 1080x1920), Landscape Widescreen (16:9, 1920x1080), and Square Social (1:1, 1080x1080) with H.264/AAC.
+- [x] **Smart Reframing Integration:** Renderer consumes authoritative dynamic crop keyframes from Milestone 7 with piecewise-linear interpolation and scene-cut isolation.
+- [x] **Caption & Subtitle Engine:** Compiles Advanced Substation Alpha (`.ass`) subtitles from Whisper word timestamps across modes (`none`, `standard`, `word_highlight`, `phrase`, `sentence`) with custom fonts, colors, and safe margins.
+- [x] **Audio Processing Pipeline:** Volume adjustment, fade-in, fade-out, EBU R128 loudness normalization, and synthetic silent audio track synthesis for videos without audio.
+- [x] **15-Stage Modular Renderer:** Validates requests, resolves media, loads framing keyframes, compiles filtergraphs, generates ASS captions, executes FFmpeg with real-time progress parsing, validates outputs, and publishes exports.
+- [x] **Process Tree Tracking & Cancellation:** Registers active `subprocess.Popen` objects by `job_id`, updates job progress from `out_time_us`, and terminates running FFmpeg processes upon user cancellation.
+- [x] **Post-Render FFprobe & Decode Verification:** Validates duration tolerance, resolution, video codec, audio codec, and confirms 100% stream decodability before marking export valid.
+- [x] **Frontend Shorts Export Studio:** Full export workspace featuring candidate selector, preset cards, caption/audio configuration accordions, live job monitor, HTML5 player, and export history.
+- [x] **Automated Testing:** 41/41 backend Pytest tests pass (100%), 41/41 frontend Vitest tests pass (100%), and Vite production build succeeds with 0 errors.
+- [x] **Real Video Scenario Validation:** Three distinct scenarios (Single-Person, Multi-Person Conversation, Ultrawide 2.4:1 Letterbox) rendered to 1080x1920 vertical MP4s with contact sheets generated and verified.

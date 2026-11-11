@@ -98,9 +98,18 @@ All unhandled exceptions, Pydantic `RequestValidationError`s, and domain `AppErr
   - `POST /api/v1/projects/{pid}/reframing/{plan_id}/revisions/{rev_id}/restore` — Restore prior revision keyframes and parameters.
   - `POST /api/v1/projects/{pid}/reframing/{plan_id}/render` — Execute real FFmpeg filtergraph render producing vertical MP4 in `storage/shorts/`.
   - `GET /api/v1/projects/{pid}/reframing/{plan_id}/video` — Stream rendered reframed vertical video with HTTP 206 byte-range support.
+- **Rendering Engine, Export Pipeline & Automatic Shorts (M8):**
+  - `GET /api/v1/projects/{pid}/exports/presets` — Return standard export presets (`shorts_reels_9_16`, `landscape_16_9`, `square_1_1`).
+  - `POST /api/v1/projects/{pid}/exports/render` — Submit an export render job with candidate, preset, caption styling, and audio settings.
+  - `POST /api/v1/projects/{pid}/exports/preview` — Generate low-resolution fast 480p preview clip for interactive preview.
+  - `GET /api/v1/projects/{pid}/exports` — List all exported videos for a project with status, validation results, and duration.
+  - `GET /api/v1/projects/{pid}/exports/{export_id}` — Get detailed export record and FFprobe validation details.
+  - `POST /api/v1/projects/{pid}/exports/{export_id}/cancel` — Cancel active export render job and terminate subprocess tree safely.
+  - `DELETE /api/v1/projects/{pid}/exports/{export_id}` — Safely delete an export file and database record.
+  - `GET /api/v1/projects/{pid}/exports/{export_id}/video` — Stream rendered video file with HTTP 206 byte-range seeking support.
 
-### Planned Endpoints (Milestones 8–11)
-- **Timeline Editor (M8):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
-- **AI Video Editor (M9):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
-- **Character Extraction (M10):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`
-- **Rendering & Export Manager (M11):** `/api/v1/projects/{id}/exports`, `/api/v1/system/backups`
+### Planned Endpoints (Milestones 9–12)
+- **Timeline Editor (M9):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
+- **AI Video Editor (M10):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
+- **Character Extraction (M11):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`
+- **Packaging & Archiving (M12):** `/api/v1/projects/{id}/archive-package`, `/api/v1/system/backups`
