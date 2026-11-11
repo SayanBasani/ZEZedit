@@ -120,6 +120,17 @@ npm test
 
 ---
 
+## AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking (Milestone 6)
+
+- **Explainable Multi-Signal Scoring (`2.0.0-m6`):** Decomposes clip value into 9 inspectable factors: Semantic Interest (0-20), Narrative Completeness (0-20), Conversation Structure (0-15), Visual Interest (0-15), Audio Evidence (0-10), Opening Clarity (0-10), Ending Completeness (0-10), Duration Suitability (-5 to +10), and Context Dependency Penalty (0 to -15).
+- **Context-Aware Boundary Snapping:** Snaps candidate boundaries to visual scene cuts within 0.6s and dialogue pause closures, applying 0.3s lead-in and 0.5s lead-out buffers to eliminate split-second flash frames and cut-off speech.
+- **Three-Tier Quality Gates:** Automatically categorizes clips into `recommended`, `needs_review`, and `rejected` with explicit failure reasons (e.g., minimum score thresholds, missing context, abrupt opening).
+- **Temporal Overlap Clustering & Deduplication:** Clips overlapping with $\text{IoU} \ge 0.65$ are clustered under `overlap_group_id`, surfacing the highest-scoring candidate as primary and grouping variations as alternative cuts.
+- **Ollama AI Content Explanations:** Explains the viral hook, why the clip works, target audience, strengths, and risks via local `qwen3-vl:4b-instruct` (or deterministic heuristic fallback when offline).
+- **Interactive Shorts Highlights Studio:** Dedicated frontend workspace featuring metric counters, search/filter toolbar, status tabs, candidate cards, boundary slider fine-tuning (±0.1s/0.5s), 9-component radar/score breakdown, and one-click render queue toggling.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)

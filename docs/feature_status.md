@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
-**Last Updated:** 2026-11-11  
-**Active Milestone:** Milestone 4 Completed — Media Ingestion, Import & Media Library
+**Last Updated:** 2026-11-12  
+**Active Milestone:** Milestone 6 Completed — AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -94,11 +94,28 @@ Status legend:
 
 ---
 
+## AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking (Milestone 6)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M6-01 | Database Migration `0005_highlight_candidates.sql` | DB / Migrations | Implemented | `backend/migrations/0005_highlight_candidates.sql` | Schema for `shorts_candidates`, versioned scoring, gate results, overlap groups |
+| M6-02 | Candidate Dataclass Entity | Backend Models | Implemented | `backend/app/models/entities.py` | `ShortsCandidateRecord` dataclass mapping |
+| M6-03 | Context-Aware Boundary Snapping & Lead Buffers | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Snapping to scene cuts (±0.6s), sentence boundaries, 0.3s lead-in, 0.5s lead-out |
+| M6-04 | 9-Component Explainable Scoring Engine (`2.0.0-m6`) | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Semantic, narrative, conversation, visual, audio, opening, ending, duration, context penalty |
+| M6-05 | Three-Tier Quality Gate Enforcement | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Categorizes into `recommended`, `needs_review`, `rejected` with failure reasons |
+| M6-06 | Temporal Overlap Clustering & Deduplication | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Groups clips with $\text{IoU} \ge 0.65$ into alternative cuts under `overlap_group_id` |
+| M6-07 | Ollama AI Content Explanation & Deterministic Fallback | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Generates hook, why_it_works, strengths, risks with local LLM or heuristic fallback |
+| M6-08 | Shorts Candidates REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/highlights.py` | Discover, overview counts, candidate detail, boundary patch, approve, reject, restore, bulk review, render queue |
+| M6-09 | Frontend Highlights & Shorts Studio Workspace | Features / Highlights | Implemented | `frontend/src/features/highlights/HighlightsWorkspace.tsx` | Metrics, filter tabs, candidate cards, boundary slider inspector, score breakdown, alternative cuts |
+| M6-10 | Backend Automated Pytest Suite (3 tests) | Testing | Implemented | `backend/tests/test_milestone6_highlights.py` | Engine generation, quality gates, full REST lifecycle (100% pass) |
+| M6-11 | Frontend Vitest Test Suite (5 tests) | Testing | Implemented | `frontend/src/test/highlights.test.tsx` | Studio rendering, status tabs, boundary fine-tuning, approve/reject, queue toggle (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-D1 | Context-Aware Highlight Discovery & Candidate Ranking | D: Highlights | Planned | Milestone 6 |
 | MOD-E1 | Dynamic Subject Tracking, Portrait Crop Math Parity & Manual Revisions | E: Reframing | Planned | Milestone 7 |
 | MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 8 |
 | MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 9 |

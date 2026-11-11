@@ -121,7 +121,7 @@ describe('AnalysisWorkspace Component', () => {
     fps: 29.97,
     video_codec: 'h264',
     audio_codec: 'aac',
-    availability_status: 'ready',
+    availability_status: 'present',
     metadata_status: 'complete',
     proxy_reference_path: null,
     thumbnail_reference_path: 'thumbnails/med-1.jpg',

@@ -44,12 +44,14 @@ interface AnalysisWorkspaceProps {
   projectId: string;
   mediaAsset: MediaAssetItem;
   onBack: () => void;
+  onNavigateToHighlights?: () => void;
 }
 
 export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
   projectId,
   mediaAsset,
   onBack,
+  onNavigateToHighlights,
 }) => {
   const [runs, setRuns] = useState<AnalysisRunItem[]>([]);
   const [selectedRun, setSelectedRun] = useState<AnalysisRunItem | null>(null);
@@ -259,6 +261,16 @@ export const AnalysisWorkspace: React.FC<AnalysisWorkspaceProps> = ({
               <Button onClick={handleStartAnalysis} size="sm" className="gap-1.5">
                 <Sparkles className="w-4 h-4" /> Start Analysis
               </Button>
+              {onNavigateToHighlights && selectedRun?.status === 'completed' && (
+                <Button
+                  onClick={onNavigateToHighlights}
+                  size="sm"
+                  variant="outline"
+                  className="gap-1.5 border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                >
+                  <Sparkles className="w-4 h-4" /> Discover Highlights
+                </Button>
+              )}
             </div>
           )}
         </div>

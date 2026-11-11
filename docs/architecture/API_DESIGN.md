@@ -69,17 +69,30 @@ All unhandled exceptions, Pydantic `RequestValidationError`s, and domain `AppErr
 
 ## 4. Implemented vs Planned Endpoint Inventory
 
-### Implemented in Milestone 1
-- `GET /api/v1/health` — Returns application status, SQLite migration state, `ZEZEDIT_STORAGE_ROOT` writability, FFmpeg/FFprobe detection, and non-blocking Ollama daemon reachability.
-- `GET /api/v1/system/info` — Minimal runtime info (OS, CPU count, Python version, app version) verifying API routing and CORS/proxy setup.
+### Implemented in Milestones 1–6
+- `GET /api/v1/health` — Application health, SQLite status, storage writability, FFmpeg/FFprobe detection, Ollama status.
+- `GET /api/v1/system/info` — Runtime info (OS, CPU count, Python version, app version).
+- **Projects (M2):** `POST /api/v1/projects`, `GET /api/v1/projects`, `GET /api/v1/projects/{pid}`, `PATCH /api/v1/projects/{pid}`, `POST /api/v1/projects/{pid}/archive`, `POST /api/v1/projects/{pid}/restore`, `DELETE /api/v1/projects/{pid}`, `GET /api/v1/projects/{pid}/events`.
+- **Media Pipeline (M2/M4):** `POST /api/v1/projects/{pid}/media/import-local`, `POST /api/v1/projects/{pid}/media/upload`, `GET /api/v1/projects/{pid}/media`, `GET /api/v1/projects/{pid}/media/{aid}`, `POST /api/v1/projects/{pid}/media/{aid}/relink`, `DELETE /api/v1/projects/{pid}/media/{aid}`, `GET /api/v1/projects/{pid}/media/{aid}/stream`, `GET /api/v1/projects/{pid}/media/{aid}/proxy-stream`, `GET /api/v1/projects/{pid}/media/{aid}/thumbnail`.
+- **Jobs & Tasks (M2):** `GET /api/v1/jobs`, `GET /api/v1/jobs/{jid}`, `POST /api/v1/jobs/{jid}/cancel`, `POST /api/v1/jobs/{jid}/retry`.
+- **Settings & Backups (M2):** `GET /api/v1/settings`, `PATCH /api/v1/settings`, `POST /api/v1/backups/create`, `GET /api/v1/backups`, `POST /api/v1/backups/restore`.
+- **Video Analysis (M5):** `POST /api/v1/projects/{pid}/media/{aid}/analysis`, `GET /api/v1/projects/{pid}/media/{aid}/analysis`, `GET /api/v1/projects/{pid}/media/{aid}/analysis/{rid}/transcript`, `GET /api/v1/projects/{pid}/media/{aid}/analysis/{rid}/scenes`, `GET /api/v1/projects/{pid}/media/{aid}/analysis/{rid}/visual-observations`, `GET /api/v1/projects/{pid}/media/{aid}/analysis/{rid}/context`, `POST /api/v1/projects/{pid}/media/{aid}/analysis/{rid}/cancel`.
+- **AI Highlight Discovery & Shorts Candidates (M6):**
+  - `POST /api/v1/projects/{pid}/media/{aid}/highlights/discover` — Trigger candidate discovery with duration bounds, target count, and AI explanations.
+  - `GET /api/v1/projects/{pid}/highlights` — Project highlights overview with total, recommended, needs_review, approved, and rejected counts.
+  - `GET /api/v1/projects/{pid}/media/{aid}/highlights` — Candidates for a specific media asset.
+  - `GET /api/v1/projects/{pid}/highlights/{cid}` — Detailed candidate record with score breakdown, quality gates, and citations.
+  - `PATCH /api/v1/projects/{pid}/highlights/{cid}` — Fine-tune boundaries (`start_time`, `end_time`) and metadata with audit trail (`is_user_modified=True`).
+  - `POST /api/v1/projects/{pid}/highlights/{cid}/approve` — Approve candidate.
+  - `POST /api/v1/projects/{pid}/highlights/{cid}/reject` — Reject candidate with reason.
+  - `POST /api/v1/projects/{pid}/highlights/{cid}/restore` — Restore candidate from approved/rejected state.
+  - `POST /api/v1/projects/{pid}/highlights/{cid}/queue-render` — Toggle candidate inclusion in Shorts render queue.
+  - `POST /api/v1/projects/{pid}/highlights/bulk-review` — Perform bulk approval, rejection, or restoration across candidate IDs.
+  - `GET /api/v1/projects/{pid}/highlights/{cid}/alternatives` — Retrieve alternative temporal cuts (IoU $\ge 0.65$) sharing `overlap_group_id`.
 
-### Planned Endpoints (Milestones 2–10)
-- **Projects & Media (M2):** `/api/v1/projects`, `/api/v1/projects/{id}/media/import`, `/api/v1/projects/{id}/media/{asset_id}/relink`
-- **Jobs (M3):** `/api/v1/jobs`, `/api/v1/jobs/{id}`, `/api/v1/jobs/{id}/cancel`, `/api/v1/jobs/{id}/retry`, `/api/v1/jobs/{id}/logs`
-- **Providers & Settings (M4):** `/api/v1/settings`, `/api/v1/providers/ollama/models`, `/api/v1/providers/ollama/pull`, `/api/v1/diagnostics`
-- **Analysis & Highlights (M5):** `/api/v1/projects/{id}/analyze`, `/api/v1/projects/{id}/transcript`, `/api/v1/projects/{id}/candidates`
-- **Smart Reframing (M6):** `/api/v1/projects/{id}/shorts/{short_id}/reframing`, `/api/v1/projects/{id}/reframing/preview-frame`, `/api/v1/projects/{id}/shorts/{short_id}/revisions`
-- **Timeline Editor (M7):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
-- **AI Video Editor (M8):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
-- **Character Extraction (M9):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`
-- **Exports & Backups (M10):** `/api/v1/projects/{id}/exports`, `/api/v1/system/backups`
+### Planned Endpoints (Milestones 7–11)
+- **Smart Reframing (M7):** `/api/v1/projects/{id}/shorts/{short_id}/reframing`, `/api/v1/projects/{id}/reframing/preview-frame`, `/api/v1/projects/{id}/shorts/{short_id}/revisions`
+- **Timeline Editor (M8):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
+- **AI Video Editor (M9):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
+- **Character Extraction (M10):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`
+- **Rendering & Export Manager (M11):** `/api/v1/projects/{id}/exports`, `/api/v1/system/backups`

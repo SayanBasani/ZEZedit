@@ -92,3 +92,22 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] Automated frontend test suite passes 26/26 tests (`npm test -- --run`, including 3 tests in `analysis.test.tsx`).
 - [x] Production build passes cleanly in 2.29s with 0 TypeScript errors.
 - [x] Live end-to-end HTTP verification confirms real video generation, local import, synchronous analysis run execution (audio extraction -> whisper -> scene detection -> frame sampling -> observations -> persistence), transcript query, and temporal context query at 1.0s.
+
+---
+
+## Milestone 6: AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking Verification
+
+- [x] SQLite migration `0005_highlight_candidates.sql` applies forward-only schema upgrade creating `shorts_candidates` table with range indexes, score breakdowns, gate results, overlap groups, and scoring version `2.0.0-m6`.
+- [x] Automatic pre-migration snapshot saved to `storage/backups/pre_migration_0005_*.db`.
+- [x] Highlight discovery engine (`highlight_discovery.py`) generates speech dialogue moments, scene visual moments, and question/answer dialogue pairings from analysis data.
+- [x] Context-aware boundary snapping snaps candidate starts/ends to visual scene cuts within 0.6s and dialogue pause closures, applying 0.3s lead-in and 0.5s lead-out buffers to eliminate flash frames and premature cutoffs.
+- [x] 9-component explainable scoring model (`2.0.0-m6`) evaluates Semantic Interest (0-20), Narrative Completeness (0-20), Conversation Structure (0-15), Visual Interest (0-15), Audio Evidence (0-10), Opening Clarity (0-10), Ending Completeness (0-10), Duration Suitability (-5 to +10), and Context Dependency Penalty (0 to -15).
+- [x] Quality gates enforce minimum criteria and assign `recommended`, `needs_review`, or `rejected` review status with explainable failure reasons.
+- [x] Temporal overlap clustering identifies candidate pairs with $\text{IoU} \ge 0.65$, linking secondary variations under `overlap_group_id` and demoting them so the primary candidate remains prominent.
+- [x] Ollama AI content explanation queries `qwen3-vl:4b-instruct` for Hook, Why It Works, Target Audience, Strengths, and Risks, with deterministic heuristic fallback when offline.
+- [x] Shorts candidate REST API (`/api/v1/projects/{pid}/highlights`) supports candidate discovery, project overview counts, candidate detail, boundary patch with audit trail (`is_user_modified=True`), approve, reject, restore, render queue toggle, and bulk review.
+- [x] Interactive Highlights & Shorts Studio Workspace (`HighlightsWorkspace.tsx`) provides metric counter cards, search/filter toolbar, status tabs, candidate cards, boundary slider fine-tuning, 9-component score breakdown, and alternative cuts list.
+- [x] Automated backend test suite passes 28/28 tests (`pytest tests/ -v`, including 3 tests in `test_milestone6_highlights.py`).
+- [x] Automated frontend test suite passes 31/31 tests across 5 suites (`npm test -- --run`, including 5 tests in `highlights.test.tsx`).
+- [x] Production build passes cleanly in 2.23s with 0 TypeScript errors.
+- [x] Live end-to-end HTTP verification confirms project creation, media import, video analysis, highlight discovery, boundary modification (`is_user_modified=True`), candidate approval, and render queue toggling.

@@ -66,14 +66,31 @@ erDiagram
 
 ## 4. Schema Breakdown: Implemented vs Planned
 
-### Implemented in Milestone 1 (`0001_initial_schema.sql`)
+### Implemented Tables (Migrations 0001–0005)
 
-To support the Milestone 1 foundation safely without premature bloat:
+1. **`0001_initial_schema.sql`**:
+   - `schema_migrations`: Migration version ledger (`version`, `name`, `checksum_sha256`, `applied_at`).
+   - `app_settings`: Key-value JSON settings store (`key`, `value_json`, `updated_at`).
+   - `projects`: Base project table (`id`, `name`, `description`, `status`, `storage_subdir`, `created_at`, `updated_at`, `archived_at`).
+   - `jobs`: Authoritative background job ledger.
 
-1. **`schema_migrations`**: Migration version ledger (`version`, `name`, `checksum_sha256`, `applied_at`).
-2. **`app_settings`**: Key-value JSON settings store (`key`, `value_json`, `updated_at`) for user preferences, AI provider config, and UI state.
-3. **`projects`**: Minimal baseline project header (`id`, `name`, `description`, `status`, `storage_subdir`, `created_at`, `updated_at`, `archived_at`).
-4. **`jobs`**: Authoritative job ledger skeleton (`id`, `project_id`, `job_type`, `status`, `priority`, `progress_pct`, `current_stage`, `worker_pid`, `payload_json`, `result_json`, `error_message`, `attempt_count`, `max_attempts`, `created_at`, `started_at`, `completed_at`, `updated_at`).
+2. **`0002_core_management.sql`**:
+   - `media_assets`: Primary asset records, paths, dimensions, duration, relinking states.
+   - `project_events`: Audit log for project operations.
+
+3. **`0003_media_pipeline.sql`**:
+   - Upgrades `media_assets` with `proxy_status` and indexing.
+
+4. **`0004_video_analysis.sql`**:
+   - `analysis_runs`: Run status, profiles (`fast`, `balanced`, `detailed`), progress, stage.
+   - `transcript_segments`: Faster-Whisper segments with word timestamps and confidence.
+   - `speech_turns`: Dialogue turns grouped across conversational pauses with statement/question classification.
+   - `video_scenes`: Visual scene cuts, midpoint representative timestamps, change scores.
+   - `sampled_frames`: Downscaled keyframe registry for vision models.
+   - `visual_observations`: Structured visual scene understanding from Ollama or heuristic fallback.
+
+5. **`0005_highlight_candidates.sql`**:
+   - `shorts_candidates`: Shorts clip records with boundaries (`start_time`, `end_time`, `suggested_start_time`, `suggested_end_time`, `is_user_modified`), scores (`quality_score`, `score_breakdown_json`), gates (`gate_results_json`, `warnings_json`, `missing_evidence_json`, `review_status`, `rejection_reason`), citations (`transcript_references_json`, `scene_references_json`, `visual_evidence_json`, `audio_evidence_json`, `ai_explanation_json`), overlap tracking (`overlap_group_id`, `alternative_of_candidate_id`), `scoring_version="2.0.0-m6"`, and `queued_for_render`.
 
 ---
 

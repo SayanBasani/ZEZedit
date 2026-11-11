@@ -162,3 +162,41 @@ class VisualObservationRecord:
     provider_model: str
     confidence: float
     created_at: str
+
+
+@dataclass
+class ShortsCandidateRecord:
+    id: str
+    project_id: str
+    media_asset_id: str
+    analysis_run_id: str
+    start_time: float
+    end_time: float
+    duration: float
+    suggested_start_time: float
+    suggested_end_time: float
+    is_user_modified: bool
+    title: str
+    suggested_title: str
+    description: str
+    category: str
+    secondary_categories: list[str]
+    quality_score: float
+    score_breakdown: Dict[str, Any]
+    gate_results: Dict[str, Any]
+    warnings: list[str]
+    missing_evidence: list[str]
+    review_status: str
+    rejection_reason: Optional[str]
+    transcript_references: list[str]
+    scene_references: list[str]
+    visual_evidence: list[Dict[str, Any]]
+    audio_evidence: list[Dict[str, Any]]
+    ai_explanation: Dict[str, Any]
+    scoring_version: str
+    created_at: str
+    updated_at: str
+    job_id: Optional[str] = None
+    alternative_of_candidate_id: Optional[str] = None
+    overlap_group_id: Optional[str] = None
+    queued_for_render: bool = False

@@ -25,6 +25,7 @@ import { DashboardView } from '../features/dashboard/DashboardView';
 import { FoundationOverview } from '../features/dashboard/FoundationOverview';
 import { MediaLibraryView } from '../features/media/MediaLibraryView';
 import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
+import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -46,6 +47,7 @@ export type NavSection =
   | 'projects'
   | 'media'
   | 'analysis'
+  | 'highlights'
   | 'timeline'
   | 'ai-editor'
   | 'characters'
@@ -254,6 +256,18 @@ export const App: React.FC = () => {
           />
 
           <SidebarNavButton
+            active={activeTab === 'highlights'}
+            collapsed={sidebarCollapsed}
+            icon={<Sparkles className="w-4 h-4 text-amber-400" />}
+            label="AI Highlights"
+            badge="M6"
+            onClick={() => {
+              setActiveTab('highlights');
+              setMobileMenuOpen(false);
+            }}
+          />
+
+          <SidebarNavButton
             active={activeTab === 'timeline'}
             collapsed={sidebarCollapsed}
             icon={<Scissors className="w-4 h-4" />}
@@ -355,6 +369,8 @@ export const App: React.FC = () => {
                 ? 'Media Library'
                 : activeTab === 'analysis'
                 ? 'Video Analysis Workspace'
+                : activeTab === 'highlights'
+                ? 'AI Highlights & Shorts Studio'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -458,6 +474,7 @@ export const App: React.FC = () => {
                 projectId={selectedProjectId || (projects[0]?.id || '')}
                 mediaAsset={analysisAsset}
                 onBack={() => setActiveTab('media')}
+                onNavigateToHighlights={() => setActiveTab('highlights')}
               />
             ) : (
               <div className="p-8 text-center text-text-muted">
@@ -467,6 +484,19 @@ export const App: React.FC = () => {
                 </Button>
               </div>
             )
+          )}
+
+          {activeTab === 'highlights' && (
+            <HighlightsWorkspace
+              projectId={selectedProjectId || (projects[0]?.id || '')}
+              mediaAssets={projectMedia}
+              preselectedAssetId={analysisAsset?.id}
+              onNavigateToAnalysis={(aid) => {
+                const found = projectMedia.find((m) => m.id === aid);
+                if (found) setAnalysisAsset(found);
+                setActiveTab('analysis');
+              }}
+            />
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

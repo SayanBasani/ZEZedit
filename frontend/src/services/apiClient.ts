@@ -8,6 +8,12 @@ import {
   VisualObservationItem,
 } from '../types/analysis';
 import {
+  CandidateItem,
+  DiscoverHighlightsOptions,
+  HighlightsOverview,
+  UpdateCandidatePayload,
+} from '../types/highlights';
+import {
   AppSettingsData,
   JobItem,
   JobListResponse,
@@ -324,4 +330,122 @@ export function cancelAnalysisRun(projectId: string, assetId: string, runId: str
 
 export function getFrameImageUrl(projectId: string, assetId: string, frameId: string): string {
   return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/frame-image/${frameId}`;
+}
+
+// ==================== HIGHLIGHT DISCOVERY & REVIEW ====================
+export function discoverHighlights(
+  projectId: string,
+  assetId: string,
+  options: DiscoverHighlightsOptions = {}
+): Promise<CandidateItem[]> {
+  return request<CandidateItem[]>(
+    `/projects/${projectId}/media/${assetId}/highlights/discover`,
+    {
+      method: 'POST',
+      body: JSON.stringify(options),
+    },
+    options.run_synchronously ? 60000 : 15000
+  );
+}
+
+export function fetchProjectHighlights(
+  projectId: string,
+  reviewStatus?: string,
+  category?: string,
+  search?: string
+): Promise<HighlightsOverview> {
+  const params = new URLSearchParams();
+  if (reviewStatus) params.append('review_status', reviewStatus);
+  if (category) params.append('category', category);
+  if (search) params.append('search', search);
+
+  const qs = params.toString();
+  return request<HighlightsOverview>(`/projects/${projectId}/highlights${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchMediaHighlights(
+  projectId: string,
+  assetId: string,
+  reviewStatus?: string
+): Promise<CandidateItem[]> {
+  const qs = reviewStatus ? `?review_status=${reviewStatus}` : '';
+  return request<CandidateItem[]>(`/projects/${projectId}/media/${assetId}/highlights${qs}`);
+}
+
+export function fetchCandidateDetails(
+  projectId: string,
+  candidateId: string
+): Promise<CandidateItem> {
+  return request<CandidateItem>(`/projects/${projectId}/highlights/${candidateId}`);
+}
+
+export function updateCandidate(
+  projectId: string,
+  candidateId: string,
+  updates: UpdateCandidatePayload
+): Promise<CandidateItem> {
+  return request<CandidateItem>(`/projects/${projectId}/highlights/${candidateId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export function approveCandidate(projectId: string, candidateId: string): Promise<CandidateItem> {
+  return request<CandidateItem>(`/projects/${projectId}/highlights/${candidateId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function rejectCandidate(
+  projectId: string,
+  candidateId: string,
+  reason?: string
+): Promise<CandidateItem> {
+  const qs = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+  return request<CandidateItem>(`/projects/${projectId}/highlights/${candidateId}/reject${qs}`, {
+    method: 'POST',
+  });
+}
+
+export function restoreCandidate(projectId: string, candidateId: string): Promise<CandidateItem> {
+  return request<CandidateItem>(`/projects/${projectId}/highlights/${candidateId}/restore`, {
+    method: 'POST',
+  });
+}
+
+export function queueCandidateRender(
+  projectId: string,
+  candidateId: string,
+  queued = true
+): Promise<CandidateItem> {
+  return request<CandidateItem>(
+    `/projects/${projectId}/highlights/${candidateId}/queue-render?queued=${queued}`,
+    { method: 'POST' }
+  );
+}
+
+export function bulkReviewCandidates(
+  projectId: string,
+  candidateIds: string[],
+  action: 'approve' | 'reject' | 'restore',
+  rejectionReason?: string
+): Promise<{ updated_count: number; candidate_ids: string[]; action: string }> {
+  return request<{ updated_count: number; candidate_ids: string[]; action: string }>(
+    `/projects/${projectId}/highlights/bulk-review`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        candidate_ids: candidateIds,
+        action,
+        rejection_reason: rejectionReason,
+      }),
+    }
+  );
+}
+
+export function fetchCandidateAlternatives(
+  projectId: string,
+  candidateId: string
+): Promise<CandidateItem[]> {
+  return request<CandidateItem[]>(`/projects/${projectId}/highlights/${candidateId}/alternatives`);
 }
