@@ -14,6 +14,7 @@ import {
   UploadCloud,
   Video,
   Zap,
+  Sparkles,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -41,6 +42,7 @@ export interface MediaLibraryViewProps {
   stats: MediaStorageStats | null;
   loading: boolean;
   onRefresh: () => void;
+  onOpenAnalysis?: (asset: MediaAssetItem) => void;
 }
 
 export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
@@ -51,6 +53,7 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
   stats,
   loading,
   onRefresh,
+  onOpenAnalysis,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -910,6 +913,20 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
             {/* Actions Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
               <div className="flex items-center gap-2">
+                {onOpenAnalysis && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => {
+                      const asset = selectedAsset;
+                      setSelectedAsset(null);
+                      onOpenAnalysis(asset);
+                    }}
+                    leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                  >
+                    Analyze Video
+                  </Button>
+                )}
                 {selectedAsset.media_type === 'video' && (
                   <Button
                     variant="outline"

@@ -76,3 +76,89 @@ class ProjectEventRecord:
     event_summary: str
     payload: Dict[str, Any]
     created_at: str
+
+
+@dataclass
+class AnalysisRunRecord:
+    id: str
+    media_asset_id: str
+    project_id: str
+    status: str
+    profile: str
+    config_json: Dict[str, Any]
+    progress_pct: float
+    current_stage: Optional[str]
+    error_message: Optional[str]
+    started_at: Optional[str]
+    completed_at: Optional[str]
+    created_at: str
+    updated_at: str
+
+
+@dataclass
+class TranscriptSegmentRecord:
+    id: str
+    analysis_run_id: str
+    media_asset_id: str
+    start_time: float
+    end_time: float
+    text: str
+    language: Optional[str]
+    confidence: Optional[float]
+    words: list[Dict[str, Any]]
+    created_at: str
+
+
+@dataclass
+class SpeechTurnRecord:
+    id: str
+    analysis_run_id: str
+    media_asset_id: str
+    start_time: float
+    end_time: float
+    speaker_label: str
+    text: str
+    segment_ids: list[str]
+    turn_type: str
+    created_at: str
+
+
+@dataclass
+class VideoSceneRecord:
+    id: str
+    analysis_run_id: str
+    media_asset_id: str
+    scene_index: int
+    start_time: float
+    end_time: float
+    representative_timestamp: float
+    thumbnail_path: Optional[str]
+    change_score: float
+    created_at: str
+
+
+@dataclass
+class SampledFrameRecord:
+    id: str
+    analysis_run_id: str
+    media_asset_id: str
+    timestamp: float
+    frame_path: str
+    scene_id: Optional[str]
+    width: int
+    height: int
+    created_at: str
+
+
+@dataclass
+class VisualObservationRecord:
+    id: str
+    analysis_run_id: str
+    media_asset_id: str
+    timestamp: float
+    frame_id: Optional[str]
+    category: str
+    description: str
+    provider_model: str
+    confidence: float
+    created_at: str

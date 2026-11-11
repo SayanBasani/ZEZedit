@@ -24,6 +24,7 @@ import { useTheme } from '../context/ThemeContext';
 import { DashboardView } from '../features/dashboard/DashboardView';
 import { FoundationOverview } from '../features/dashboard/FoundationOverview';
 import { MediaLibraryView } from '../features/media/MediaLibraryView';
+import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -44,6 +45,7 @@ export type NavSection =
   | 'dashboard'
   | 'projects'
   | 'media'
+  | 'analysis'
   | 'timeline'
   | 'ai-editor'
   | 'characters'
@@ -61,6 +63,7 @@ export const App: React.FC = () => {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [projectMedia, setProjectMedia] = useState<MediaAssetItem[]>([]);
+  const [analysisAsset, setAnalysisAsset] = useState<MediaAssetItem | null>(null);
   const [mediaStats, setMediaStats] = useState<MediaStorageStats | null>(null);
   const [mediaLoading, setMediaLoading] = useState<boolean>(false);
 
@@ -239,6 +242,18 @@ export const App: React.FC = () => {
           />
 
           <SidebarNavButton
+            active={activeTab === 'analysis'}
+            collapsed={sidebarCollapsed}
+            icon={<Activity className="w-4 h-4 text-sky-400" />}
+            label="Video Analysis"
+            badge="M5"
+            onClick={() => {
+              setActiveTab('analysis');
+              setMobileMenuOpen(false);
+            }}
+          />
+
+          <SidebarNavButton
             active={activeTab === 'timeline'}
             collapsed={sidebarCollapsed}
             icon={<Scissors className="w-4 h-4" />}
@@ -336,6 +351,10 @@ export const App: React.FC = () => {
                 ? 'Dashboard'
                 : activeTab === 'projects'
                 ? 'Projects Manager'
+                : activeTab === 'media'
+                ? 'Media Library'
+                : activeTab === 'analysis'
+                ? 'Video Analysis Workspace'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -426,7 +445,28 @@ export const App: React.FC = () => {
               stats={mediaStats}
               loading={mediaLoading}
               onRefresh={() => void loadProjectMedia(selectedProjectId || (projects[0]?.id || ''))}
+              onOpenAnalysis={(asset) => {
+                setAnalysisAsset(asset);
+                setActiveTab('analysis');
+              }}
             />
+          )}
+
+          {activeTab === 'analysis' && (
+            analysisAsset ? (
+              <AnalysisWorkspace
+                projectId={selectedProjectId || (projects[0]?.id || '')}
+                mediaAsset={analysisAsset}
+                onBack={() => setActiveTab('media')}
+              />
+            ) : (
+              <div className="p-8 text-center text-text-muted">
+                <p>Select a video asset from the Media Library to open the Analysis Workspace.</p>
+                <Button className="mt-4" size="sm" onClick={() => setActiveTab('media')}>
+                  Go to Media Library
+                </Button>
+              </div>
+            )
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

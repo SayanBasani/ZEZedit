@@ -1,5 +1,13 @@
 import { ApiErrorEnvelope, HealthResponse, SystemInfoResponse } from '../types/health';
 import {
+  AnalysisRunItem,
+  SampledFrameItem,
+  TemporalContextPayload,
+  TranscriptPayload,
+  VideoSceneItem,
+  VisualObservationItem,
+} from '../types/analysis';
+import {
   AppSettingsData,
   JobItem,
   JobListResponse,
@@ -255,4 +263,65 @@ export function updateAppSettings(updates: Partial<AppSettingsData>): Promise<Ap
     method: 'PATCH',
     body: JSON.stringify(updates),
   });
+}
+
+// ==================== VIDEO ANALYSIS ====================
+export function startMediaAnalysis(
+  projectId: string,
+  assetId: string,
+  profile: 'fast' | 'balanced' | 'detailed' = 'balanced',
+  config: Record<string, unknown> = {},
+  runSynchronously = false
+): Promise<AnalysisRunItem> {
+  return request<AnalysisRunItem>(`/projects/${projectId}/media/${assetId}/analysis`, {
+    method: 'POST',
+    body: JSON.stringify({ profile, config, run_synchronously: runSynchronously }),
+  });
+}
+
+export function fetchAnalysisRuns(projectId: string, assetId: string): Promise<AnalysisRunItem[]> {
+  return request<AnalysisRunItem[]>(`/projects/${projectId}/media/${assetId}/analysis`);
+}
+
+export function fetchAnalysisRun(projectId: string, assetId: string, runId: string): Promise<AnalysisRunItem> {
+  return request<AnalysisRunItem>(`/projects/${projectId}/media/${assetId}/analysis/${runId}`);
+}
+
+export function fetchAnalysisTranscript(projectId: string, assetId: string, runId: string): Promise<TranscriptPayload> {
+  return request<TranscriptPayload>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/transcript`);
+}
+
+export function fetchAnalysisScenes(projectId: string, assetId: string, runId: string): Promise<VideoSceneItem[]> {
+  return request<VideoSceneItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/scenes`);
+}
+
+export function fetchAnalysisFrames(projectId: string, assetId: string, runId: string): Promise<SampledFrameItem[]> {
+  return request<SampledFrameItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/frames`);
+}
+
+export function fetchAnalysisObservations(projectId: string, assetId: string, runId: string): Promise<VisualObservationItem[]> {
+  return request<VisualObservationItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/visual-observations`);
+}
+
+export function fetchAnalysisContext(
+  projectId: string,
+  assetId: string,
+  runId: string,
+  timestamp: number,
+  window = 15.0
+): Promise<TemporalContextPayload> {
+  return request<TemporalContextPayload>(
+    `/projects/${projectId}/media/${assetId}/analysis/${runId}/context?timestamp=${timestamp}&window=${window}`
+  );
+}
+
+export function cancelAnalysisRun(projectId: string, assetId: string, runId: string): Promise<{ message: string; run_id: string; status: string }> {
+  return request<{ message: string; run_id: string; status: string }>(
+    `/projects/${projectId}/media/${assetId}/analysis/${runId}/cancel`,
+    { method: 'POST' }
+  );
+}
+
+export function getFrameImageUrl(projectId: string, assetId: string, frameId: string): string {
+  return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/frame-image/${frameId}`;
 }

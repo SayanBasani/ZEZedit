@@ -75,15 +75,32 @@ Status legend:
 
 ---
 
+## Video Analysis Engine, Transcription & Visual Understanding (Milestone 5)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M5-01 | Database Migration `0004_video_analysis.sql` | DB / Migrations | Implemented | `backend/migrations/0004_video_analysis.sql` | Schema for analysis runs, transcript segments, turns, scenes, frames, observations |
+| M5-02 | 16kHz Mono Audio Extractor | Analysis Services | Implemented | `backend/app/services/audio_extractor.py` | FFmpeg extraction to ephemeral WAV scratch |
+| M5-03 | Faster-Whisper CPU Speech Transcriber | Analysis Services | Implemented | `backend/app/services/transcription.py` | CPU-first Faster-Whisper (`int8`), segment timestamps, word tokens, PyAV 14+ compat |
+| M5-04 | Dialogue & Speech Turn Segmentation | Analysis Services | Implemented | `backend/app/services/speech_segmentation.py` | Conversational pause thresholding, turn grouping, statement/question/exclamation |
+| M5-05 | FFmpeg Visual Scene Cut Detection | Analysis Services | Implemented | `backend/app/services/scene_detector.py` | Cut extraction via FFmpeg scene filter, timestamps, midpoint representative frames |
+| M5-06 | Controlled Downscaled Frame Sampling | Analysis Services | Implemented | `backend/app/services/frame_sampler.py` | Keyframe extraction downscaled to 640px max dimension, capped per profile |
+| M5-07 | Visual Understanding via Local Ollama | Analysis Services | Implemented | `backend/app/services/visual_understanding.py` | Queries `qwen3-vl:4b-instruct` with conservative language; deterministic heuristic fallback |
+| M5-08 | Multimodal Temporal Context Aggregator | Analysis Services | Implemented | `backend/app/services/temporal_aggregator.py` | Unifies scenes, speech turns, transcript segments, and vision at any timestamp |
+| M5-09 | Analysis Pipeline Coordinator & REST API | Backend API | Implemented | `backend/app/services/analysis_pipeline.py`, `backend/app/api/v1/analysis.py` | 8-stage coordinator, async background execution, cancellation, REST endpoints |
+| M5-10 | Interactive Frontend Analysis Workspace | Features / Analysis | Implemented | `frontend/src/features/analysis/AnalysisWorkspace.tsx` | Synchronized player, scrub bar, searchable transcript, scene cuts, vision tags, context inspector |
+| M5-11 | Backend Analysis Test Suite (7 tests) | Testing | Implemented | `backend/tests/test_milestone5_analysis.py` | Audio extraction, scenes, speech turns, frames, fallback, aggregator, API flow (100% pass) |
+| M5-12 | Frontend Analysis Vitest Suite (3 tests) | Testing | Implemented | `frontend/src/test/analysis.test.tsx` | Workspace rendering, transcript, speech turns, tab switching, context inspector (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-J2 | Full Ollama Model Pull Stream & Settings Diagnostics | J: Settings | Planned | Milestone 5 |
-| MOD-C1 | Scene Cut Detection, Faster-Whisper Transcription & Frame Sampling | C: Video Analysis | Planned | Milestone 5 |
-| MOD-D1 | Context-Aware Highlight Discovery & Candidate Ranking | D: Highlights | Planned | Milestone 5 |
-| MOD-E1 | Dynamic Subject Tracking, Portrait Crop Math Parity & Manual Revisions | E: Reframing | Planned | Milestone 6 |
-| MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 7 |
-| MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 8 |
-| MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 9 |
-| MOD-I1 | Multi-Format Rendering, Output Validation, Captions & Export Manager | I: Export | Planned | Milestone 10 |
+| MOD-D1 | Context-Aware Highlight Discovery & Candidate Ranking | D: Highlights | Planned | Milestone 6 |
+| MOD-E1 | Dynamic Subject Tracking, Portrait Crop Math Parity & Manual Revisions | E: Reframing | Planned | Milestone 7 |
+| MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 8 |
+| MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 9 |
+| MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 10 |
+| MOD-I1 | Multi-Format Rendering, Output Validation, Captions & Export Manager | I: Export | Planned | Milestone 11 |

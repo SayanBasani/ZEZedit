@@ -91,3 +91,35 @@ Every export job runs two mandatory stages:
    - Verifies file exists and `size > 0`.
    - Verifies decoded duration is within tolerance of requested timeline/clip duration.
    - Verifies exact target resolution (`1080x1920`, `1920x1080`, `1080x1080`) and expected audio presence.
+
+---
+
+## 5. Video Analysis Engine (Milestone 5)
+
+Implemented in Milestone 5 as a modular, 8-stage pipeline combining CPU-first media processing and local AI:
+
+```mermaid
+flowchart TD
+    Asset["Media Asset"] --> Stage1["1. Audio Extraction (16kHz mono WAV)"]
+    Stage1 --> Stage2["2. Faster-Whisper Speech Recognition (CPU int8)"]
+    Stage2 --> Stage3["3. Dialogue & Speech Turn Segmentation"]
+    Asset --> Stage4["4. FFmpeg Scene Cut Detection"]
+    Stage4 --> Stage5["5. Controlled Frame Sampling (max 640px)"]
+    Stage5 --> Stage6["6. Visual Understanding (Ollama qwen3-vl:4b-instruct)"]
+    Stage2 --> Stage7["7. SQLite Persistent Storage (Migration 0004)"]
+    Stage3 --> Stage7
+    Stage4 --> Stage7
+    Stage5 --> Stage7
+    Stage6 --> Stage7
+    Stage7 --> Stage8["8. Temporal Context Aggregator & Workspace"]
+```
+
+### Components
+1. **Audio Extraction (`audio_extractor.py`):** Uses FFmpeg to extract clean 16kHz mono 16-bit PCM WAV to ephemeral job scratch, isolating audio processing from video containers.
+2. **Speech Recognition (`transcription.py`):** Faster-Whisper CPU provider (`WhisperModel`, `int8` quantization, VAD filter). Computes segment boundaries and word-level timestamps. Includes PyAV 14+ compatibility patch.
+3. **Dialogue Segmentation (`speech_segmentation.py`):** Groups segments across conversational pauses (`> 0.8s`), marks turns as statement/question/exclamation, and detects speaker changes.
+4. **Scene Boundary Detection (`scene_detector.py`):** FFmpeg scene cut filter (`select='gt(scene,0.35)'`) yielding timestamp boundaries and representative midpoints.
+5. **Controlled Frame Sampling (`frame_sampler.py`):** Scene-aware keyframe extraction downscaled to 640px, capped per profile (fast: 20, balanced: 50, detailed: 100).
+6. **Visual Understanding (`visual_understanding.py`):** Queries local Ollama (`qwen3-vl:4b-instruct`) for factual observations (setting, subjects, text, activity) with graceful deterministic heuristic fallback when Ollama is offline or uninstalled.
+7. **Temporal Aggregator (`temporal_aggregator.py`):** Unifies scenes, speech turns, transcript segments, and visual observations into high-speed temporal window queries (`get_temporal_context_at`).
+8. **Analysis Workspace (`AnalysisWorkspace.tsx`):** Split-view UI with synchronized player, interactive scrub bar, searchable transcript, scene cuts strip, and live context inspector.

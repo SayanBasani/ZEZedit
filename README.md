@@ -107,6 +107,19 @@ npm test
 
 ---
 
+## Video Analysis Engine, Transcription & Visual Understanding (Milestone 5)
+
+- **Audio Extraction:** Automated extraction of 16kHz mono 16-bit PCM WAV tracks for CPU speech recognition.
+- **Faster-Whisper Speech Recognition:** Speech-to-text with segment boundaries, language detection, and word-level timestamps (`tiny`, `base`, `small` on CPU with `int8` quantization).
+- **Dialogue Segmentation:** Grouping of transcript segments into coherent conversational speech turns across pause thresholds with turn type classification (`statement`, `question`, `exclamation`).
+- **Scene Boundary Detection:** FFmpeg scene filter (`select='gt(scene,0.35)'`) extracting cut timestamps and scene intervals.
+- **Controlled Frame Sampling:** Controlled visual keyframe extraction downscaled to 640px, capped by analysis profiles (`fast`, `balanced`, `detailed`).
+- **Visual Understanding:** Integration with local Ollama (`qwen3-vl:4b-instruct`) for factual observations (setting, subjects, activity, on-screen text) with graceful heuristic fallback when Ollama is offline.
+- **Multimodal Temporal Context Aggregator:** Unified temporal index querying any timestamp for active scene, speech turn, nearby dialogue, and visible observations.
+- **Interactive Analysis Workspace:** Full-featured frontend split-view workspace with synchronized video player, clickable transcript, scene strip, visual observations stream, and live temporal inspector.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)

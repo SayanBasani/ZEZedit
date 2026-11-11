@@ -71,3 +71,24 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] Automated backend test suite passes 18/18 tests (including 6 real FFmpeg/FFprobe tests in `test_milestone4_media.py`).
 - [x] Automated frontend test suite passes 23/23 tests (including 6 tests in `mediaLibrary.test.tsx`).
 - [x] Live end-to-end HTTP verification confirms real FFmpeg video generation, import, thumbnail serving, proxy generation, and stream serving.
+
+---
+
+## Milestone 5: Video Analysis Engine, Transcription & Visual Understanding Verification
+
+- [x] SQLite migration `0004_video_analysis.sql` applies forward-only schema upgrade: `analysis_runs`, `transcript_segments`, `speech_turns`, `video_scenes`, `sampled_frames`, `visual_observations` with indexed ranges.
+- [x] Automatic pre-migration database snapshot saved to `storage/backups/pre_migration_0004_*.db`.
+- [x] Audio extraction service (`audio_extractor.py`) extracts 16kHz mono 16-bit PCM WAV tracks to ephemeral job scratch via FFmpeg.
+- [x] Faster-Whisper CPU provider (`transcription.py`) runs speech recognition with segment boundaries, language detection, and word timestamps on CPU with `int8` compute type and PyAV 14+ compatibility patch.
+- [x] Dialogue segmentation (`speech_segmentation.py`) groups transcript segments across conversational pauses (`> 0.8s`) into speech turns with statement/question/exclamation detection.
+- [x] FFmpeg scene boundary detection (`scene_detector.py`) extracts visual scene cut timestamps and midpoint representative frames.
+- [x] Controlled visual keyframe sampler (`frame_sampler.py`) extracts downscaled (max 640px) keyframes capped by analysis profile (`fast`, `balanced`, `detailed`).
+- [x] Visual understanding service (`visual_understanding.py`) queries local Ollama (`qwen3-vl:4b-instruct`) for factual scene setting, subjects, and text observations with conservative language and deterministic heuristic fallback when Ollama is offline.
+- [x] Temporal context aggregator (`temporal_aggregator.py`) resolves active scene, active speech turn, nearby dialogue, and visible observations at any query timestamp.
+- [x] Video analysis pipeline coordinator (`analysis_pipeline.py`) coordinates multi-stage background execution with cancellation support.
+- [x] Versioned REST API endpoints (`/api/v1/projects/{pid}/media/{aid}/analysis`) support run triggering, status polling, transcript querying, scenes list, visual observations, and temporal context inspection.
+- [x] Interactive Analysis Workspace (`AnalysisWorkspace.tsx`) provides synchronized video player, interactive scrub bar, searchable transcript with seek-on-click, scene cuts strip, visual observation stream, and temporal context inspector.
+- [x] Automated backend test suite passes 25/25 tests (`pytest tests/ -v`, including 7 tests in `test_milestone5_analysis.py`).
+- [x] Automated frontend test suite passes 26/26 tests (`npm test -- --run`, including 3 tests in `analysis.test.tsx`).
+- [x] Production build passes cleanly in 2.29s with 0 TypeScript errors.
+- [x] Live end-to-end HTTP verification confirms real video generation, local import, synchronous analysis run execution (audio extraction -> whisper -> scene detection -> frame sampling -> observations -> persistence), transcript query, and temporal context query at 1.0s.

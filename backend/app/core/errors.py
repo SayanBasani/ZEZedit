@@ -76,6 +76,30 @@ class MigrationError(AppError):
         )
 
 
+class NotFoundError(AppError):
+    """Raised when an entity, media asset, project, or run is not found."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            code="NOT_FOUND",
+            message=message,
+            status_code=status.HTTP_404_NOT_FOUND,
+            details=details,
+        )
+
+
+class ProcessingError(AppError):
+    """Raised when media processing, transcription, or vision extraction fails."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            code="PROCESSING_ERROR",
+            message=message,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            details=details,
+        )
+
+
 def _error_payload(
     code: str,
     message: str,
