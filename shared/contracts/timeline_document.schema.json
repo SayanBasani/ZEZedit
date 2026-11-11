@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZezEditTimelineDocument",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "sequence_id",
+    "project_id",
+    "fps",
+    "width",
+    "height",
+    "tracks"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "sequence_id": { "type": "string" },
+    "project_id": { "type": "string" },
+    "source_kind": { "type": "string", "enum": ["project_master", "rendered_short"] },
+    "source_ref_id": { "type": "string" },
+    "title": { "type": "string" },
+    "fps": { "type": "number", "exclusiveMinimum": 0 },
+    "width": { "type": "integer", "minimum": 16 },
+    "height": { "type": "integer", "minimum": 16 },
+    "aspect_ratio": { "type": "string" },
+    "duration_sec": { "type": "number", "minimum": 0 },
+    "playhead_sec": { "type": "number", "minimum": 0 },
+    "snap_enabled": { "type": "boolean" },
+    "zoom_px_per_sec": { "type": "number", "minimum": 1 },
+    "tracks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "name", "order", "clips"],
+        "properties": {
+          "id": { "type": "string" },
+          "kind": { "type": "string", "enum": ["video", "audio", "overlay", "text"] },
+          "name": { "type": "string" },
+          "order": { "type": "integer" },
+          "visible": { "type": "boolean" },
+          "locked": { "type": "boolean" },
+          "muted": { "type": "boolean" },
+          "solo": { "type": "boolean" },
+          "clips": { "type": "array" }
+        }
+      }
+    }
+  }
+}
