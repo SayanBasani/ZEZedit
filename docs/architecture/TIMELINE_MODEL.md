@@ -1,99 +1,124 @@
-# ZezEdit 2.0 — Shared Timeline Data Model & API Boundaries
+# ZezEdit 2.0 — Shared Timeline Data Model & API Architecture
 
-> **Milestone 1 Status Note:** Per Milestone 1 scope boundaries, the Timeline Editor runtime and UI are **NOT implemented yet** (scheduled for Milestone 7). This document establishes the authoritative data contract and API boundaries so both the manual Timeline UI and the AI Video Editor (`Module G`) operate on one unified sequence model.
+> **Milestone 9 Implementation Status:** Fully implemented and verified. Both manual editing and the AI Video Editor assistant operate on this exact unified model with transactional persistence, persistent undo/redo history, and direct integration with the Milestone 8 rendering engine.
 
 ---
 
 ## 1. Core Architectural Rule: One Shared Document Model
 
-ZezEdit separates timeline editing from destructive video encoding. A Timeline Sequence is a declarative, versioned JSON document stored alongside SQLite revision history. Manual NLE actions (`move`, `trim`, `split`) and AI-generated edit plans mutate this exact same document schema via validated atomic operations.
+ZezEdit enforces complete architectural unification between manual editing and AI assistance:
+- Both manual UI interactions (split, trim, move, delete, duplicate, add text) and AI-generated editing instructions compile into the exact same command layer (`TimelineCommandService`).
+- All changes are recorded in the SQLite database with forward `payload` and reversible `inverse_payload` data.
+- The timeline can be rendered at any revision into finished playable videos using `TimelineRenderer` backed by the existing Milestone 8 FFmpeg engine.
 
 ---
 
-## 2. Canonical Data Model (`TimelineDocument`)
+## 2. Canonical Data Models
 
-```json
-{
-  "schema_version": 1,
-  "sequence_id": "seq_01J...",
-  "project_id": "proj_01J...",
-  "source_kind": "project_master | rendered_short",
-  "source_ref_id": "asset_or_short_id",
-  "title": "Main Edit v1",
-  "fps": 30.0,
-  "width": 1080,
-  "height": 1920,
-  "aspect_ratio": "9:16",
-  "duration_sec": 42.5,
-  "playhead_sec": 0.0,
-  "snap_enabled": true,
-  "zoom_px_per_sec": 60.0,
-  "tracks": [
-    {
-      "id": "trk_v1",
-      "kind": "video",
-      "name": "Video 1",
-      "order": 0,
-      "visible": true,
-      "locked": false,
-      "muted": false,
-      "solo": false,
-      "clips": []
-    }
-  ]
-}
+### 1. `timelines` Table
+```sql
+CREATE TABLE IF NOT EXISTS timelines (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT 'Main Sequence',
+    duration REAL NOT NULL DEFAULT 0.0,
+    fps INTEGER NOT NULL DEFAULT 30,
+    canvas_width INTEGER NOT NULL DEFAULT 1080,
+    canvas_height INTEGER NOT NULL DEFAULT 1920,
+    time_base TEXT NOT NULL DEFAULT '1/30',
+    revision INTEGER NOT NULL DEFAULT 1,
+    is_active BOOLEAN NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 ```
 
-### Track Kinds Supported
-1. `video` — Primary & B-roll video segments, frame transforms (`scale`, `pos_x`, `pos_y`), crop/reframing reference, playback speed (`rate`), fade in/out.
-2. `audio` — Linked clip audio or standalone music/SFX tracks (`volume_db`, `mute`, `ducking_enabled`, `fade_in_sec`, `fade_out_sec`).
-3. `overlay` — Picture-in-picture, stickers, logos (`opacity`, `blend_mode`, `x`, `y`, `width`, `height`, `z_index`).
-4. `text` — Titles & animated captions (`text`, `style_preset`, `font_family`, `font_size`, `color`, `position_y_pct`, `highlight_active_word`).
+### 2. `timeline_tracks` Table
+```sql
+CREATE TABLE IF NOT EXISTS timeline_tracks (
+    id TEXT PRIMARY KEY,
+    timeline_id TEXT NOT NULL REFERENCES timelines(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    track_type TEXT NOT NULL, -- 'video', 'audio', 'overlay'
+    track_subtype TEXT NOT NULL DEFAULT 'main_video', -- 'main_video', 'secondary_video', 'b_roll', 'source_audio', 'bgm', 'voiceover', 'sfx', 'text', 'caption', 'graphics'
+    track_order INTEGER NOT NULL DEFAULT 0,
+    is_visible BOOLEAN NOT NULL DEFAULT 1,
+    is_muted BOOLEAN NOT NULL DEFAULT 0,
+    is_locked BOOLEAN NOT NULL DEFAULT 0,
+    height INTEGER NOT NULL DEFAULT 64,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
 
-### Canonical Clip Schema (`TimelineClip`)
-Every clip on any track shares core timing fields:
-- `id`: Unique clip ID (`clip_...`)
-- `track_id`: Parent track ID
-- `media_asset_id`: Reference to `media_assets.id` (or `null` for generated `text` clips)
-- `timeline_start_sec`: Position on sequence timeline (`>= 0.0`)
-- `timeline_end_sec`: End position on sequence timeline (`> timeline_start_sec`)
-- `source_in_sec`: Offset into underlying source media (`>= 0.0`)
-- `source_out_sec`: End offset in underlying source media
-- `speed`: Playback rate (`0.25` to `4.0`, default `1.0`)
-- `properties`: Track-kind-specific transforms, filters, audio gains, transitions, or caption styling.
-
-**Timing Invariant:**
-$$\text{timeline\_end} - \text{timeline\_start} \approx \frac{\text{source\_out} - \text{source\_in}}{\text{speed}}$$
-The backend validator rejects negative timings, zero-duration clips, or overlapping clips on the same non-blendable track.
+### 3. `timeline_clips` Table
+```sql
+CREATE TABLE IF NOT EXISTS timeline_clips (
+    id TEXT PRIMARY KEY,
+    timeline_id TEXT NOT NULL REFERENCES timelines(id) ON DELETE CASCADE,
+    track_id TEXT NOT NULL REFERENCES timeline_tracks(id) ON DELETE CASCADE,
+    source_media_id TEXT REFERENCES media_assets(id) ON DELETE SET NULL,
+    clip_type TEXT NOT NULL DEFAULT 'video', -- 'video', 'audio', 'text', 'overlay', 'caption'
+    name TEXT NOT NULL,
+    timeline_start REAL NOT NULL,
+    timeline_end REAL NOT NULL,
+    source_in REAL NOT NULL DEFAULT 0.0,
+    source_out REAL NOT NULL DEFAULT 0.0,
+    speed REAL NOT NULL DEFAULT 1.0,
+    volume REAL NOT NULL DEFAULT 1.0,
+    opacity REAL NOT NULL DEFAULT 1.0,
+    transform_props TEXT NOT NULL DEFAULT '{}',
+    content_props TEXT NOT NULL DEFAULT '{}',
+    audio_props TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+```
 
 ---
 
-## 3. Undo / Redo & Autosave Architecture
+## 3. Persistent Reversible Command System (Undo / Redo)
 
-- **Command / Operation Pattern:** Edits submit atomic `TimelineOperation` payloads (`move_clip`, `trim_clip`, `split_clip`, `delete_clip`, `add_track`, `toggle_track_flag`, `apply_caption_style`, `ai_batch_plan`).
-- **Persistent Revision Ledger (`timeline_revisions`):**
-  - Stores monotonically increasing `revision_number` (`1, 2, 3...`), `parent_revision`, `operation_summary`, `author` (`user` | `ai_editor`), and compressed/delta document snapshot.
-  - Client maintains responsive local undo stack synchronized with backend `/undo` and `/redo` endpoints.
-- **Debounced Autosave:** Active workspace changes autosave after `1500ms` of inactivity (`POST /timeline/autosave`), distinguishing draft autosaves from named user checkpoints so crashes never lose work.
+Every timeline modification executes through `TimelineCommandService`:
+- `InsertClip`: Adds clip, records inverse `DeleteClip`.
+- `MoveClip`: Updates timeline bounds, records inverse `MoveClip` to previous position.
+- `TrimClip`: Adjusts in/out points, records previous boundaries.
+- `SplitClip`: Splits clip at playhead time into two adjacent clips, records inverse merge.
+- `DeleteClip`: Removes clip, stashes all attributes in `inverse_payload` for perfect restoration.
+- `DuplicateClip`: Clones clip immediately adjacent, records inverse removal.
+- `UpdateClipProps`: Modifies volume, speed, transform, or content properties with prior state snapshot.
+- `AddTextOverlay`: Creates high-visibility text overlay on overlay track.
+
+### Undo & Redo Lifecycle:
+1. `undo()`: Queries `SELECT * FROM timeline_commands WHERE timeline_id = ? AND is_undone = 0 ORDER BY revision_after DESC LIMIT 1`, applies `inverse_payload`, sets `is_undone = 1`, and updates revision.
+2. `redo()`: Queries `SELECT * FROM timeline_commands WHERE timeline_id = ? AND is_undone = 1 ORDER BY revision_after ASC LIMIT 1`, reapplies `payload`, sets `is_undone = 0`, and updates revision.
+3. Because history is recorded in `timeline_commands`, **Undo/Redo survives application crashes and restarts**.
 
 ---
 
-## 4. Layout & Interaction Boundaries (Historical Fixes Preserved)
+## 4. AI Video Editor Assistant Architecture
 
-Drawing directly from historical `BUG-08A-3`, `BUG-08A-4`, and `BUG-08A-10`:
-1. **Bounded Single-Viewport NLE Layout:** The Timeline Editor page uses `h-full flex flex-col overflow-hidden`. Preview monitor & Clip Inspector share a bounded flex-1 row; the multi-track timeline occupies a fixed-proportion bottom dock with internal horizontal & vertical scrolling—zooming the timeline MUST NEVER stretch the browser window.
-2. **Explicit Sequence Selection:** Opening the editor via `?shortId=...` loads that specific Short's sequence rather than defaulting to a generic clip, with a header dropdown to switch sequences cleanly.
-3. **Snapping & Scrubbing:** Snaps against clip edges, playhead, and scene-cut markers when `snap_enabled = true`; preview `<video>` synchronizes seamlessly with the scrub playhead.
+The AI Editor assistant operates under strict safety boundaries:
+1. **Context Aggregator**: Gathers project media, transcripts (Whisper tokens), scenes, highlight candidates, timeline tracks, clips, playhead time, and selected clip ID.
+2. **Deterministic & Semantic Reasoner**: Answers informational queries (e.g. "What is happening at 2 minutes?", "Find highlight candidates") or creates an `AIEditingPlan`.
+3. **Structured Plan Structure**:
+   - `plan_id`: Unique identifier.
+   - `user_instruction`: Raw prompt.
+   - `target_revision`: Sequence revision when plan was generated.
+   - `explanation`: Plain English explanation of proposed edits.
+   - `operations`: Array of validated editing commands.
+   - `warnings`: Explanations of destructive actions or timing changes.
+   - `status`: `'proposed' | 'approved' | 'rejected' | 'executed' | 'failed'`.
+4. **Approval Gate**: The user reviews the plan and clicks **Approve & Execute** or **Reject**. The assistant *never* executes edits silently.
+5. **Safe Execution**: All approved operations are piped directly through `TimelineCommandService`.
 
 ---
 
-## 5. API Boundary Contract (Planned Milestone 7)
+## 5. Timeline Rendering Integration (FFmpeg Filtergraph)
 
-| Method & Path | Responsibility |
-|---|---|
-| `GET /api/v1/projects/{pid}/timeline` | Load active sequence (or create default from `?shortId=`) |
-| `POST /api/v1/projects/{pid}/timeline/operations` | Validate & apply atomic operation(s), returning updated `revision` |
-| `POST /api/v1/projects/{pid}/timeline/undo` | Step back one revision cleanly |
-| `POST /api/v1/projects/{pid}/timeline/redo` | Step forward one revision cleanly |
-| `PUT /api/v1/projects/{pid}/timeline/autosave` | Persist non-destructive UI state & sequence draft |
-| `GET /api/v1/projects/{pid}/timeline/revisions` | Inspect revision history & rollback |
+The timeline renders into finished video via `TimelineRenderer`:
+- Layers visual tracks from lowest `track_order` (base video) to highest (B-roll, overlays, text).
+- Trims source clips with `trim=start=...:duration=...` and delays/overlays at `timeline_start`.
+- Compiles text overlays into libass subtitle tracks (`ass=filename=overlay.ass`), guaranteeing 100% stability across Windows environments without freetype font crashes.
+- Mixes audio streams with `amix=inputs=N:normalize=0` and applies EBU R128 loudness normalization (`loudnorm=I=-14:TP=-1.5:LRA=11`).
+- Validates the resulting MP4 container using Milestone 8's `OutputValidator` before publishing to `storage/exports/{project_id}/`.

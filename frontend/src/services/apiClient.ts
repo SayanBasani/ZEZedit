@@ -31,6 +31,23 @@ import {
   ProjectItem,
   ProjectListResponse,
 } from '../types/projects';
+import {
+  AIConversation,
+  AIEditingPlan,
+  AIMessage,
+  AddTextOverlayRequest,
+  CreateTimelineRequest,
+  InsertClipRequest,
+  MoveClipRequest,
+  SplitClipRequest,
+  TimelineClip,
+  TimelineHistoryResponse,
+  TimelineRecord,
+  TimelineRenderRequest,
+  TimelineTrack,
+  TrimClipRequest,
+  UpdateClipPropsRequest,
+} from '../types/timeline';
 
 const API_BASE = '/api/v1';
 
@@ -641,6 +658,230 @@ export function deleteExport(
 
 export function getExportVideoUrl(projectId: string, exportId: string): string {
   return `${API_BASE}/projects/${projectId}/exports/${exportId}/video`;
+}
+
+// ==================== TIMELINE & AI VIDEO EDITOR ====================
+
+export function fetchTimeline(projectId: string): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timeline`);
+}
+
+export function createTimeline(
+  projectId: string,
+  payload: CreateTimelineRequest
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function updateTimelineSettings(
+  projectId: string,
+  timelineId: string,
+  settings: { name?: string; fps?: number; canvas_width?: number; canvas_height?: number }
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines/${timelineId}/settings`, {
+    method: 'PATCH',
+    body: JSON.stringify(settings),
+  });
+}
+
+export function addTimelineTrack(
+  projectId: string,
+  timelineId: string,
+  track: { name: string; track_type: string; track_subtype?: string; track_order?: number }
+): Promise<TimelineTrack> {
+  return request<TimelineTrack>(`/projects/${projectId}/timelines/${timelineId}/tracks`, {
+    method: 'POST',
+    body: JSON.stringify(track),
+  });
+}
+
+export function updateTimelineTrack(
+  projectId: string,
+  timelineId: string,
+  trackId: string,
+  updates: { name?: string; is_visible?: boolean; is_muted?: boolean; is_locked?: boolean; track_order?: number; height?: number }
+): Promise<TimelineTrack> {
+  return request<TimelineTrack>(`/projects/${projectId}/timelines/${timelineId}/tracks/${trackId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export function deleteTimelineTrack(
+  projectId: string,
+  timelineId: string,
+  trackId: string
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`/projects/${projectId}/timelines/${timelineId}/tracks/${trackId}`, {
+    method: 'DELETE',
+  });
+}
+
+export function insertTimelineClip(
+  projectId: string,
+  timelineId: string,
+  clip: InsertClipRequest
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/clips`, {
+    method: 'POST',
+    body: JSON.stringify(clip),
+  });
+}
+
+export function moveTimelineClip(
+  projectId: string,
+  timelineId: string,
+  moveReq: MoveClipRequest
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/clips/move`, {
+    method: 'POST',
+    body: JSON.stringify(moveReq),
+  });
+}
+
+export function trimTimelineClip(
+  projectId: string,
+  timelineId: string,
+  trimReq: TrimClipRequest
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/clips/trim`, {
+    method: 'POST',
+    body: JSON.stringify(trimReq),
+  });
+}
+
+export function splitTimelineClip(
+  projectId: string,
+  timelineId: string,
+  splitReq: SplitClipRequest
+): Promise<TimelineClip[]> {
+  return request<TimelineClip[]>(`/projects/${projectId}/timelines/${timelineId}/clips/split`, {
+    method: 'POST',
+    body: JSON.stringify(splitReq),
+  });
+}
+
+export function deleteTimelineClip(
+  projectId: string,
+  timelineId: string,
+  clipId: string
+): Promise<{ message: string }> {
+  return request<{ message: string }>(`/projects/${projectId}/timelines/${timelineId}/clips/${clipId}`, {
+    method: 'DELETE',
+  });
+}
+
+export function duplicateTimelineClip(
+  projectId: string,
+  timelineId: string,
+  clipId: string
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/clips/${clipId}/duplicate`, {
+    method: 'POST',
+  });
+}
+
+export function updateTimelineClipProps(
+  projectId: string,
+  timelineId: string,
+  clipId: string,
+  props: UpdateClipPropsRequest
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/clips/${clipId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(props),
+  });
+}
+
+export function addTimelineTextOverlay(
+  projectId: string,
+  timelineId: string,
+  overlay: AddTextOverlayRequest
+): Promise<TimelineClip> {
+  return request<TimelineClip>(`/projects/${projectId}/timelines/${timelineId}/overlays/text`, {
+    method: 'POST',
+    body: JSON.stringify(overlay),
+  });
+}
+
+export function fetchTimelineHistory(
+  projectId: string,
+  timelineId: string
+): Promise<TimelineHistoryResponse> {
+  return request<TimelineHistoryResponse>(`/projects/${projectId}/timelines/${timelineId}/history`);
+}
+
+export function undoTimeline(
+  projectId: string,
+  timelineId: string
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines/${timelineId}/history/undo`, {
+    method: 'POST',
+  });
+}
+
+export function redoTimeline(
+  projectId: string,
+  timelineId: string
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines/${timelineId}/history/redo`, {
+    method: 'POST',
+  });
+}
+
+export function fetchAIConversation(
+  projectId: string,
+  timelineId: string
+): Promise<AIConversation> {
+  return request<AIConversation>(`/projects/${projectId}/timelines/${timelineId}/ai/conversation`);
+}
+
+export function sendAIMessage(
+  projectId: string,
+  timelineId: string,
+  msg: { message: string; playhead_time?: number; selected_clip_id?: string; selected_track_id?: string }
+): Promise<AIMessage> {
+  return request<AIMessage>(`/projects/${projectId}/timelines/${timelineId}/ai/messages`, {
+    method: 'POST',
+    body: JSON.stringify(msg),
+  });
+}
+
+export function approveAIPlan(
+  projectId: string,
+  timelineId: string,
+  planId: string
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines/${timelineId}/ai/plans/${planId}/approve`, {
+    method: 'POST',
+  });
+}
+
+export function rejectAIPlan(
+  projectId: string,
+  timelineId: string,
+  planId: string
+): Promise<AIEditingPlan> {
+  return request<AIEditingPlan>(`/projects/${projectId}/timelines/${timelineId}/ai/plans/${planId}/reject`, {
+    method: 'POST',
+  });
+}
+
+export function renderTimeline(
+  projectId: string,
+  timelineId: string,
+  renderReq: TimelineRenderRequest
+): Promise<{ job_id: string; timeline_id: string; status: string; message: string }> {
+  return request<{ job_id: string; timeline_id: string; status: string; message: string }>(
+    `/projects/${projectId}/timelines/${timelineId}/render`,
+    {
+      method: 'POST',
+      body: JSON.stringify(renderReq),
+    }
+  );
 }
 
 

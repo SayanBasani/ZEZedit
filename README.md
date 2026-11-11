@@ -171,6 +171,38 @@ npm test
 
 ---
 
+## AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9)
+
+- **Unified Multi-Track Architecture:**
+  - One authoritative timeline model representing sequences, tracks (video, audio, text overlays), and clips with frame-accurate timing.
+  - Video tracks (Main Video, B-roll), Audio tracks (Source Audio, Background Music), Overlay tracks (Text, Graphics).
+  - Time domains: Exact mapping between source time (`source_in`, `source_out`) and timeline time (`timeline_start`, `timeline_end`).
+- **Validated Reversible Command System:**
+  - Every timeline mutation operates through explicit commands: `InsertClip`, `MoveClip`, `TrimClip`, `SplitClip`, `DeleteClip`, `DuplicateClip`, `UpdateClipProps`, `AddTextOverlay`.
+  - Commands validate interval boundaries ($timeline\_end > timeline\_start \ge 0$), track existence, and track lock states before execution.
+  - Generates exact forward and inverse payloads recorded in `timeline_commands`.
+- **Persistent Undo & Redo:**
+  - Transactional history surviving application restarts and system crashes.
+  - `undo()` applies inverse payload and increments sequence revision; `redo()` reapplies forward payload cleanly.
+- **AI Video Editor Assistant:**
+  - Dedicated assistant understanding project media, transcripts (Whisper tokens), shot boundaries, highlight candidates, timeline tracks, and selected clips.
+  - Contextual reasoning: Answers user questions (e.g. "What happens at 2 minutes?", "Find highlight moments") or generates structured editing plans.
+  - Strict Safety Boundaries: AI cannot run arbitrary shell commands, modify database files directly, delete source media, or execute unapproved edits.
+  - Review & Approval Gate: Proposed plans present plain-English explanations, operation lists, and warnings. Edits are executed only after explicit user approval.
+- **Multi-Track Timeline Rendering Pipeline:**
+  - Directly translates timeline state into an FFmpeg execution graph without building a redundant second renderer.
+  - Video layering with time-bounded overlays, libass text overlays (`ass=filename=overlay.ass`) for bulletproof Windows stability, multi-track audio mixing (`amix`), and loudness normalization (`loudnorm`).
+  - Integrated with Milestone 8 `OutputValidator` gate to inspect dimensions, duration, codecs, and frame decodability.
+- **Keyboard Shortcuts:**
+  - `S`: Split clip at playhead position.
+  - `Del`: Delete currently selected clip (reversible via Undo).
+  - `D`: Duplicate selected clip.
+  - `Ctrl+Z`: Undo last editing operation.
+  - `Ctrl+Y`: Redo next operation.
+  - `Space`: Toggle playback / pause.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)

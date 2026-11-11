@@ -114,12 +114,18 @@ erDiagram
   - `tracking_trajectories`, `manual_crop_overrides` (`id`, `project_id`, `candidate_id`, `export_id`, `rel_timestamp`, `center_x`, `center_y`, `zoom`, `scene_segment_idx`), `export_revisions`.
 - **Milestone 7 (`0006_timeline_editor.sql`):**
   - `timeline_sequences` (`id`, `project_id`, `title`, `fps`, `width`, `height`, `active_document_json`, `version`), `timeline_revisions` (undo/redo & autosave snapshots).
-- **Milestone 8 (`0007_ai_editor.sql`):**
-  - `ai_conversations`, `ai_messages`, `ai_edit_plans` (`plan_json`, `validation_status`, `execution_status`, `applied_timeline_revision_id`).
-- **Milestone 9 (`0008_character_extraction.sql`):**
-  - `character_extraction_jobs`, `character_entities`, `character_observations`, `confirmed_character_profiles` (explicitly preserving non-3D evidence-based design from historical M13M.10–11).
-- **Milestone 10 (`0009_exports_and_backups.sql`):**
-  - `exports` (`id`, `project_id`, `timeline_id`, `candidate_id`, `aspect_ratio`, `preset`, `output_path`, `revision`, `ffprobe_verified`, `file_size_bytes`, `created_at`), `backups`.
+- **Milestone 8 (`0007_export_pipeline.sql`):**
+  - `exports` (`id`, `project_id`, `candidate_id`, `media_asset_id`, `reframing_plan_id`, `render_job_id`, `title`, `export_preset`, `target_aspect_ratio`, `target_width`, `target_height`, `video_codec`, `audio_codec`, `duration_seconds`, `status`, `validation_status`, `validation_details_json`).
+- **Milestone 9 (`0008_timeline_editor.sql`):**
+  - `timelines`: (`id`, `project_id`, `name`, `duration`, `fps`, `canvas_width`, `canvas_height`, `time_base`, `revision`, `is_active`).
+  - `timeline_tracks`: (`id`, `timeline_id`, `name`, `track_type`, `track_subtype`, `track_order`, `is_visible`, `is_muted`, `is_locked`, `height`).
+  - `timeline_clips`: (`id`, `timeline_id`, `track_id`, `source_media_id`, `clip_type`, `name`, `timeline_start`, `timeline_end`, `source_in`, `source_out`, `speed`, `volume`, `opacity`, `transform_props`, `content_props`, `audio_props`).
+  - `timeline_commands`: (`id`, `timeline_id`, `command_type`, `payload`, `inverse_payload`, `revision_before`, `revision_after`, `description`, `executed_by`, `is_undone`). Persistent undo/redo history surviving restarts.
+  - `ai_conversations`: (`id`, `project_id`, `timeline_id`, `title`).
+  - `ai_editing_plans`: (`id`, `conversation_id`, `project_id`, `timeline_id`, `target_revision`, `user_instruction`, `explanation`, `operations`, `warnings`, `status`).
+  - `ai_messages`: (`id`, `conversation_id`, `role`, `content`, `context_snapshot`, `plan_id`).
+- **Milestone 11 (`0009_character_extraction.sql`):**
+  - Character entity models and observation tracking.
 
 ---
 

@@ -29,6 +29,7 @@ import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
 import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace';
 import { ReframingWorkspace } from '../features/reframing/ReframingWorkspace';
 import { ExportStudio } from '../features/exports/ExportStudio';
+import { TimelineEditor } from '../features/timeline/TimelineEditor';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -157,6 +158,7 @@ export const App: React.FC = () => {
     await loadGlobalData();
   };
 
+  const selectedProject = projects.find((p) => p.id === selectedProjectId) || projects[0] || null;
   const activeJobsCount = jobs.filter((j) => j.status === 'running').length;
 
   return (
@@ -296,23 +298,15 @@ export const App: React.FC = () => {
           />
 
           <SidebarNavButton
-            active={activeTab === 'timeline'}
+            active={activeTab === 'timeline' || activeTab === 'ai-editor'}
             collapsed={sidebarCollapsed}
-            icon={<Scissors className="w-4 h-4" />}
-            label="Timeline Editor"
-            badge="M7"
-            disabled
-            title="Scheduled for Milestone 7 (Multi-Track NLE)"
-          />
-
-          <SidebarNavButton
-            active={activeTab === 'ai-editor'}
-            collapsed={sidebarCollapsed}
-            icon={<Sparkles className="w-4 h-4 text-purple-400" />}
-            label="AI Video Editor"
-            badge="M8"
-            disabled
-            title="Scheduled for Milestone 8 (Conversational AI Assistant)"
+            icon={<Scissors className="w-4 h-4 text-amber-400" />}
+            label="Timeline & AI Editor"
+            badge="M9"
+            onClick={() => {
+              setActiveTab('timeline');
+              setMobileMenuOpen(false);
+            }}
           />
 
           <SidebarNavButton
@@ -559,6 +553,10 @@ export const App: React.FC = () => {
                 setActiveTab('reframing');
               }}
             />
+          )}
+
+          {(activeTab === 'timeline' || activeTab === 'ai-editor') && (
+            <TimelineEditor currentProject={selectedProject} />
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

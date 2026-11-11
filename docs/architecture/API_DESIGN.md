@@ -108,8 +108,32 @@ All unhandled exceptions, Pydantic `RequestValidationError`s, and domain `AppErr
   - `DELETE /api/v1/projects/{pid}/exports/{export_id}` — Safely delete an export file and database record.
   - `GET /api/v1/projects/{pid}/exports/{export_id}/video` — Stream rendered video file with HTTP 206 byte-range seeking support.
 
-### Planned Endpoints (Milestones 9–12)
-- **Timeline Editor (M9):** `/api/v1/projects/{id}/timeline`, `/api/v1/projects/{id}/timeline/operations`, `/api/v1/projects/{id}/timeline/undo`, `/api/v1/projects/{id}/timeline/redo`
-- **AI Video Editor (M10):** `/api/v1/projects/{id}/ai-editor/chat`, `/api/v1/projects/{id}/ai-editor/plans/{plan_id}/execute`
+- **Timeline Editor, Non-Destructive Editing & AI Assistant (M9):**
+  - `GET /api/v1/projects/{pid}/timeline` — Retrieve active project sequence or initialize default tracks.
+  - `POST /api/v1/projects/{pid}/timelines` — Create a new timeline sequence.
+  - `GET /api/v1/projects/{pid}/timelines/{tl_id}` — Get timeline with tracks, clips, and duration.
+  - `PATCH /api/v1/projects/{pid}/timelines/{tl_id}/settings` — Update sequence name, fps, or canvas dimensions.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/tracks` — Add video, audio, or overlay track.
+  - `PATCH /api/v1/projects/{pid}/timelines/{tl_id}/tracks/{tr_id}` — Update track mute, lock, visibility, or order.
+  - `DELETE /api/v1/projects/{pid}/timelines/{tl_id}/tracks/{tr_id}` — Delete a track and all its clips.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/clips` — Insert clip onto track with boundary checks.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/clips/move` — Move clip to new timeline start time or track.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/clips/trim` — Trim clip in/out boundaries.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/clips/split` — Split clip at playhead time into two adjacent clips.
+  - `DELETE /api/v1/projects/{pid}/timelines/{tl_id}/clips/{clip_id}` — Delete clip (reversible via Undo).
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/clips/{clip_id}/duplicate` — Duplicate clip.
+  - `PATCH /api/v1/projects/{pid}/timelines/{tl_id}/clips/{clip_id}` — Update volume, speed, transform, or content properties.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/overlays/text` — Add text overlay clip with color and size.
+  - `GET /api/v1/projects/{pid}/timelines/{tl_id}/history` — Get history log and undo/redo availability.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/history/undo` — Revert most recent operation.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/history/redo` — Reapply next undone operation.
+  - `GET /api/v1/projects/{pid}/timelines/{tl_id}/ai/conversation` — Retrieve active AI conversation.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/ai/messages` — Send natural language instruction, get reply or proposed plan.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/ai/plans/{plan_id}/approve` — Approve and execute AI editing plan.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/ai/plans/{plan_id}/reject` — Reject proposed plan.
+  - `POST /api/v1/projects/{pid}/timelines/{tl_id}/render` — Render multi-track timeline using Milestone 8 export engine.
+
+### Planned Endpoints (Milestones 10–12)
+- **Conversational AI Prompt Editing (M10):** Natural language edit refinement.
 - **Character Extraction (M11):** `/api/v1/character-extraction/jobs`, `/api/v1/character-extraction/entities/{id}`, `/api/v1/character-extraction/profiles`
 - **Packaging & Archiving (M12):** `/api/v1/projects/{id}/archive-package`, `/api/v1/system/backups`

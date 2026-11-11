@@ -143,3 +143,18 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] **Frontend Shorts Export Studio:** Full export workspace featuring candidate selector, preset cards, caption/audio configuration accordions, live job monitor, HTML5 player, and export history.
 - [x] **Automated Testing:** 41/41 backend Pytest tests pass (100%), 41/41 frontend Vitest tests pass (100%), and Vite production build succeeds with 0 errors.
 - [x] **Real Video Scenario Validation:** Three distinct scenarios (Single-Person, Multi-Person Conversation, Ultrawide 2.4:1 Letterbox) rendered to 1080x1920 vertical MP4s with contact sheets generated and verified.
+
+---
+
+## Milestone 9: AI Video Editor, Multi-Track Timeline & Non-Destructive Editing Checklist
+
+- [x] **Database Schema & Migrations:** Forward-only migration `0008_timeline_editor.sql` creates `timelines`, `timeline_tracks`, `timeline_clips`, `timeline_commands`, `ai_conversations`, `ai_editing_plans`, and `ai_messages` with indexing.
+- [x] **Unified Multi-Track Data Model:** Authoritative timeline service managing project sequences, tracks (video, audio, overlay), clips, time domains, and duration recalculation.
+- [x] **Validated Reversible Command System:** Explicit commands (`InsertClip`, `MoveClip`, `TrimClip`, `SplitClip`, `DeleteClip`, `DuplicateClip`, `UpdateClipProps`, `AddTextOverlay`) with boundary verification and transactional persistence.
+- [x] **Persistent Undo & Redo History:** In-database command logging recording forward and inverse payloads, enabling reliable undo and redo that survives application restarts.
+- [x] **AI Video Editor Assistant:** Context-aware assistant querying project media, transcripts, scenes, and highlight candidates; answers natural language questions and formulates structured editing plans.
+- [x] **User Review & Approval Gate:** Proposed plans include rationale, operations list, and safety warnings; edits execute only upon explicit user approval via verified command layer.
+- [x] **Multi-Track Rendering Integration:** Translates timeline tracks, clips, trims, and volume mixing into FFmpeg filtergraph, compiling libass text overlays and validating finished videos through Milestone 8's `OutputValidator`.
+- [x] **Frontend Timeline & AI Editor Workspace:** Full interactive desktop workspace featuring Preview Monitor, Aspect Ratio toggle, Timecode readout, Properties Inspector, AI Assistant chat drawer, and multi-track timeline canvas with draggable playhead.
+- [x] **Automated Testing:** 47/47 backend Pytest tests pass (100%), 46/46 frontend Vitest tests pass (100%), and Vite production build compiles with 0 errors.
+- [x] **Real Video Scenario Validation:** Multi-track timeline synthesized, reframed, and rendered to 1080x1920 vertical MP4 video with contact sheet generated and verified.

@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-12  
-**Active Milestone:** Milestone 8 Completed — Rendering Engine, Export Pipeline & Automatic Shorts Generation
+**Active Milestone:** Milestone 9 Completed — AI Video Editor, Multi-Track Timeline & Non-Destructive Editing
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -148,11 +148,28 @@ Status legend:
 
 ---
 
+## AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M9-01 | Database Migration `0008_timeline_editor.sql` | DB / Migrations | Implemented | `backend/migrations/0008_timeline_editor.sql` | Tables for `timelines`, `timeline_tracks`, `timeline_clips`, `timeline_commands`, `ai_conversations`, `ai_editing_plans`, `ai_messages` |
+| M9-02 | Authoritative Timeline & Multi-Track Service | Timeline Core | Implemented | `backend/app/services/timeline_service.py` | Timeline CRUD, default tracks initialization (V2, V1, A1, A2), track mute/lock/visibility, duration recalculation |
+| M9-03 | Validated Reversible Editing Commands Layer | Timeline Core | Implemented | `backend/app/services/timeline_command_service.py` | `InsertClip`, `MoveClip`, `TrimClip`, `SplitClip`, `DeleteClip`, `DuplicateClip`, `UpdateClipProps`, `AddTextOverlay` |
+| M9-04 | Persistent Undo & Redo History Engine | Timeline Core | Implemented | `backend/app/services/timeline_command_service.py` | Transactional forward/inverse payloads surviving app restarts and crashes |
+| M9-05 | AI Video Editor Assistant Service | AI Assistant | Implemented | `backend/app/services/ai_editor_service.py` | Context aggregation (media, transcripts, highlights, timeline state), query answering, structured plan generation with warnings |
+| M9-06 | User Approval Gate & Safe Execution Engine | AI Assistant | Implemented | `backend/app/services/ai_editor_service.py` | Plan review card, user approval execution mapping safely into command layer; no silent or destructive execution |
+| M9-07 | Multi-Track Timeline FFmpeg Rendering Pipeline | Timeline Core | Implemented | `backend/app/services/timeline_renderer.py` | Video layering, libass text overlays, multi-track audio mixing (`amix`), loudness normalization, Milestone 8 `OutputValidator` gate |
+| M9-08 | Timeline & AI REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/timeline.py` | 23 REST endpoints covering timeline CRUD, tracks, clips, undo/redo, AI conversation, plans, and render |
+| M9-09 | Frontend Timeline & AI Editor Workspace | Features / Timeline | Implemented | `frontend/src/features/timeline/TimelineEditor.tsx` | Toolbar, preview monitor, Inspector properties panel, AI assistant chat with plan review card, multi-track lanes and playhead |
+| M9-10 | Backend Automated Test Suite (6 tests) | Testing | Implemented | `backend/tests/test_milestone9_timeline.py` | Timeline CRUD, clip operations/validation, persistent undo/redo, AI assistant, multi-track render, API lifecycle (100% pass) |
+| M9-11 | Frontend Vitest Test Suite (5 tests) | Testing | Implemented | `frontend/src/test/timeline.test.tsx` | Sequence rendering, clip inspection, undo/redo, AI plan approval, render trigger (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-F1 | Multi-Track Timeline Editor, Keyframes, Snap, Undo/Redo & Autosave | F: Timeline | Planned | Milestone 9 |
-| MOD-G1 | Conversational AI Video Editor & Schema-Validated EditPlan Executor | G: AI Editor | Planned | Milestone 10 |
+| MOD-G2 | Conversational AI Prompt-to-Cut Advanced Fine-Tuning | G: AI Editor | Planned | Milestone 10 |
 | MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 11 |
 | MOD-I1 | Final Packaging, Multi-Format Archiving & Project Backup | I: Export | Planned | Milestone 12 |
