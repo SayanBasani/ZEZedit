@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-12  
-**Active Milestone:** Milestone 9 Completed — AI Video Editor, Multi-Track Timeline & Non-Destructive Editing
+**Active Milestone:** Milestone 10 Completed — Character Extraction Studio, Character Library, System Integration & End-to-End Reliability
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -166,10 +166,27 @@ Status legend:
 
 ---
 
+## Character Extraction Studio, Character Library & System Integration (Milestone 10)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M10-01 | Database Migration `0009_character_studio.sql` | DB / Migrations | Implemented | `backend/migrations/0009_character_studio.sql` | Schema for `character_extraction_jobs`, `character_profiles`, `character_candidates`, `character_observations`, `character_review_events` |
+| M10-02 | Configurable Frame Sampling & Region Detection | Character Core | Implemented | `backend/app/services/character_service.py` | CPU-first OpenCV skin/saliency detection, non-saturating frame sampling, bounding box & confidence tracking |
+| M10-03 | Spatial-Temporal Candidate Clustering | Character Core | Implemented | `backend/app/services/character_service.py` | Provisional visual candidate groupings without claiming biometric identity verification |
+| M10-04 | Dialogue & Observation Association | Character Core | Implemented | `backend/app/services/character_service.py` | Cropped thumbnail generation, transcript temporal intersection, explicit unverified speaker association disclaimer |
+| M10-05 | Human-in-the-Loop Review Controls | Character Core | Implemented | `backend/app/services/character_service.py` | Rename candidate, confirm to library, merge candidate groups, split observations, reject, non-destructive detach |
+| M10-06 | Persistent Character Library & Documented JSON Export | Character Core | Implemented | `backend/app/services/character_service.py` | Project-wide character repository, bio/tag management, appearance totals, versioned JSON export payload |
+| M10-07 | Character Studio REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/characters.py` | 12 REST endpoints covering extraction jobs, candidate listing/patching, review actions, library queries, and export |
+| M10-08 | Frontend Character Studio Workspace | Features / Characters | Implemented | `frontend/src/features/characters/CharacterStudio.tsx` | Two tabs (Candidate Review & Character Library), extraction controls, observation gallery, review modals, JSON viewer |
+| M10-09 | Full End-to-End System Integration & Reliability | System | Implemented | `frontend/src/app/App.tsx`, `backend/app/main.py` | All 10 modules seamlessly connected; startup recovery, zero regressions across 51 backend + 52 frontend tests |
+| M10-10 | Backend Automated Test Suite (4 tests) | Testing | Implemented | `backend/tests/test_milestone10_character.py` | Extraction & observations, review workflow (rename, detach, split, merge, confirm), library & export, REST API (100% pass) |
+| M10-11 | Frontend Vitest Test Suite (6 tests) | Testing | Implemented | `frontend/src/test/characters.test.tsx` | Studio rendering, observation inspector, inline rename, confirm modal, library tab, JSON export download (100% pass) |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-G2 | Conversational AI Prompt-to-Cut Advanced Fine-Tuning | G: AI Editor | Planned | Milestone 10 |
-| MOD-H1 | Independent Character Extraction Studio & Persistent Character Library | H: Characters | Planned | Milestone 11 |
-| MOD-I1 | Final Packaging, Multi-Format Archiving & Project Backup | I: Export | Planned | Milestone 12 |
+| MOD-J1 | Multi-Project Templates & Global Preset Packaging | Core | Planned | Milestone 11 |
+| MOD-K1 | Production Standalone Electron/Desktop Packaging | Packaging | Planned | Milestone 12 |

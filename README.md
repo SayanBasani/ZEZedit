@@ -203,6 +203,29 @@ npm test
 
 ---
 
+## Character Extraction Studio, Character Library & System Integration (Milestone 10)
+
+- **Independent, Non-Mandatory Workflow:** Character extraction operates completely decoupled from Shorts highlight discovery and rendering; users can use it optionally to track people and speech.
+- **Configurable Frame Sampling:** Extracts representative frames across video duration at user-selected sampling rates (0.5s, 1.0s, 2.0s) without high memory overhead.
+- **CPU-First Face & Person Detection:** Robust OpenCV skin-tone segmentation, contour geometry, and visual saliency running 100% on CPU without requiring CUDA or external network weights.
+- **Spatial-Temporal Candidate Clustering:** Forms provisional candidate groupings based on temporal proximity and spatial bounding box distances with transparent confidence metrics.
+- **Observations & Evidence Thumbnails:** Bounding box crops generated and saved to storage/characters/{project_id}/thumbs/, tracking detection method, confidence, and timestamps.
+- **Unverified Dialogue Correlation:** Queries intersecting 	ranscript_segments and attaches speech snippets with explicit disclaimer (Unverified Speaker Association).
+- **Screen Time Transparency:** Distinguishes sampled frames screen time from continuous estimated screen time.
+- **Human Review Controls:**
+  - Rename candidate labels
+  - Confirm candidates to persistent Character Library
+  - Merge multiple candidate groups into a target candidate
+  - Split candidate observations into a new candidate group
+  - Non-destructive observation detachment (evidence retained on disk)
+  - Reject false-positive candidates
+- **Persistent Character Library:** Project-wide library managing confirmed character profiles, biographies, appearance tags, and appearance metrics.
+- **Documented JSON Export:** Exports full character profile, candidate groupings, appearance timestamps, and screen-time breakdowns with formal transparency disclaimers.
+- **Frontend Studio Workspace (CharacterStudio.tsx):** Integrated dual-tab interface with live observation gallery, review dialogs, search/filter, and JSON download.
+- **Complete System Reliability:** 51/51 backend Pytests and 52/52 frontend Vitests passing (100%), with automatic startup recovery and immutable source media.
+
+---
+
 ## Architecture & Documentation
 
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)
@@ -214,5 +237,6 @@ npm test
 - [Job Orchestration](docs/architecture/JOB_ORCHESTRATION.md)
 - [Media Pipeline](docs/architecture/MEDIA_PIPELINE.md)
 - [Timeline Data Model](docs/architecture/TIMELINE_MODEL.md)
+- [Character Studio Architecture](docs/architecture/CHARACTER_STUDIO.md)
 - [Security & Data Safety](docs/architecture/SECURITY_AND_DATA_SAFETY.md)
 - [Technology Decisions](docs/architecture/TECHNOLOGY_DECISIONS.md)

@@ -32,10 +32,10 @@ import {
   ProjectListResponse,
 } from '../types/projects';
 import {
+  AddTextOverlayRequest,
   AIConversation,
   AIEditingPlan,
   AIMessage,
-  AddTextOverlayRequest,
   CreateTimelineRequest,
   InsertClipRequest,
   MoveClipRequest,
@@ -48,6 +48,17 @@ import {
   TrimClipRequest,
   UpdateClipPropsRequest,
 } from '../types/timeline';
+import {
+  CharacterCandidate,
+  CharacterExportPayload,
+  CharacterProfile,
+  ConfirmCandidateRequest,
+  ExtractionJobConfig,
+  ExtractionJobStatus,
+  MergeCandidatesRequest,
+  SplitCandidateRequest,
+  UpdateProfileRequest,
+} from '../types/character';
 
 const API_BASE = '/api/v1';
 
@@ -883,5 +894,135 @@ export function renderTimeline(
     }
   );
 }
+
+// --- Milestone 10: Character Extraction Studio & Character Library ---
+
+export function runCharacterExtraction(
+  projectId: string,
+  config: ExtractionJobConfig
+): Promise<ExtractionJobStatus> {
+  return request<ExtractionJobStatus>(`/projects/${projectId}/characters/extract`, {
+    method: 'POST',
+    body: JSON.stringify(config),
+  });
+}
+
+export function getCharacterExtractionJob(
+  projectId: string,
+  jobId: string
+): Promise<ExtractionJobStatus> {
+  return request<ExtractionJobStatus>(`/projects/${projectId}/characters/jobs/${jobId}`);
+}
+
+export function getCharacterCandidates(
+  projectId: string,
+  jobId?: string,
+  includeDetached = false
+): Promise<CharacterCandidate[]> {
+  const params = new URLSearchParams();
+  if (jobId) params.append('job_id', jobId);
+  if (includeDetached) params.append('include_detached', 'true');
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request<CharacterCandidate[]>(`/projects/${projectId}/characters/candidates${qs}`);
+}
+
+export function renameCharacterCandidate(
+  projectId: string,
+  candidateId: string,
+  label: string
+): Promise<CharacterCandidate> {
+  return request<CharacterCandidate>(`/projects/${projectId}/characters/candidates/${candidateId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export function confirmCharacterCandidate(
+  projectId: string,
+  candidateId: string,
+  data: ConfirmCandidateRequest
+): Promise<CharacterProfile> {
+  return request<CharacterProfile>(`/projects/${projectId}/characters/candidates/${candidateId}/confirm`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function mergeCharacterCandidates(
+  projectId: string,
+  req: MergeCandidatesRequest
+): Promise<CharacterCandidate> {
+  return request<CharacterCandidate>(`/projects/${projectId}/characters/candidates/merge`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+export function splitCharacterCandidate(
+  projectId: string,
+  candidateId: string,
+  req: SplitCandidateRequest
+): Promise<CharacterCandidate[]> {
+  return request<CharacterCandidate[]>(`/projects/${projectId}/characters/candidates/${candidateId}/split`, {
+    method: 'POST',
+    body: JSON.stringify(req),
+  });
+}
+
+export function detachCharacterObservation(
+  projectId: string,
+  candidateId: string,
+  observationId: string
+): Promise<CharacterCandidate> {
+  return request<CharacterCandidate>(
+    `/projects/${projectId}/characters/candidates/${candidateId}/observations/${observationId}`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
+export function rejectCharacterCandidate(
+  projectId: string,
+  candidateId: string
+): Promise<CharacterCandidate> {
+  return request<CharacterCandidate>(`/projects/${projectId}/characters/candidates/${candidateId}/reject`, {
+    method: 'POST',
+  });
+}
+
+export function getCharacterLibrary(
+  projectId: string,
+  query?: string
+): Promise<CharacterProfile[]> {
+  const qs = query ? `?query=${encodeURIComponent(query)}` : '';
+  return request<CharacterProfile[]>(`/projects/${projectId}/characters/library${qs}`);
+}
+
+export function getCharacterProfile(
+  projectId: string,
+  characterId: string
+): Promise<CharacterProfile> {
+  return request<CharacterProfile>(`/projects/${projectId}/characters/library/${characterId}`);
+}
+
+export function updateCharacterProfile(
+  projectId: string,
+  characterId: string,
+  data: UpdateProfileRequest
+): Promise<CharacterProfile> {
+  return request<CharacterProfile>(`/projects/${projectId}/characters/library/${characterId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function exportCharacterJson(
+  projectId: string,
+  characterId: string
+): Promise<CharacterExportPayload> {
+  return request<CharacterExportPayload>(`/projects/${projectId}/characters/library/${characterId}/export`);
+}
+
 
 

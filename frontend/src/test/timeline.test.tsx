@@ -30,6 +30,10 @@ const mockProject: ProjectItem = {
   name: 'Test Timeline Project',
   description: 'Test project description',
   status: 'active',
+  project_config: {},
+  storage_subdir: 'p_test',
+  last_opened_at: null,
+  archived_at: null,
   created_at: '2026-11-12T00:00:00Z',
   updated_at: '2026-11-12T00:00:00Z',
 };
@@ -183,7 +187,7 @@ describe('TimelineEditor Component', () => {
     vi.mocked(apiClient.fetchTimeline).mockResolvedValue(mockTimeline);
     vi.mocked(apiClient.fetchTimelineHistory).mockResolvedValue(mockHistory);
     vi.mocked(apiClient.fetchAIConversation).mockResolvedValue(mockAIConversation);
-    vi.mocked(apiClient.fetchProjectMedia).mockResolvedValue({ items: [], count: 0 });
+    vi.mocked(apiClient.fetchProjectMedia).mockResolvedValue({ items: [], total: 0 });
   });
 
   it('renders sequence header, tracks, and clips', async () => {

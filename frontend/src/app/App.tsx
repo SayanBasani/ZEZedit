@@ -30,6 +30,7 @@ import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace'
 import { ReframingWorkspace } from '../features/reframing/ReframingWorkspace';
 import { ExportStudio } from '../features/exports/ExportStudio';
 import { TimelineEditor } from '../features/timeline/TimelineEditor';
+import { CharacterStudio } from '../features/characters/CharacterStudio';
 import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
 import {
@@ -312,11 +313,13 @@ export const App: React.FC = () => {
           <SidebarNavButton
             active={activeTab === 'characters'}
             collapsed={sidebarCollapsed}
-            icon={<Users className="w-4 h-4" />}
+            icon={<Users className="w-4 h-4 text-indigo-400" />}
             label="Character Studio"
-            badge="M9"
-            disabled
-            title="Scheduled for Milestone 9 (Independent 2D Extraction)"
+            badge="M10"
+            onClick={() => {
+              setActiveTab('characters');
+              setMobileMenuOpen(false);
+            }}
           />
 
           {/* System & Diagnostics */}
@@ -397,6 +400,8 @@ export const App: React.FC = () => {
                 ? 'Smart Reframing & Subject Tracking Studio'
                 : activeTab === 'exports'
                 ? 'Shorts Rendering & Export Studio'
+                : activeTab === 'characters'
+                ? 'Character Extraction Studio & Library'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -557,6 +562,13 @@ export const App: React.FC = () => {
 
           {(activeTab === 'timeline' || activeTab === 'ai-editor') && (
             <TimelineEditor currentProject={selectedProject} />
+          )}
+
+          {activeTab === 'characters' && (
+            <CharacterStudio
+              projectId={selectedProjectId || (projects[0]?.id || '')}
+              mediaAssets={projectMedia}
+            />
           )}
 
           {activeTab === 'settings' && <SettingsManager />}

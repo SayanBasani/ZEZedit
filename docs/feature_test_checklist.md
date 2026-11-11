@@ -158,3 +158,29 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] **Frontend Timeline & AI Editor Workspace:** Full interactive desktop workspace featuring Preview Monitor, Aspect Ratio toggle, Timecode readout, Properties Inspector, AI Assistant chat drawer, and multi-track timeline canvas with draggable playhead.
 - [x] **Automated Testing:** 47/47 backend Pytest tests pass (100%), 46/46 frontend Vitest tests pass (100%), and Vite production build compiles with 0 errors.
 - [x] **Real Video Scenario Validation:** Multi-track timeline synthesized, reframed, and rendered to 1080x1920 vertical MP4 video with contact sheet generated and verified.
+
+---
+
+## Milestone 10: Character Extraction Studio, Character Library & End-to-End Reliability Checklist
+
+- [x] **Database Schema & Migrations:** Forward-only migration `0009_character_studio.sql` creates `character_extraction_jobs`, `character_profiles`, `character_candidates`, `character_observations`, and `character_review_events` with complete relational constraints and indexes.
+- [x] **Non-Mandatory Independent Workflow:** Character Studio runs independently without coupling or gating Shorts discovery, reframing, or rendering.
+- [x] **Configurable Frame Sampling:** Extracts representative frames across video duration at user-selected sampling rates (0.5s, 1.0s, 2.0s) without RAM bloat or pipeline stalls.
+- [x] **CPU-First Face & Person Detection:** Robust OpenCV skin-tone segmentation, contour geometry, and visual saliency running 100% on CPU without requiring external neural weights or CUDA.
+- [x] **Spatial-Temporal Candidate Clustering:** Forms provisional candidate groupings based on temporal proximity and spatial bounding box distances without claiming verified identity recognition.
+- [x] **Observations & Thumbnails:** Bounding box crops generated and saved to `storage/characters/{project_id}/thumbs/`, tracking detection method, confidence, and timestamps.
+- [x] **Unverified Dialogue Correlation:** Queries intersecting `transcript_segments` and attaches speech snippets with explicit disclaimer (`Unverified Speaker Association`).
+- [x] **Screen Time Transparency:** Distinguishes sampled frames screen time from continuous estimated screen time.
+- [x] **Human Review Controls:** Full set of review operations:
+  - Inline candidate renaming
+  - Confirm candidate to persistent Character Library
+  - Merge multiple candidate groups into a target candidate
+  - Split candidate observations into a new candidate group
+  - Non-destructive observation detachment (evidence retained on disk)
+  - Reject false-positive candidate
+- [x] **Persistent Character Library:** Project-wide library managing confirmed character profiles, biographies, appearance tags, and appearance metrics.
+- [x] **Documented JSON Export:** Exports full character profile, candidate groupings, appearance timestamps, and screen-time breakdowns with formal transparency disclaimers.
+- [x] **Frontend Studio Workspace:** Integrated dual-tab interface in `frontend/src/features/characters/CharacterStudio.tsx` with live observation gallery, review dialogs, and JSON download.
+- [x] **End-to-End System Integration:** All 10 modules (Dashboard, Projects, Media, Analysis, Highlights, Reframing, Exports, Timeline, AI Editor, Character Studio) seamlessly operational.
+- [x] **Automated Testing:** 51/51 backend Pytest tests pass (100%), 52/52 frontend Vitest tests pass (100%), and Vite production build compiles with 0 errors in 2.29s.
+
