@@ -36,3 +36,18 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 - [x] REST endpoints registered under `/api/v1/*` (`/projects`, `/media`, `/jobs`, `/settings`, `/system/backups`, `/storage/inspect`, `/system/capabilities`).
 - [x] Frontend project workspace (`ProjectsView.tsx`) allows creating, viewing, archiving, restoring, and deleting projects via `/api/v1`.
 - [x] Automated pytest suite passes 12/12 tests with 100% pass rate.
+
+---
+
+## Milestone 3 — Frontend Application Shell, Dashboard & Design System
+- [x] Unified design system variables and tokens configured in `tailwind.config.js` and `src/styles/index.css`.
+- [x] Light / dark / system preference theme engine with persistent `localStorage` synchronization and zero-flicker HTML root attributes.
+- [x] Reusable accessible UI components created: `Button` (5 variants, 3 sizes, loading spinners), `Input` & `SearchInput` (with clear button), `Badge` (semantic colors), `Card` (interactive hover), `Dialog` & `ConfirmDialog` (keyboard accessible, backdrop blur, action callbacks), `EmptyState`, and `Skeleton`.
+- [x] Stationary responsive application shell with collapsible desktop sidebar, tooltip labels, active job pills, mobile slide-over drawer, and theme switch header.
+- [x] Root layout enforces `h-screen max-h-screen overflow-hidden` with scroll strictly confined to `<main className="flex-1 min-h-0 min-w-0 overflow-y-auto overscroll-contain">` (`BUG-08A-1/2` scrollbar trap resolved).
+- [x] Studio Dashboard (`DashboardView`) displaying real project counts, recent project cards, live background tasks status, and quick workspace navigation pills.
+- [x] Projects Manager (`ProjectsManager`) with Grid/List layout toggle, search filtering, status filtering dropdown, creation modal, archive/restore, and confirmation-protected delete.
+- [x] Studio Settings Manager (`SettingsManager`) with theme selection, CPU hardware limits, proxy scrub resolution, default export presets, protected storage boundary display, and Ollama provider health.
+- [x] Vitest and React Testing Library setup installed with jsdom environment.
+- [x] Automated frontend unit test suite passes 17/17 tests (`src/test/designSystem.test.tsx` and `src/test/features.test.tsx`).
+- [x] Production build (`npm run build`) compiles cleanly in under 2 seconds with zero TypeScript errors.

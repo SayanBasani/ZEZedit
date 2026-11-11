@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-11  
-**Active Milestone:** Milestone 2 Completed — Core Backend, Database & Persistent Project Management
+**Active Milestone:** Milestone 3 Completed — Frontend Application Shell, Dashboard & Design System
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -43,12 +43,28 @@ Status legend:
 
 ---
 
+## Frontend Application Shell, Dashboard & Design System (Milestone 3)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M3-01 | Design System Tokens & Unified Styling | UI Design System | Implemented | `frontend/tailwind.config.js`, `frontend/src/styles/index.css` | Canvas, surface, borders, text tiers, semantic accents |
+| M3-02 | Dark / Light / System Mode & Theme Provider | UI Context | Implemented | `frontend/src/context/ThemeContext.tsx` | Instant sync, zero flicker, localStorage persistence |
+| M3-03 | Component Library (Buttons, Inputs, Badges, Cards, Modals, States) | UI Components | Implemented | `frontend/src/components/ui/` | Fully accessible, typed with variants and animations |
+| M3-04 | Responsive Studio Application Shell | UI Shell | Implemented | `frontend/src/app/App.tsx` | Fixed-height desktop sidebar + mobile drawer, active task badges |
+| M3-05 | Studio Dashboard View | Features / Dashboard | Implemented | `frontend/src/features/dashboard/DashboardView.tsx` | Live metrics, recent projects, real-time background job monitor |
+| M3-06 | Projects Management Interface | Features / Projects | Implemented | `frontend/src/features/projects/ProjectsManager.tsx` | Grid/list view modes, status filters, search, archive, delete modal |
+| M3-07 | Settings Interface | Features / Settings | Implemented | `frontend/src/features/settings/SettingsManager.tsx` | Hardware CPU limits, proxy scrub resolution, export presets, Ollama status |
+| M3-08 | Frontend Vitest Test Suite (17 tests) | Testing | Implemented | `frontend/src/test/` | 100% pass covering components, contexts, and feature views |
+| M3-09 | Production Bundle Verification | Build | Implemented | `dist/` | Production build clean in 1.86s, 60 kB gzip bundle |
+
+---
+
 ## Upcoming Milestones Roadmap (Not Started)
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-B1 | Actual Streaming Media File Import, H.264 Proxies & Waveforms | B: Media Library | Planned | Milestone 3 |
-| MOD-J1 | Full Background Worker Process Subprocess Execution & PID Kill | Core / Workers | Planned | Milestone 3 |
+| MOD-B1 | Actual Streaming Media File Import, H.264 Proxies & Waveforms | B: Media Library | Planned | Milestone 4 |
+| MOD-J1 | Full Background Worker Process Subprocess Execution & PID Kill | Core / Workers | Planned | Milestone 4 |
 | MOD-J2 | Full Ollama Model Pull Stream & Settings Diagnostics | J: Settings | Planned | Milestone 4 |
 | MOD-C1 | Scene Cut Detection, Faster-Whisper Transcription & Frame Sampling | C: Video Analysis | Planned | Milestone 5 |
 | MOD-D1 | Context-Aware Highlight Discovery & Candidate Ranking | D: Highlights | Planned | Milestone 5 |
