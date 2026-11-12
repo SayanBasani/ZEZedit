@@ -56,10 +56,13 @@ All features MUST comply with these baseline constraints:
 - Sampled frame visual analysis via Ollama (`qwen3-vl:4b-instruct` or configured model) and OpenCV face/saliency detection.
 - **Honesty Constraint:** Analysis outputs record confidence/evidence rather than claiming capabilities models cannot reliably verify (e.g., no unverified emotion/identity claims).
 
-### Module D — Highlight Discovery
+### Module D — Highlight Discovery & Intelligent Candidate Discovery
 - Analyze transcript + visual + scene-cut context before and after candidate windows to preserve setup and payoff without clipping sentences.
-- Group related moments and produce ranked candidate clips for user review.
-- **Honesty Constraint:** Ranking scores represent heuristic/model relevance rankings—never presented as "verified viral probability."
+- **Natural Boundary Snapping:** Start times snap to word boundaries with 0.15s lead-in breathing room; end times snap to sentence terminal punctuation (`.`, `!`, `?`); aligns with visual scene cuts ($\le 0.45\text{s}$) to prevent flash frames and mid-sentence cutoffs.
+- **Multimodal Signal Scoring (0–100):** Evaluates Hook Strength, Dialogue Interest, Emotional Signal, Action & Motion, Visual Presentation, and Narrative Completeness.
+- **7 Creative Direction Profiles:** Adaptively alters score weights for Best Overall, Viral & Punchy, Dramatic, Action & Motion, Emotional / Sad, Engaging Dialogue, and Humorous.
+- **Persistent Novelty & Non-Repetition Engine:** Records all generated intervals in `media_generated_clips_history`. Future discovery runs calculate temporal Intersection-over-Union ($\text{tIoU}$) against all historical intervals and strictly exclude candidates with $\text{tIoU} \ge 0.50$ or $\text{OverlapRatio} \ge 0.60$.
+- **Honesty Constraint:** Ranking scores represent heuristic/multimodal attractiveness estimates—truthfully labeled as "Attractiveness estimate" or "Attractiveness: XX/100 (estimate)", never as guaranteed "viral probability."
 
 ### Module E — Smart Reframing
 - Subject/face detection, single-person focus, two-person joint dialogue composition, and smooth velocity-clamped dynamic crop trajectories.
@@ -117,6 +120,41 @@ All features MUST comply with these baseline constraints:
 - **Milestone 7 (Completed):** Smart Reframing Engine, CPU-First Subject Tracking, Dynamic Trajectory Smoothing, Scene-Cut Isolation, Preview/Render Math Parity, Dual Viewports Review Workspace, Non-Destructive Revisions & Real FFmpeg Rendering.
 - **Milestone 8 (Completed):** Rendering Engine, Export Pipeline & Automatic Shorts Generation (15-Stage Modular Pipeline, Presets, Caption & ASS Subtitle Engine, Audio Processing, Process Tracking, Output Validation Gate, Export Studio).
 - **Milestone 9 (Completed):** AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Shared Timeline Architecture, Reversible Commands, Persistent Undo/Redo, AI Assistant Planning & Review Gate, Multi-Track Rendering Integration).
-- **Milestone 10 (Next):** Conversational AI Video Editor Advanced Prompt-to-Cut & Multi-Modal Refinement.
-- **Milestone 11:** Character Extraction Studio & Persistent Character Library.
-- **Milestone 12:** Final Packaging, Multi-Format Archiving & Project Backup.
+- **Milestone 10 (Completed):** Character Extraction Studio, Character Library, System Integration & End-to-End Reliability (CPU-First Frame Sampling, YCrCb Contour & Saliency Detection, Provisional Spatial-Temporal Clustering, Non-Destructive Review Operations, Persistent Library & JSON Export).
+- **Milestone 11 (Completed):** Product UX Restoration, Unslop UI Redesign, Graphify Integration, Unified Video Workspace & Post-Import Guided Ingestion Flow.
+- **Milestone 12 (Completed):** Pre-Deletion Baseline Reconstruction & Feature Parity Specification (Forensic Recovery of 13M.12 / 13M.13, Feature Parity Matrix, Historical vs Current Audit, Restoration Roadmap).
+- **Milestone 13 (Completed):** ZezEdit 1.0 Exact Feature, Workflow, UI & Architecture Restoration Plan (100 Immutable Parity Requirements `ZEZ-001`–`ZEZ-100`, Standardized Scorecard: 89% Restored, Restoration Implementation Schedule).
+- **Milestone 17 (Completed):** Core Product Workflow, Working Queue & Desktop Operations (Continuous Video-to-Shorts Pipeline, Next Video Transition Modal, Hardware Resource Inspector `ResourceInspector.tsx`, Working Queue Screen `WorkingQueueView.tsx`, AI Provider Manager `AIProviderManager.tsx`, In-App Documentation Center `DocumentationView.tsx`, Scope Deferral of Character Studio).
+- **Milestone 18 (Completed):** Unified Video-to-Shorts Production Pipeline (Authoritative Lifecycle State Machine `WorkflowStateMachine` with 18 explicit stages, Workflow Telemetry API, Multiple Shorts Batch Export Endpoint & Modal `BatchExportModal.tsx`, Authoritative Workflow Banner & Stepper in Video Workspace, Per-Video Autosave & Multi-Video Isolation).
+- **Milestone 19 (Completed):** Desktop Operations Center, Working Queue, Resource Inspector and AI Provider Manager (Real background-job lifecycle management, job cancellation & retry state machine, live queue stats & task-type distribution breakdown, compact hover-activated hardware Resource Inspector with Escape/click-outside dismiss & click-to-pin, AI Provider Manager with local-first task engine routing & secret masking, Documentation Center with 16 comprehensive guides across 5 categories, and real Subsystem Diagnostics API).
+- **Milestone 20 (Completed):** Production Hardening, Long-Video Performance, Storage Management & Recovery (`ZEZ-018` Media Relinking, Storage Breakdown & Cache Cleanup).
+- **Milestone 21 (Completed):** Authoritative ZezEdit 1.0 Restoration Audit, Graphify-First Code Investigation & UI Quality Assessment (`ZEZ-054` Manual Keyframe Placement & Interpolation).
+- **Milestone 22 (Completed):** Evidence-Based ZezEdit 1.0 Restoration + Permanent Progress Tracker (`ZEZ-050` Dual-Viewport Reframing Review Modal, `ZEZ-051` Interactive Draggable Crop Rectangle, `ZEZ-052` Timeline Keyframe Diamond Scrubber).
+- **Milestone 23 (Completed):** Continue ZezEdit 1.0 Parity Restoration (`ZEZ-080` AI Assistant Plan Version History Drawer & Restore, `ZEZ-008` Global Floating Toast Notification System).
+- **Milestone 24 (Completed):** ZezEdit 1.0 Parity Restoration, Independent Verification and Cumulative Progress Accounting (`ZEZ-099` Automated Regression Test Suite Expansion & 100% Active Scope Parity Sign-off: 121 backend tests, 88 frontend tests, 209 cumulative tests).
+- **Milestone 25 (Completed):** ZezEdit 1.0 Restoration, Requirement Verification and Permanent Progress Tracking (Formal Independent Audit and Verification of all 90 Active Requirements: 100% active parity verified, 209 tests passed).
+- **Milestone 26 (Completed):** ZezEdit 1.0 Complete Parity Restoration (Final Independent Verification, Audit, Code Graph Synchronization & Parity Certification).
+- **Milestone 27 (Completed):** ZezEdit 1.0 Parity Restoration, End-to-End Validation and Permanent Progress Accounting (Exhaustive Full-Stack Re-Verification, 121 backend + 88 frontend tests, 100% active parity verified).
+- **Milestone 28 (Completed):** ZezEdit 1.0 Parity Restoration, Partial Feature Completion and Cumulative Progress Tracking (Re-verified 209 tests, 100% active scope verified, 0 remaining active requirements).
+- **Milestone 29 (Completed):** ZezEdit 1.0 Restoration, Functional Completion and Cumulative Progress Management (Full-stack independent re-verification, 121 backend + 88 frontend tests, 100% active parity verified).
+- **Milestone 30 (Completed):** ZezEdit 1.0 Parity Restoration, Independent Verification and Cumulative Completion Control (Comprehensive re-audit, 209 tests passed, 100% active parity verified, 0 remaining active requirements).
+- **Session 0 (Completed):** Complete Project Audit, Architecture Redesign & Multi-Session Implementation Plan (Unified Video Studio architecture, 5 comprehensive design blueprints under `docs/architecture/`).
+- **Session 1 (Completed):** Navigation Simplification & Media Library Focus (Removal of disconnected studio tools from sidebar, direct "Open Video Studio" primary action on media cards, unslopped design system).
+- **Session 2 (Completed):** Dedicated Single-Video Studio: Workspace, Navigation, Configuration and Backend Integration (`/studio/:assetId` dedicated route, `SingleVideoStudio.tsx`, Global Analysis Progress Bar, Upfront Generation Configuration Bar, Framed Preview Player with dynamic aspect-ratio framing, Generated Shorts Showcase with candidate discovery & direct export triggers, collapsible intelligence drawers, full Vitest test coverage).
+
+- **Session 3 (Completed):** Unified Full-Video Analysis Pipeline (Sequential background pipeline, bounded memory streaming for 1–2 GB movies without RAM bloat, deterministic `size:mtime:hash64k` source signature & instant cache invalidation, Faster-Whisper int8 speech recognition with automatic VAD retry fallback for mixed audio / dialogue over music, persistent `JobOrchestrator` linkage with synchronized checkpoints, live stage telemetry endpoint `GET /analysis/{id}/telemetry` and cache query `GET /analysis/{id}/cache`, cancellation `POST /analysis/{id}/cancel` and retry `POST /analysis/{id}/retry`, audio-less media support, and frontend Studio live progress banner with real-time stage description, elapsed timer, and cancel/retry controls).
+- **Session 4 (Completed):** Intelligent Candidate Discovery, Multimodal Scoring, Natural Boundaries & Persistent Non-Repetition (`highlight_discovery.py`, 7 creative direction weighting profiles, sentence-boundary snap, scene-cut boundary snap, multimodal scoring, persistent novelty ledger with overlap rejection).
+- **Session 5 (Completed):** Interactive Clip Preview, Editing, Smart Reframing & Subject Tracking (`CandidateClipEditorModal.tsx`, 9:16 and 1:1 aspect ratio overlays, manual framing offset sliders, CPU Haar cascade subject tracking, trim handles, migration 0014 `candidate_clip_edits`).
+- **Product Restructure & UI Redesign (Completed):** Restored original ZezEdit workflow organized entirely around the Video:
+  - Streamlined primary sidebar: `Dashboard`, `Short Video Generator`, `Working Queue`, `AI Providers`, `Settings`.
+  - Direct video ingestion (drag & drop / file picker) with client-side format validation, automatic filename-derived title, and zero manual project/grouping requirements.
+  - Dedicated Video Edit Dashboard (`/videos/:assetId`) featuring persistent header with title and real-time multi-stage loading bar (% completed and time remaining) + 8 top horizontal tabs:
+    1. `Home`: Video player and pure technical metadata table only.
+    2. `Short Video Generator`: Preset & custom clip count, 18 creative directions / contexts, aspect ratios (`9:16`, `1:1`, `16:9`, `4:5`), tracking modes (face, upper body, object, multi-subject), duration range, and Generate Shorts button.
+    3. `Generated Shorts`: Candidate short cards with attractiveness score, cut timestamps, "Edit Clip" modal integration, and "Export MP4" trigger.
+    4. `Generated Scripts`: Script cards preserving hook sentence, dialogue transcript, narrative flow, and 1-click "Regenerate Video from Script" button.
+    5. `Analyzed Frames`: Keyframe gallery with timestamps and observation tags with click-to-seek playback.
+    6. `Voice & Transcript Analysis`: Searchable speech turns with timestamped dialogue and click-to-seek.
+    7. `Scene Analysis`: Detected scene transitions with inclusion/exclusion checkboxes for short generation.
+    8. `Video Analysis Details`: Deep pipeline component status and cache telemetry.
+  - Single-button "Clear All Application Data" in Settings (`Storage & Data` tab) with explicit `DELETE` confirmation modal and backend API `POST /api/v1/storage/clear-all-data` cleanly sweeping all managed storage and resetting database tables.

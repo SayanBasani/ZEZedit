@@ -16,15 +16,16 @@ import { HealthResponse, SystemInfoResponse } from '../../types/health';
 
 const MODULE_ROADMAP = [
   { name: 'Foundation, Storage Boundary & Migrations', status: 'Implemented', milestone: 'M1' },
-  { name: 'Media Library Import, Proxies & Relinking', status: 'Planned', milestone: 'M2' },
-  { name: 'Authoritative Single Job Orchestrator & Logs', status: 'Planned', milestone: 'M3' },
-  { name: 'AI Provider Inventory & Settings Diagnostics', status: 'Planned', milestone: 'M4' },
-  { name: 'Video Analysis & Highlight Discovery', status: 'Planned', milestone: 'M5' },
-  { name: 'Smart Reframing & Non-Destructive Revisions', status: 'Planned', milestone: 'M6' },
-  { name: 'Multi-Track Timeline Editor & Undo/Redo', status: 'Planned', milestone: 'M7' },
-  { name: 'Conversational AI Video Editor (Schema-Gated)', status: 'Planned', milestone: 'M8' },
-  { name: 'Independent Character Extraction Studio', status: 'Planned', milestone: 'M9' },
-  { name: 'Rendering, Export Validation & Backup/Restore', status: 'Planned', milestone: 'M10' },
+  { name: 'Core Entity Models, Projects & SQLite Schema', status: 'Implemented', milestone: 'M2' },
+  { name: 'Media Library Import, Proxies & Relinking', status: 'Implemented', milestone: 'M4' },
+  { name: 'Video Understanding & Multi-Stage Analysis', status: 'Implemented', milestone: 'M5/15' },
+  { name: 'AI Highlight Discovery & 9-Factor Scoring', status: 'Implemented', milestone: 'M6/16' },
+  { name: 'Smart Reframing & Dynamic Crop Trajectory', status: 'Implemented', milestone: 'M7/14' },
+  { name: 'Shorts Export Studio & FFmpeg Pipeline', status: 'Implemented', milestone: 'M8' },
+  { name: 'Multi-Track Timeline & NLE Sequence', status: 'Implemented', milestone: 'M9' },
+  { name: 'Character Extraction Studio & Face Recognition', status: 'Implemented', milestone: 'M10' },
+  { name: 'Unified Video-to-Shorts Pipeline & State Machine', status: 'Implemented', milestone: 'M18' },
+  { name: 'Desktop Operations Center, Queue & Inspectors', status: 'Implemented', milestone: 'M19' },
 ] as const;
 
 export const FoundationOverview: React.FC = () => {

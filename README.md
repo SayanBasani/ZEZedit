@@ -1,3 +1,37 @@
+## 4. Exact Windows PowerShell backend startup commands
+
+Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
+
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Run backend automated test suite (Pytest):
+
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m pytest -v
+```
+
+---
+
+## 5. Exact Windows PowerShell frontend startup commands
+
+Development server (`http://localhost:5173`, proxying `/api` to `http://127.0.0.1:8000`):
+
+```powershell
+cd D:\ZezEdit\frontend
+npm run dev
+```
+
+Run frontend unit tests (Vitest via npm, never pnpm):
+
+```powershell
+cd D:\ZezEdit\frontend
+npm test -- --run
+```
+
 # ZezEdit 2.0 — Local-First AI Video Editor
 
 ZezEdit 2.0 is a modular, CPU-first, local-first AI-assisted video editor for Windows 11.
@@ -49,13 +83,38 @@ Copy-Item .env.example .env
 
 ---
 
-## 4. Exact Windows PowerShell commands to run the frontend
+## 4. Exact Windows PowerShell backend startup commands
 
-Development server (`http://127.0.0.1:5173`, proxying `/api` to `http://127.0.0.1:8000`):
+Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
+
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Run backend automated test suite (Pytest):
+
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m pytest -v
+```
+
+---
+
+## 5. Exact Windows PowerShell frontend startup commands
+
+Development server (`http://localhost:5173`, proxying `/api` to `http://127.0.0.1:8000`):
 
 ```powershell
 cd D:\ZezEdit\frontend
 npm run dev
+```
+
+Run frontend unit tests (Vitest via npm, never pnpm):
+
+```powershell
+cd D:\ZezEdit\frontend
+npm test -- --run
 ```
 
 Production TypeScript check & Vite bundle build:
@@ -67,28 +126,24 @@ npm run build
 
 ---
 
-## 5. Exact Windows PowerShell commands to run the backend
+## 6. ZezEdit 1.0 Parity Specification & Restoration (Milestones 12–30)
 
-Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
-
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Run backend automated tests:
-
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\pytest
-```
-
-Run frontend unit tests:
-
-```powershell
-cd D:\ZezEdit\frontend
-npm test
-```
+- **Permanent Restoration Progress Tracker (Active Scope: 90/90 = 100.00% Verified):** [`docs/reconstruction/RESTORATION_PROGRESS_TRACKER.md`](file:///D:/ZezEdit/docs/reconstruction/RESTORATION_PROGRESS_TRACKER.md)
+- **Authoritative Milestone 30 Restoration Report:** [`docs/reports/milestone_30_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_30_restoration_report.md)
+- **Authoritative Milestone 29 Restoration Report:** [`docs/reports/milestone_29_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_29_restoration_report.md)
+- **Authoritative Milestone 28 Restoration Report:** [`docs/reports/milestone_28_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_28_restoration_report.md)
+- **Authoritative Milestone 27 Restoration Report:** [`docs/reports/milestone_27_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_27_restoration_report.md)
+- **Authoritative Milestone 26 Restoration Report:** [`docs/reports/milestone_26_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_26_restoration_report.md)
+- **Authoritative Milestone 25 Restoration Report:** [`docs/reports/milestone_25_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_25_restoration_report.md)
+- **Authoritative Milestone 24 Restoration Report:** [`docs/reports/milestone_24_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_24_restoration_report.md)
+- **Authoritative Milestone 23 Restoration Report:** [`docs/reports/milestone_23_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_23_restoration_report.md)
+- **Remaining Restoration Work Plan:** [`docs/reconstruction/REMAINING_RESTORATION_WORK.md`](file:///D:/ZezEdit/docs/reconstruction/REMAINING_RESTORATION_WORK.md)
+- **Authoritative Milestone 21 Restoration Audit:** [`docs/reports/milestone_21_authoritative_restoration_audit.md`](file:///D:/ZezEdit/docs/reports/milestone_21_authoritative_restoration_audit.md)
+- **UI Quality & Unslop Design Audit:** [`docs/reconstruction/UI_QUALITY_AUDIT.md`](file:///D:/ZezEdit/docs/reconstruction/UI_QUALITY_AUDIT.md)
+- **ZezEdit 1.0 Parity Specification (100 Requirements):** [`docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md`](file:///D:/ZezEdit/docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md)
+- **Feature Parity Matrix & Scorecard (Active Scope: 90/90 = 100.00% Verified):** [`docs/reconstruction/FEATURE_PARITY_MATRIX.md`](file:///D:/ZezEdit/docs/reconstruction/FEATURE_PARITY_MATRIX.md)
+- **Restoration Implementation Roadmap (Milestones 21–30 Active Parity Complete):** [`docs/reconstruction/RESTORATION_ROADMAP.md`](file:///D:/ZezEdit/docs/reconstruction/RESTORATION_ROADMAP.md)
+- **Pre-Deletion Baseline Specification:** [`docs/reconstruction/PRE_DELETION_BASELINE.md`](file:///D:/ZezEdit/docs/reconstruction/PRE_DELETION_BASELINE.md)
 
 ---
 
@@ -226,8 +281,83 @@ npm test
 
 ---
 
+## Graphify Integration & Codebase Knowledge Graph (Milestone 11)
+
+ZezEdit incorporates [Graphify](https://github.com/Graphify-Labs/graphify) (`graphifyy`) for persistent structural AST extraction, community clustering, and cross-file navigation across backend FastAPI services, database schemas, and frontend React components.
+
+- **Installation:**
+  ```powershell
+  uv tool install graphifyy
+  # Or via pip
+  pip install graphifyy
+  ```
+- **Platform Registration for Google Antigravity:**
+  ```powershell
+  cd D:\ZezEdit
+  graphify antigravity install
+  ```
+  Writes `.agents/rules/graphify.md`, `.agents/workflows/graphify.md`, and configures the `graphify` skill.
+- **Generate & Update Knowledge Graph:**
+  ```powershell
+  cd D:\ZezEdit
+  graphify update . --force
+  ```
+  Generates:
+  - `graphify-out/graph.json` (2,074 nodes, 5,772 edges)
+  - `graphify-out/graph.html` (interactive WebGL visualizer)
+  - `graphify-out/GRAPH_REPORT.md` (community structure & hub breakdown)
+- **Key Navigation Commands:**
+  - Shortest path: `graphify path "MediaLibraryView.tsx" "media_pipeline.py" --undirected`
+  - Node explain: `graphify explain "media_pipeline.py"`
+  - BFS traversal: `graphify query "how importing a video connects to the media database and backend"`
+
+---
+
+## Unslop Design System & Video-Centric Workspace (Milestone 11)
+
+ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design skill (`/unslop`) to eliminate AI slop (purple glows, decorative gradients, milestone developer tags) and enforce a quiet, desktop-first video editing studio aesthetic.
+
+- **Installation Location:**
+  - Global: `%USERPROFILE%\.gemini\antigravity\skills\unslop`
+  - Project-Scoped: `D:\ZezEdit\.agents\skills\unslop`
+- **Design Principles Applied:**
+  - **Color Palette:** Neutral graphite ramp (`#0d0f12` canvas, `#16191e` surface, `#262a33` hairlines) with purposeful signal accents.
+  - **4px Spatial Rhythm:** Uniform padding, nested radii (`rounded-xl` for cards, `rounded-lg` for controls).
+  - **Monochrome Quiet Chrome:** Sidebar navigation buttons and icons adopt secondary text role tones without competing colors.
+  - **Tabular Figures:** Timecodes (`00:01:24.08`) and durations formatted with `tabular-nums`.
+- **Video-Centric Editing Architecture (`VideoWorkspace.tsx`):**
+  - Ingesting or clicking any video opens its dedicated 9-tab workspace: Overview, Video Analysis, Timestamped Transcript, Scene Cuts, AI Highlights, Smart Reframing, Shorts Export, Multi-Track Timeline, and Character Studio.
+  - Seamless context preservation: Project ID and active Media Asset ID remain pinned across all sub-workspaces.
+- **Intelligent Post-Import Action Flow (`PostImportModal.tsx`):**
+  - Triggers immediately upon media file ingestion with four explicit options: "Analyze Video Now", "Open Video Workspace", "Import Another Video", and "Return to Media Library".
+
+---
+
 ## Architecture & Documentation
 
+- [Product Restructure & Video-Centric Architecture Plan](docs/architecture/ZEZEDIT_PRODUCT_RESTRUCTURE_PLAN.md)
+- [Product Restructure Completion Report](docs/reports/product_restructure/PRODUCT_RESTRUCTURE_COMPLETION_REPORT.md)
+- [Session 0 Architecture Audit & Roadmap](docs/architecture/SESSION_0_AUDIT_REPORT.md)
+- [Unified Video Studio Architecture Design](docs/architecture/UNIFIED_VIDEO_STUDIO_DESIGN.md)
+- [Video Intelligence Pipeline Specification](docs/architecture/VIDEO_INTELLIGENCE_PIPELINE.md)
+- [Database & API Design Specification](docs/architecture/DATABASE_AND_API_DESIGN.md)
+- [Multi-Session Implementation Roadmap](docs/architecture/IMPLEMENTATION_ROADMAP.md)
+- [Milestone 24 Active Parity Signoff & Regression Suite Report](docs/reports/milestone_24_restoration_report.md)
+- [Milestone 23 Editorial & Notification Refinements Report](docs/reports/milestone_23_restoration_report.md)
+- [Milestone 22 Parity Restoration & Progress Tracker Report](docs/reports/milestone_22_restoration_report.md)
+- [Milestone 21 Authoritative Parity Audit & UI Assessment Report](docs/reports/milestone_21_audit_report.md)
+- [Restoration Progress Tracker](docs/reconstruction/RESTORATION_PROGRESS_TRACKER.md)
+- [Milestone 20 Production Reliability Report](docs/reports/milestone_20_production_reliability_report.md)
+- [Milestone 19 Desktop Operations Center Report](docs/reports/milestone_19_desktop_operations_center_report.md)
+- [Milestone 18 Unified Video-to-Shorts Pipeline Report](docs/reports/milestone_18_unified_video_to_shorts_pipeline_report.md)
+- [Milestone 17 Core Product Workflow & Desktop Operations Report](docs/reports/milestone_17_core_product_workflow_report.md)
+- [Milestone 15 Analysis Restoration Report](docs/reports/milestone_15_analysis_restoration_report.md)
+- [Milestone 13 Parity Restoration Plan](docs/reports/milestone_13_parity_restoration_plan.md)
+- [Milestone 12 Pre-Deletion Baseline Report](docs/reports/milestone_12_reconstruction_report.md)
+- [System Audit & Verification Report (Milestone 11)](docs/audit/ZezEdit_2_0_SYSTEM_AUDIT.md)
+- [UI & Feature Gap Analysis (Milestone 11)](docs/audit/UI_AND_FEATURE_GAP_ANALYSIS.md)
+- [Video Workspace Architecture Specification](docs/architecture/VIDEO_WORKSPACE.md)
+- [Milestone 11 Completion Report](docs/reports/milestone_11_completion_report.md)
 - [Master Requirements](docs/MASTER_REQUIREMENTS.md)
 - [Feature Status](docs/feature_status.md)
 - [Verification Checklist](docs/feature_test_checklist.md)

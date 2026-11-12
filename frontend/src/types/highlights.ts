@@ -11,6 +11,11 @@ export interface ScoreBreakdown {
   duration_suitability: number;
   context_dependency_penalty: number;
   total_score: number;
+  hook_strength?: number;
+  dialogue_interest?: number;
+  emotional_signal?: number;
+  action_motion?: number;
+  attractiveness_estimate?: number;
 }
 
 export interface GateResults {
@@ -68,6 +73,51 @@ export interface CandidateItem {
   queued_for_render: boolean;
   created_at: string;
   updated_at: string;
+  generation_run_id?: string | null;
+  creative_direction?: string;
+  natural_boundary_confidence?: number;
+}
+
+export interface CandidateGenerationRunItem {
+  id: string;
+  project_id: string;
+  media_asset_id: string;
+  analysis_run_id: string;
+  job_id?: string | null;
+  creative_direction: string;
+  aspect_ratio: string;
+  requested_count: number;
+  min_duration: number;
+  max_duration: number;
+  status: string;
+  candidates_discovered: number;
+  candidates_selected: number;
+  candidates_rejected: number;
+  novelty_exclusions: number;
+  warnings: string[];
+  error_message?: string | null;
+  created_at: string;
+  completed_at?: string | null;
+}
+
+export interface NoveltyHistoryItem {
+  id: string;
+  candidate_id: string;
+  start_time: number;
+  end_time: number;
+  duration: number;
+  creative_direction: string;
+  aspect_ratio: string;
+  score: number;
+  title: string;
+  created_at: string;
+}
+
+export interface NoveltyHistoryResponse {
+  media_asset_id: string;
+  total_clips_generated: number;
+  total_duration_covered: number;
+  history: NoveltyHistoryItem[];
 }
 
 export interface HighlightsOverview {
@@ -82,6 +132,8 @@ export interface HighlightsOverview {
 
 export interface DiscoverHighlightsOptions {
   analysis_run_id?: string;
+  creative_direction?: string;
+  aspect_ratio?: string;
   min_duration?: number;
   max_duration?: number;
   target_clip_count?: number;
@@ -96,3 +148,47 @@ export interface UpdateCandidatePayload {
   start_time?: number;
   end_time?: number;
 }
+
+export type FramingMode = 'center' | 'manual' | 'smart_tracking';
+export type AspectRatioOption = '9:16' | '1:1' | '16:9' | '4:5';
+
+export interface CandidateClipEdit {
+  id: string;
+  candidate_id: string;
+  project_id: string;
+  media_asset_id: string;
+  original_start_time: number;
+  original_end_time: number;
+  edited_start_time: number;
+  edited_end_time: number;
+  edited_duration: number;
+  aspect_ratio: AspectRatioOption;
+  framing_mode: FramingMode;
+  manual_crop_x_pct: number;
+  manual_crop_y_pct: number;
+  manual_crop_zoom: number;
+  tracked_subject_id?: string | null;
+  tracking_status: 'none' | 'tracking' | 'tracked' | 'fallback';
+  reframing_plan_id?: string | null;
+  version: number;
+  created_at: string;
+  updated_at: string;
+  media_duration?: number;
+  media_width?: number;
+  media_height?: number;
+  candidate_title?: string;
+  dominant_strategy?: string;
+  detected_tracks?: Array<Record<string, unknown>>;
+}
+
+export interface CandidateClipEditSavePayload {
+  edited_start_time: number;
+  edited_end_time: number;
+  aspect_ratio?: AspectRatioOption;
+  framing_mode?: FramingMode;
+  manual_crop_x_pct?: number;
+  manual_crop_y_pct?: number;
+  manual_crop_zoom?: number;
+  tracked_subject_id?: string | null;
+}
+

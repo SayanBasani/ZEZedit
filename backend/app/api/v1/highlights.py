@@ -14,6 +14,7 @@ from app.core.errors import AppError, NotFoundError, ProcessingError
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
 from app.services.highlight_discovery import HighlightDiscoveryEngine
+from app.services.jobs import JobOrchestrator
 
 logger = logging.getLogger("zezedit.api.highlights")
 
@@ -42,6 +43,8 @@ def get_discovery_engine(request: Request) -> HighlightDiscoveryEngine:
 
 class DiscoverHighlightsRequest(BaseModel):
     analysis_run_id: Optional[str] = None
+    creative_direction: str = Field(default="best_overall")
+    aspect_ratio: str = Field(default="9:16")
     min_duration: float = Field(default=12.0, ge=5.0, le=120.0)
     max_duration: float = Field(default=60.0, ge=10.0, le=300.0)
     target_clip_count: int = Field(default=10, ge=1, le=50)
@@ -69,6 +72,8 @@ class CandidateResponse(BaseModel):
     media_asset_id: str
     analysis_run_id: str
     job_id: Optional[str] = None
+    generation_run_id: Optional[str] = None
+    creative_direction: Optional[str] = "best_overall"
     start_time: float
     end_time: float
     duration: float
@@ -81,6 +86,7 @@ class CandidateResponse(BaseModel):
     category: str
     secondary_categories: List[str] = Field(default_factory=list)
     quality_score: float
+    natural_boundary_confidence: Optional[float] = 1.0
     score_breakdown: Dict[str, Any] = Field(default_factory=dict)
     gate_results: Dict[str, Any] = Field(default_factory=dict)
     warnings: List[str] = Field(default_factory=list)
@@ -98,6 +104,48 @@ class CandidateResponse(BaseModel):
     queued_for_render: bool
     created_at: str
     updated_at: str
+
+
+class CandidateGenerationRunResponse(BaseModel):
+    id: str
+    project_id: str
+    media_asset_id: str
+    analysis_run_id: str
+    job_id: Optional[str] = None
+    creative_direction: str
+    aspect_ratio: str
+    requested_count: int
+    min_duration: float
+    max_duration: float
+    status: str
+    candidates_discovered: int
+    candidates_selected: int
+    candidates_rejected: int
+    novelty_exclusions: int
+    error_message: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+    created_at: str
+    completed_at: Optional[str] = None
+
+
+class NoveltyHistoryItem(BaseModel):
+    id: str
+    candidate_id: str
+    start_time: float
+    end_time: float
+    duration: float
+    creative_direction: str
+    aspect_ratio: str
+    score: float
+    title: str
+    created_at: str
+
+
+class NoveltyHistoryResponse(BaseModel):
+    media_asset_id: str
+    total_clips_generated: int
+    total_duration_covered: float
+    history: List[NoveltyHistoryItem]
 
 
 class HighlightsOverviewResponse(BaseModel):
@@ -140,6 +188,33 @@ def _row_to_candidate_dict(row: sqlite3.Row) -> Dict[str, Any]:
     return d
 
 
+def _run_discovery_background(
+    engine: HighlightDiscoveryEngine,
+    project_id: str,
+    media_asset_id: str,
+    job_id: str,
+    payload: DiscoverHighlightsRequest,
+    job_orchestrator: JobOrchestrator,
+):
+    try:
+        engine.discover_highlights(
+            project_id=project_id,
+            media_asset_id=media_asset_id,
+            analysis_run_id=payload.analysis_run_id,
+            job_id=job_id,
+            creative_direction=payload.creative_direction,
+            aspect_ratio=payload.aspect_ratio,
+            min_duration=payload.min_duration,
+            max_duration=payload.max_duration,
+            target_clip_count=payload.target_clip_count,
+            use_ai_explanations=payload.use_ai_explanations,
+        )
+        job_orchestrator.complete_job(job_id=job_id, result_summary={"status": "completed"})
+    except Exception as exc:
+        logger.exception("Candidate discovery background task failed: %s", exc)
+        job_orchestrator.fail_job(job_id=job_id, error_message=str(exc))
+
+
 # --- Endpoints ---
 
 @router.post(
@@ -152,43 +227,73 @@ def start_highlight_discovery(
     media_asset_id: str,
     payload: DiscoverHighlightsRequest,
     background_tasks: BackgroundTasks,
+    request: Request,
     engine: HighlightDiscoveryEngine = Depends(get_discovery_engine),
     db_path: Path = Depends(get_db_path),
 ):
     """Trigger AI Highlight Discovery for an analyzed media asset."""
+    settings = getattr(request.app.state, "settings", None) or get_settings()
+    job_orchestrator = JobOrchestrator(settings=settings, db_path=db_path)
+
     if payload.run_synchronously:
         results = engine.discover_highlights(
             project_id=project_id,
             media_asset_id=media_asset_id,
             analysis_run_id=payload.analysis_run_id,
+            creative_direction=payload.creative_direction,
+            aspect_ratio=payload.aspect_ratio,
             min_duration=payload.min_duration,
             max_duration=payload.max_duration,
             target_clip_count=payload.target_clip_count,
             use_ai_explanations=payload.use_ai_explanations,
         )
-        # Fetch fresh rows
+        gen_run_id = results[0].get("generation_run_id") if results else None
         with sqlite_session(db_path) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT * FROM shorts_candidates
-                WHERE project_id = ? AND media_asset_id = ?
-                ORDER BY quality_score DESC
-                """,
-                (project_id, media_asset_id),
-            ).fetchall()
+            if gen_run_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM shorts_candidates
+                    WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
+                    ORDER BY quality_score DESC
+                    """,
+                    (project_id, media_asset_id, gen_run_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM shorts_candidates
+                    WHERE project_id = ? AND media_asset_id = ?
+                    ORDER BY quality_score DESC
+                    """,
+                    (project_id, media_asset_id),
+                ).fetchall()
             return [_row_to_candidate_dict(r) for r in rows]
     else:
-        # Background execution
+        # Background execution tracked via JobOrchestrator
+        job = job_orchestrator.create_job(
+            job_type="candidate_generation",
+            project_id=project_id,
+            priority=120,
+            input_config={
+                "media_asset_id": media_asset_id,
+                "creative_direction": payload.creative_direction,
+                "aspect_ratio": payload.aspect_ratio,
+                "target_clip_count": payload.target_clip_count,
+                "min_duration": payload.min_duration,
+                "max_duration": payload.max_duration,
+                "analysis_run_id": payload.analysis_run_id,
+            },
+        )
+        job_orchestrator.start_job(job.id)
         background_tasks.add_task(
-            engine.discover_highlights,
+            _run_discovery_background,
+            engine=engine,
             project_id=project_id,
             media_asset_id=media_asset_id,
-            analysis_run_id=payload.analysis_run_id,
-            min_duration=payload.min_duration,
-            max_duration=payload.max_duration,
-            target_clip_count=payload.target_clip_count,
-            use_ai_explanations=payload.use_ai_explanations,
+            job_id=job.id,
+            payload=payload,
+            job_orchestrator=job_orchestrator,
         )
         return []
 
@@ -251,10 +356,128 @@ def get_project_highlights_overview(
         )
 
 
+@router.post(
+    "/media/{media_asset_id}/highlights/generate-more",
+    response_model=List[CandidateResponse],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def generate_more_highlights(
+    project_id: str,
+    media_asset_id: str,
+    payload: DiscoverHighlightsRequest,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    engine: HighlightDiscoveryEngine = Depends(get_discovery_engine),
+    db_path: Path = Depends(get_db_path),
+):
+    """Explicitly generate another batch of non-repeating candidates using the persistent novelty ledger."""
+    return start_highlight_discovery(
+        project_id=project_id,
+        media_asset_id=media_asset_id,
+        payload=payload,
+        background_tasks=background_tasks,
+        request=request,
+        engine=engine,
+        db_path=db_path,
+    )
+
+
+@router.get(
+    "/media/{media_asset_id}/highlights/runs",
+    response_model=List[CandidateGenerationRunResponse],
+)
+def list_candidate_generation_runs(
+    project_id: str,
+    media_asset_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """List all candidate discovery generation runs for an asset."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT * FROM candidate_generation_runs
+            WHERE project_id = ? AND media_asset_id = ?
+            ORDER BY created_at DESC
+            """,
+            (project_id, media_asset_id),
+        ).fetchall()
+        runs: List[CandidateGenerationRunResponse] = []
+        for r in rows:
+            d = dict(r)
+            try:
+                d["warnings"] = json.loads(d.get("warnings_json") or "[]")
+            except Exception:
+                d["warnings"] = []
+            runs.append(CandidateGenerationRunResponse(**d))
+        return runs
+
+
+@router.get(
+    "/media/{media_asset_id}/highlights/runs/{run_id}",
+    response_model=CandidateGenerationRunResponse,
+)
+def get_candidate_generation_run(
+    project_id: str,
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Retrieve details and statistics for a specific candidate generation run."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT * FROM candidate_generation_runs
+            WHERE id = ? AND project_id = ? AND media_asset_id = ?
+            """,
+            (run_id, project_id, media_asset_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Generation run '{run_id}' not found.")
+        d = dict(row)
+        try:
+            d["warnings"] = json.loads(d.get("warnings_json") or "[]")
+        except Exception:
+            d["warnings"] = []
+        return CandidateGenerationRunResponse(**d)
+
+
+@router.get(
+    "/media/{media_asset_id}/highlights/history",
+    response_model=NoveltyHistoryResponse,
+)
+def get_candidate_novelty_history(
+    project_id: str,
+    media_asset_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Retrieve persistent novelty ledger and interval history for an asset."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT * FROM media_generated_clips_history
+            WHERE project_id = ? AND media_asset_id = ?
+            ORDER BY created_at ASC
+            """,
+            (project_id, media_asset_id),
+        ).fetchall()
+        items = [NoveltyHistoryItem(**dict(r)) for r in rows]
+        total_duration = sum(item.duration for item in items)
+        return NoveltyHistoryResponse(
+            media_asset_id=media_asset_id,
+            total_clips_generated=len(items),
+            total_duration_covered=round(total_duration, 2),
+            history=items,
+        )
+
+
 @router.get("/media/{media_asset_id}/highlights", response_model=List[CandidateResponse])
 def list_media_candidates(
     project_id: str,
     media_asset_id: str,
+    generation_run_id: Optional[str] = Query(None, description="Filter candidates by generation run ID"),
     review_status: Optional[str] = Query(None),
     db_path: Path = Depends(get_db_path),
 ):
@@ -263,6 +486,10 @@ def list_media_candidates(
         conn.row_factory = sqlite3.Row
         query = "SELECT * FROM shorts_candidates WHERE project_id = ? AND media_asset_id = ?"
         params: List[Any] = [project_id, media_asset_id]
+
+        if generation_run_id:
+            query += " AND generation_run_id = ?"
+            params.append(generation_run_id)
 
         if review_status:
             query += " AND review_status = ?"

@@ -61,6 +61,19 @@ class ProjectService:
 
         return self.get_project(project_id)
 
+    def get_or_create_default_project(self, name: Optional[str] = None) -> ProjectRecord:
+        """Get the most recently active project, or create a default project if none exists."""
+        with sqlite_session(self.db_path) as conn:
+            row = conn.execute(
+                "SELECT * FROM projects WHERE status = 'active' ORDER BY updated_at DESC LIMIT 1"
+            ).fetchone()
+            if row:
+                return self._row_to_record(row)
+        return self.create_project(
+            name=name or "Default Studio Project",
+            description="Main video editing workspace",
+        )
+
     def list_projects(self, include_archived: bool = False) -> List[ProjectRecord]:
         """List active projects, optionally including archived."""
         query = "SELECT * FROM projects"

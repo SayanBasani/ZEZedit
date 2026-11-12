@@ -67,3 +67,23 @@ class SystemInfoResponse(BaseModel):
     max_concurrent_jobs: int
     ffmpeg_threads: int
     storage_root: str
+
+
+class DiagnosticItem(BaseModel):
+    """Individual diagnostic check result."""
+
+    name: str
+    category: str
+    status: str  # "ok" | "warning" | "error"
+    message: str
+    details: Optional[dict] = None
+
+
+class SystemDiagnosticsResponse(BaseModel):
+    """Comprehensive diagnostic evaluation of all subsystem dependencies."""
+
+    overall_status: str  # "healthy" | "degraded" | "action_required"
+    timestamp: str
+    checks: List[DiagnosticItem]
+    system_summary: dict
+

@@ -21,6 +21,8 @@ vi.mock('../services/apiClient', async () => {
     sendAIMessage: vi.fn(),
     approveAIPlan: vi.fn(),
     rejectAIPlan: vi.fn(),
+    fetchAIPlans: vi.fn(),
+    restoreAIPlan: vi.fn(),
     renderTimeline: vi.fn(),
   };
 });
@@ -187,6 +189,28 @@ describe('TimelineEditor Component', () => {
     vi.mocked(apiClient.fetchTimeline).mockResolvedValue(mockTimeline);
     vi.mocked(apiClient.fetchTimelineHistory).mockResolvedValue(mockHistory);
     vi.mocked(apiClient.fetchAIConversation).mockResolvedValue(mockAIConversation);
+    vi.mocked(apiClient.fetchAIPlans).mockResolvedValue([
+      {
+        id: 'plan_1',
+        conversation_id: 'conv_1',
+        project_id: 'p_test',
+        timeline_id: 'tl_1',
+        target_revision: 2,
+        user_instruction: 'Shorten opening shot',
+        explanation: 'Trims 2 seconds from the end of the opening shot.',
+        operations: [
+          {
+            command_type: 'TrimClip',
+            description: "Trim 'Opening Shot' to 6.0s",
+            parameters: { clip_id: 'cl_vid_1', new_timeline_end: 6.0 },
+          },
+        ],
+        warnings: [],
+        status: 'executed',
+        created_at: '2026-11-12T00:00:00Z',
+        executed_at: '2026-11-12T00:01:00Z',
+      },
+    ]);
     vi.mocked(apiClient.fetchProjectMedia).mockResolvedValue({ items: [], total: 0 });
   });
 
@@ -292,6 +316,44 @@ describe('TimelineEditor Component', () => {
         title: 'Main Sequence Render',
       });
       expect(screen.getByText(/Render job enqueued/i)).toBeInTheDocument();
+    });
+  });
+
+  it('toggles Plan Version History Drawer and restores previous plan revision (ZEZ-080)', async () => {
+    vi.mocked(apiClient.restoreAIPlan).mockResolvedValue({
+      ...mockTimeline,
+      revision: 5,
+    });
+
+    render(<TimelineEditor currentProject={mockProject} />);
+
+    await waitFor(() => {
+      expect(screen.getByText('AI Editor')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('AI Editor'));
+
+    await waitFor(() => {
+      expect(screen.getByText(/Version History \(1\)/i)).toBeInTheDocument();
+    });
+
+    // Toggle drawer open
+    fireEvent.click(screen.getByText(/Version History \(1\)/i));
+
+    await waitFor(() => {
+      expect(screen.getByText('Plan Version History')).toBeInTheDocument();
+      expect(screen.getByText('1 plan version recorded')).toBeInTheDocument();
+      expect(screen.getByText('Rev #2')).toBeInTheDocument();
+      expect(screen.getByText('executed')).toBeInTheDocument();
+      expect(screen.getByText('“Shorten opening shot”')).toBeInTheDocument();
+      expect(screen.getByText('Restore to this version')).toBeInTheDocument();
+    });
+
+    // Click restore
+    fireEvent.click(screen.getByText('Restore to this version'));
+
+    await waitFor(() => {
+      expect(apiClient.restoreAIPlan).toHaveBeenCalledWith('p_test', 'tl_1', 'plan_1');
     });
   });
 });

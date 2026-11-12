@@ -293,6 +293,51 @@ class AIEditorService:
             conn.commit()
             return self.get_plan(plan_id)
 
+    def list_plans(self, timeline_id: str) -> List[AIEditingPlan]:
+        """List all AI editing plans / versions for a timeline ordered by creation date."""
+        with sqlite_session(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM ai_editing_plans WHERE timeline_id = ? ORDER BY created_at DESC",
+                (timeline_id,),
+            ).fetchall()
+            return [self._row_to_plan(r) for r in rows]
+
+    def restore_plan(self, plan_id: str) -> TimelineRecord:
+        """Restore a previous AI editing plan.
+        If the plan was not yet executed (or was rejected), executes the plan operations.
+        If the plan was already executed, rolls back any newer commands executed after it
+        to return the timeline to this plan's exact state.
+        """
+        with sqlite_session(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute("SELECT * FROM ai_editing_plans WHERE id = ?", (plan_id,)).fetchone()
+            if not row:
+                raise NotFoundError(f"Plan '{plan_id}' not found.")
+
+            timeline_id = row["timeline_id"]
+            plan_status = row["status"]
+            executed_at = row["executed_at"]
+
+        if plan_status != "executed":
+            return self.approve_and_execute_plan(plan_id)
+
+        # Plan was already executed; roll back commands that occurred after this plan
+        with sqlite_session(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            newer_commands = conn.execute(
+                "SELECT * FROM timeline_commands WHERE timeline_id = ? AND created_at > ? AND is_undone = 0 ORDER BY revision_after DESC",
+                (timeline_id, executed_at or row["created_at"]),
+            ).fetchall()
+
+        for cmd in newer_commands:
+            try:
+                self.command_service.undo(timeline_id)
+            except Exception as e:
+                logger.warning("Could not undo command %s during plan restore: %s", cmd["id"], e)
+
+        return self.timeline_service.get_timeline(timeline_id)
+
     # -------------------------------------------------------------------------
     # Context Aggregator & Semantic Rule Engine
     # -------------------------------------------------------------------------

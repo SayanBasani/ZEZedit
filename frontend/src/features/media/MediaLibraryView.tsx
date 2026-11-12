@@ -6,15 +6,19 @@ import {
   FileImage,
   Film,
   Grid,
+  Layers,
   List,
   Loader2,
   Plus,
   RefreshCw,
+  Scissors,
+  Sliders,
   Trash2,
   UploadCloud,
   Video,
   Zap,
-  Sparkles,
+  Link2,
+  Camera,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
@@ -22,12 +26,15 @@ import { Card } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
 import { Input, SearchInput } from '../../components/ui/Input';
 import { EmptyState, Skeleton } from '../../components/ui/States';
+import { PostImportModal } from './PostImportModal';
 import {
+  checkProjectMediaIntegrity,
   deleteMediaAsset,
   generateProxy,
   getProxyUrl,
   getThumbnailUrl,
   importLocalMedia,
+  inspectRelinkCandidate,
   regenerateThumbnail,
   relinkMedia,
   uploadMediaFile,
@@ -43,6 +50,7 @@ export interface MediaLibraryViewProps {
   loading: boolean;
   onRefresh: () => void;
   onOpenAnalysis?: (asset: MediaAssetItem) => void;
+  onOpenWorkspace?: (asset: MediaAssetItem, initialSubTab?: string) => void;
 }
 
 export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
@@ -53,7 +61,8 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
   stats,
   loading,
   onRefresh,
-  onOpenAnalysis,
+  onOpenAnalysis: _onOpenAnalysis,
+  onOpenWorkspace,
 }) => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,10 +80,23 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
 
+  // Post Import Action Modal state
+  const [postImportOpen, setPostImportOpen] = useState(false);
+  const [postImportAsset, setPostImportAsset] = useState<MediaAssetItem | null>(null);
+
   const [selectedAsset, setSelectedAsset] = useState<MediaAssetItem | null>(null);
   const [relinkTargetAsset, setRelinkTargetAsset] = useState<MediaAssetItem | null>(null);
   const [relinkNewPath, setRelinkNewPath] = useState('');
+  const [relinkInspection, setRelinkInspection] = useState<{
+    match_status: 'exact' | 'compatible' | 'mismatch';
+    warnings: string[];
+    comparison: Record<string, any>;
+  } | null>(null);
+  const [isInspecting, setIsInspecting] = useState(false);
+  const [forceRelink, setForceRelink] = useState(false);
   const [isRelinking, setIsRelinking] = useState(false);
+  const [isVerifyingMedia, setIsVerifyingMedia] = useState(false);
+  const [integrityBanner, setIntegrityBanner] = useState<string | null>(null);
 
   const [deleteTargetAsset, setDeleteTargetAsset] = useState<MediaAssetItem | null>(null);
   const [deleteSourceFile, setDeleteSourceFile] = useState(false);
@@ -129,7 +151,7 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
     setIsImporting(true);
     setImportError(null);
     try {
-      await importLocalMedia(currentProjectId, {
+      const created = await importLocalMedia(currentProjectId, {
         file_path: localPath.trim(),
         copy_to_storage: copyToStorage,
         generate_proxy: generateProxyNow,
@@ -138,6 +160,10 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
       setImportDialogOpen(false);
       setLocalPath('');
       onRefresh();
+      if (created) {
+        setPostImportAsset(created);
+        setPostImportOpen(true);
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Local media import failed');
     } finally {
@@ -151,11 +177,16 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
     setIsImporting(true);
     setImportError(null);
     try {
+      let lastUploaded: MediaAssetItem | null = null;
       for (let i = 0; i < files.length; i++) {
-        await uploadMediaFile(currentProjectId, files[i], generateProxyNow, true);
+        lastUploaded = await uploadMediaFile(currentProjectId, files[i], generateProxyNow, true);
       }
       setImportDialogOpen(false);
       onRefresh();
+      if (lastUploaded) {
+        setPostImportAsset(lastUploaded);
+        setPostImportOpen(true);
+      }
     } catch (err) {
       setImportError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
@@ -185,13 +216,45 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
     }
   };
 
+  const handleInspectCandidate = async () => {
+    if (!relinkTargetAsset || !relinkNewPath.trim()) return;
+    setIsInspecting(true);
+    try {
+      const res = await inspectRelinkCandidate(currentProjectId, relinkTargetAsset.id, relinkNewPath.trim());
+      setRelinkInspection(res);
+    } catch (err) {
+      alert(`Candidate inspection failed: ${err instanceof Error ? err.message : 'Invalid candidate'}`);
+    } finally {
+      setIsInspecting(false);
+    }
+  };
+
+  const handleVerifyMedia = async () => {
+    if (!currentProjectId) return;
+    setIsVerifyingMedia(true);
+    setIntegrityBanner(null);
+    try {
+      const res = await checkProjectMediaIntegrity(currentProjectId);
+      setIntegrityBanner(
+        `Integrity check complete: ${res.online_count} online, ${res.missing_count} missing, ${res.corrupted_count} corrupted.`
+      );
+      onRefresh();
+    } catch (err) {
+      alert(`Media verification failed: ${err instanceof Error ? err.message : 'Error'}`);
+    } finally {
+      setIsVerifyingMedia(false);
+    }
+  };
+
   const handleRelinkConfirm = async () => {
     if (!relinkTargetAsset || !relinkNewPath.trim()) return;
     setIsRelinking(true);
     try {
-      await relinkMedia(currentProjectId, relinkTargetAsset.id, relinkNewPath.trim());
+      await relinkMedia(currentProjectId, relinkTargetAsset.id, relinkNewPath.trim(), forceRelink);
       setRelinkTargetAsset(null);
       setRelinkNewPath('');
+      setRelinkInspection(null);
+      setForceRelink(false);
       onRefresh();
     } catch (err) {
       alert(`Relinking failed: ${err instanceof Error ? err.message : 'File not found'}`);
@@ -231,23 +294,34 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          {projects.length > 1 && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-text-muted">Project:</span>
-              <select
-                value={currentProjectId}
-                onChange={(e) => onSelectProject(e.target.value)}
-                className="px-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary focus:outline-none focus:border-brand"
-              >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Unified Project Filter / All Videos Option */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <span className="text-xs text-text-muted font-medium hidden sm:inline">Viewing:</span>
+            <select
+              value={currentProjectId}
+              onChange={(e) => onSelectProject(e.target.value)}
+              className="px-3 py-1.5 text-xs bg-surface border border-border rounded-lg text-text-primary font-medium focus:outline-none focus:border-brand max-w-[210px] truncate"
+            >
+              <option value="all">All Videos (Unified Library)</option>
+              {projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleVerifyMedia}
+            disabled={loading || isVerifyingMedia}
+            leftIcon={<RefreshCw className={`w-3.5 h-3.5 ${isVerifyingMedia ? 'animate-spin' : ''}`} />}
+            title="Run batch media integrity verification"
+          >
+            Verify Integrity
+          </Button>
 
           <Button
             variant="outline"
@@ -271,32 +345,90 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
         </div>
       </div>
 
+      {/* Quick Direct Ingestion Dropzone */}
+      <div className="bg-surface border-2 border-dashed border-border hover:border-border-focus rounded-xl p-4 sm:p-5 transition text-center space-y-2">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-lg bg-surface-hover border border-border flex items-center justify-center text-text-muted shrink-0">
+              <UploadCloud className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-medium text-text-primary truncate">
+                Import and upload video directly
+              </h2>
+              <p className="text-[11px] text-text-muted truncate">
+                Drop any video file here (MP4, MKV, MOV) — indexed for video intelligence and shorts generation.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              type="file"
+              id="quick-media-file-input"
+              className="hidden"
+              onChange={handleFileUpload}
+              accept="video/*,audio/*,image/*"
+              multiple
+            />
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => document.getElementById('quick-media-file-input')?.click()}
+              isLoading={isImporting}
+              leftIcon={<Plus className="w-4 h-4" />}
+            >
+              Choose Video Files
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setImportDialogOpen(true)}
+            >
+              Local Path
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {integrityBanner && (
+        <div className="p-3 bg-surface-hover border border-border rounded-xl text-text-primary text-xs flex items-center justify-between">
+          <span>{integrityBanner}</span>
+          <button
+            type="button"
+            onClick={() => setIntegrityBanner(null)}
+            className="text-text-muted hover:text-text-primary text-[10px]"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Storage and Metrics Summary Cards */}
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Card className="p-3 space-y-1">
-            <span className="text-[10px] uppercase font-semibold text-text-muted">Total Assets</span>
-            <div className="text-lg font-bold text-text-primary">{stats.total_media_count}</div>
+            <span className="text-[11px] font-medium text-text-muted">Total assets</span>
+            <div className="text-lg font-semibold text-text-primary">{stats.total_media_count}</div>
             <span className="text-[10px] text-text-secondary">
               {stats.managed_files_count} managed • {stats.external_files_count} external
             </span>
           </Card>
 
           <Card className="p-3 space-y-1">
-            <span className="text-[10px] uppercase font-semibold text-text-muted">Media Footprint</span>
-            <div className="text-lg font-bold text-text-primary">{formatBytes(stats.total_media_bytes)}</div>
+            <span className="text-[11px] font-medium text-text-muted">Media footprint</span>
+            <div className="text-lg font-semibold text-text-primary">{formatBytes(stats.total_media_bytes)}</div>
             <span className="text-[10px] text-text-secondary font-mono">Original source files</span>
           </Card>
 
           <Card className="p-3 space-y-1">
-            <span className="text-[10px] uppercase font-semibold text-text-muted">Proxy Cache</span>
-            <div className="text-lg font-bold text-sky-400">{formatBytes(stats.total_proxy_bytes)}</div>
+            <span className="text-[11px] font-medium text-text-muted">Proxy cache</span>
+            <div className="text-lg font-semibold text-text-primary">{formatBytes(stats.total_proxy_bytes)}</div>
             <span className="text-[10px] text-text-secondary font-mono">Optimized 480p scrubs</span>
           </Card>
 
           <Card className="p-3 space-y-1">
-            <span className="text-[10px] uppercase font-semibold text-text-muted">Thumbnails</span>
-            <div className="text-lg font-bold text-emerald-400">{formatBytes(stats.total_thumbnail_bytes)}</div>
+            <span className="text-[11px] font-medium text-text-muted">Thumbnails</span>
+            <div className="text-lg font-semibold text-text-primary">{formatBytes(stats.total_thumbnail_bytes)}</div>
             <span className="text-[10px] text-text-secondary font-mono">Cached preview frames</span>
           </Card>
         </div>
@@ -425,31 +557,31 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
         />
       ) : viewMode === 'grid' ? (
         /* GRID VIEW */
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {filteredMedia.map((asset) => (
             <Card
               key={asset.id}
-              className="flex flex-col justify-between overflow-hidden p-0 border border-border group hover:border-brand/50 transition-all shadow-xs"
+              className="flex flex-col justify-between overflow-hidden p-0 border border-border group hover:border-border-focus transition-all shadow-xs min-w-0"
             >
               {/* Media Preview Box */}
               <div
-                onClick={() => setSelectedAsset(asset)}
+                onClick={() => (onOpenWorkspace ? onOpenWorkspace(asset, 'overview') : setSelectedAsset(asset))}
                 className="relative aspect-video bg-black/40 flex items-center justify-center cursor-pointer overflow-hidden border-b border-border/40"
               >
                 {asset.thumbnail_reference_path ? (
                   <img
-                    src={getThumbnailUrl(currentProjectId, asset.id)}
+                    src={getThumbnailUrl(asset.project_id || currentProjectId, asset.id)}
                     alt={asset.original_filename}
                     className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                     loading="lazy"
                   />
                 ) : asset.media_type === 'audio' ? (
-                  <div className="flex flex-col items-center justify-center space-y-1 text-brand">
+                  <div className="flex flex-col items-center justify-center space-y-1 text-text-secondary">
                     <FileAudio className="w-8 h-8" />
-                    <span className="text-[10px] font-mono text-text-muted">Audio Clip</span>
+                    <span className="text-[10px] font-mono text-text-muted">Audio clip</span>
                   </div>
                 ) : asset.media_type === 'image' ? (
-                  <FileImage className="w-8 h-8 text-amber-400" />
+                  <FileImage className="w-8 h-8 text-text-secondary" />
                 ) : (
                   <Film className="w-8 h-8 text-text-muted" />
                 )}
@@ -463,11 +595,11 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
 
                 {/* Media Type Badge */}
                 <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-                  <span className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-xs text-[9px] font-semibold uppercase tracking-wider text-text-primary">
+                  <span className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-xs text-[9px] font-medium text-text-primary capitalize">
                     {asset.media_type}
                   </span>
                   {asset.is_external && (
-                    <span className="px-1.5 py-0.5 rounded bg-sky-950/80 border border-sky-500/30 text-[9px] font-mono text-sky-400">
+                    <span className="px-1.5 py-0.5 rounded bg-surface-active/80 border border-border text-[9px] font-mono text-text-secondary">
                       External
                     </span>
                   )}
@@ -493,15 +625,15 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
               </div>
 
               {/* Card Meta & Controls */}
-              <div className="p-3.5 space-y-2.5">
-                <div>
+              <div className="p-3.5 space-y-2.5 min-w-0">
+                <div className="min-w-0">
                   <h3
-                    className="text-xs font-semibold text-text-primary truncate"
+                    className="text-xs font-semibold text-text-primary truncate block"
                     title={asset.original_filename}
                   >
                     {asset.original_filename}
                   </h3>
-                  <div className="flex items-center gap-2 text-[10px] text-text-muted font-mono mt-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5 text-[10px] text-text-muted font-mono mt-0.5 min-w-0">
                     <span>{formatBytes(asset.file_size_bytes)}</span>
                     {asset.width && asset.height && (
                       <>
@@ -544,26 +676,52 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                   </div>
                 )}
 
-                {/* Card Actions Footer */}
-                <div className="flex items-center justify-between pt-2 border-t border-border/50 gap-1.5">
+                {/* Unified Dedicated Video Studio Entry Point */}
+                <div className="space-y-1.5 pt-2 border-t border-border/50">
                   <Button
-                    variant="ghost"
+                    variant="primary"
                     size="sm"
-                    onClick={() => setSelectedAsset(asset)}
-                    leftIcon={<Eye className="w-3.5 h-3.5" />}
-                    className="flex-1 text-[11px]"
+                    onClick={() => (onOpenWorkspace ? onOpenWorkspace(asset, 'overview') : setSelectedAsset(asset))}
+                    leftIcon={<Sliders className="w-3.5 h-3.5" />}
+                    className="w-full text-xs font-medium py-1.5 justify-center shadow-xs"
+                    title="Open Dedicated Video Studio"
                   >
-                    Details
+                    Open Video Studio
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDeleteTargetAsset(asset)}
-                    className="text-red-400 hover:text-red-300 px-2"
-                    title="Remove from project"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
+
+                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => (onOpenWorkspace ? onOpenWorkspace(asset, 'timeline') : setSelectedAsset(asset))}
+                      leftIcon={<Scissors className="w-3 h-3 text-text-secondary" />}
+                      className="text-[10px] py-1 px-2 text-text-secondary hover:text-text-primary"
+                      title="Open Timeline Editor"
+                    >
+                      Timeline
+                    </Button>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setSelectedAsset(asset)}
+                        leftIcon={<Eye className="w-3 h-3" />}
+                        className="text-[10px] px-2 text-text-muted hover:text-text-primary"
+                        title="Inspect Details & Actions"
+                      >
+                        Details
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setDeleteTargetAsset(asset)}
+                        className="text-red-400 hover:text-red-300 p-1"
+                        title="Remove from project"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </Card>
@@ -656,6 +814,15 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => (onOpenWorkspace ? onOpenWorkspace(asset, 'overview') : setSelectedAsset(asset))}
+                          className="px-2 text-indigo-400 hover:text-indigo-300"
+                          title="Open Video Workspace"
+                        >
+                          <Layers className="w-3.5 h-3.5" />
+                        </Button>
                         <Button
                           variant="ghost"
                           size="sm"
@@ -838,13 +1005,13 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
             <div className="aspect-video bg-black rounded-xl overflow-hidden flex items-center justify-center border border-border">
               {selectedAsset.proxy_status === 'ready' ? (
                 <video
-                  src={getProxyUrl(currentProjectId, selectedAsset.id)}
+                  src={getProxyUrl(selectedAsset.project_id || currentProjectId, selectedAsset.id)}
                   controls
                   className="w-full h-full object-contain"
                 />
               ) : selectedAsset.thumbnail_reference_path ? (
                 <img
-                  src={getThumbnailUrl(currentProjectId, selectedAsset.id)}
+                  src={getThumbnailUrl(selectedAsset.project_id || currentProjectId, selectedAsset.id)}
                   alt=""
                   className="w-full h-full object-contain"
                 />
@@ -854,6 +1021,68 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                   <span>Preview not available</span>
                 </div>
               )}
+            </div>
+
+            {/* Direct Workflow Action Station for this Video */}
+            <div className="p-3.5 bg-canvas-subtle rounded-xl border border-border/80 space-y-2">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-text-muted flex items-center gap-1.5">
+                <Sliders className="w-3.5 h-3.5 text-brand" />
+                Workflow Actions for this Video:
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    const target = selectedAsset;
+                    setSelectedAsset(null);
+                    if (onOpenWorkspace) onOpenWorkspace(target, 'overview');
+                  }}
+                  leftIcon={<Sliders className="w-3.5 h-3.5" />}
+                  className="w-full justify-start text-xs font-medium"
+                >
+                  Open Video Studio
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const target = selectedAsset;
+                    setSelectedAsset(null);
+                    if (onOpenWorkspace) onOpenWorkspace(target, 'reframing');
+                  }}
+                  leftIcon={<Camera className="w-3.5 h-3.5 text-text-secondary" />}
+                  className="w-full justify-start text-xs font-medium"
+                >
+                  Smart Reframing (9:16)
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const target = selectedAsset;
+                    setSelectedAsset(null);
+                    if (onOpenWorkspace) onOpenWorkspace(target, 'highlights');
+                  }}
+                  leftIcon={<Film className="w-3.5 h-3.5 text-text-secondary" />}
+                  className="w-full justify-start text-xs font-medium"
+                >
+                  AI Highlight Discovery
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const target = selectedAsset;
+                    setSelectedAsset(null);
+                    if (onOpenWorkspace) onOpenWorkspace(target, 'timeline');
+                  }}
+                  leftIcon={<Scissors className="w-3.5 h-3.5 text-text-secondary" />}
+                  className="w-full justify-start text-xs font-medium"
+                >
+                  Timeline Editor
+                </Button>
+              </div>
             </div>
 
             {/* Technical Metadata Grid */}
@@ -912,21 +1141,7 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
 
             {/* Actions Toolbar */}
             <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border">
-              <div className="flex items-center gap-2">
-                {onOpenAnalysis && (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    onClick={() => {
-                      const asset = selectedAsset;
-                      setSelectedAsset(null);
-                      onOpenAnalysis(asset);
-                    }}
-                    leftIcon={<Sparkles className="w-3.5 h-3.5" />}
-                  >
-                    Analyze Video
-                  </Button>
-                )}
+              <div className="flex flex-wrap items-center gap-2">
                 {selectedAsset.media_type === 'video' && (
                   <Button
                     variant="outline"
@@ -944,6 +1159,19 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                   leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
                 >
                   Regenerate Thumbnail
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const target = selectedAsset;
+                    setSelectedAsset(null);
+                    setRelinkTargetAsset(target);
+                    setRelinkNewPath(target.storage_path);
+                  }}
+                  leftIcon={<Link2 className="w-3.5 h-3.5 text-amber-400" />}
+                >
+                  Relink File
                 </Button>
               </div>
 
@@ -965,8 +1193,12 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
       {/* Relink Modal */}
       <Dialog
         isOpen={!!relinkTargetAsset}
-        onClose={() => setRelinkTargetAsset(null)}
-        title="Relink Missing Media File"
+        onClose={() => {
+          setRelinkTargetAsset(null);
+          setRelinkInspection(null);
+          setForceRelink(false);
+        }}
+        title="Relink Media File with Integrity Check"
       >
         <div className="space-y-4">
           <p className="text-xs text-text-secondary leading-relaxed">
@@ -974,20 +1206,106 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
             at its previous path. Provide its new location on disk to restore access without losing project metadata.
           </p>
 
-          <Input
-            label="New Absolute Path on Disk"
-            value={relinkNewPath}
-            onChange={(e) => setRelinkNewPath(e.target.value)}
-            placeholder="e.g. D:\Videos\interview_take_1.mp4"
-            required
-          />
+          <div className="flex items-end gap-2">
+            <div className="flex-1">
+              <Input
+                label="New Absolute Path on Disk"
+                value={relinkNewPath}
+                onChange={(e) => setRelinkNewPath(e.target.value)}
+                placeholder="e.g. D:\Videos\interview_take_1.mp4"
+                required
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleInspectCandidate}
+              isLoading={isInspecting}
+              disabled={!relinkNewPath.trim()}
+            >
+              Verify Candidate
+            </Button>
+          </div>
+
+          {/* Inspection Comparison Results */}
+          {relinkInspection && (
+            <div className="p-3 bg-canvas-subtle border border-border rounded-xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-text-primary">Candidate Verification:</span>
+                <Badge
+                  variant={
+                    relinkInspection.match_status === 'exact'
+                      ? 'success'
+                      : relinkInspection.match_status === 'compatible'
+                      ? 'warning'
+                      : 'danger'
+                  }
+                >
+                  {relinkInspection.match_status.toUpperCase()}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div>
+                  <span className="text-text-muted block">Original Duration:</span>
+                  <span>{relinkInspection.comparison.original_duration?.toFixed(2) || 'N/A'}s</span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Candidate Duration:</span>
+                  <span>{relinkInspection.comparison.candidate_duration?.toFixed(2) || 'N/A'}s</span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Original Resolution:</span>
+                  <span>{relinkInspection.comparison.original_resolution || 'N/A'}</span>
+                </div>
+                <div>
+                  <span className="text-text-muted block">Candidate Resolution:</span>
+                  <span>{relinkInspection.comparison.candidate_resolution || 'N/A'}</span>
+                </div>
+              </div>
+
+              {relinkInspection.warnings.length > 0 && (
+                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-1">
+                  <span className="text-[11px] font-semibold text-amber-400 block">Discrepancy Warnings:</span>
+                  {relinkInspection.warnings.map((w, idx) => (
+                    <p key={idx} className="text-[10px] text-amber-300 font-mono">• {w}</p>
+                  ))}
+                  {relinkInspection.match_status === 'mismatch' && (
+                    <label className="flex items-center gap-2 pt-1 text-[11px] text-text-primary cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={forceRelink}
+                        onChange={(e) => setForceRelink(e.target.checked)}
+                        className="rounded border-border text-brand"
+                      />
+                      <span>Force relink despite duration mismatch</span>
+                    </label>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => setRelinkTargetAsset(null)}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setRelinkTargetAsset(null);
+                setRelinkInspection(null);
+                setForceRelink(false);
+              }}
+            >
               Cancel
             </Button>
-            <Button variant="primary" size="sm" onClick={handleRelinkConfirm} isLoading={isRelinking}>
-              Relink & Restore
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleRelinkConfirm}
+              isLoading={isRelinking}
+              disabled={!relinkNewPath.trim() || (relinkInspection?.match_status === 'mismatch' && !forceRelink)}
+            >
+              Relink &amp; Restore
             </Button>
           </div>
         </div>
@@ -1044,6 +1362,24 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
           </div>
         </div>
       </Dialog>
+
+      {/* Post-Import Action Flow Modal */}
+      <PostImportModal
+        isOpen={postImportOpen}
+        onClose={() => setPostImportOpen(false)}
+        projectId={currentProjectId}
+        asset={postImportAsset}
+        onOpenWorkspace={(asset, subTab) => {
+          setPostImportOpen(false);
+          if (onOpenWorkspace) {
+            onOpenWorkspace(asset, subTab);
+          }
+        }}
+        onImportAnother={() => {
+          setPostImportOpen(false);
+          setImportDialogOpen(true);
+        }}
+      />
     </div>
   );
 };

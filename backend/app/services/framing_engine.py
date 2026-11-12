@@ -90,7 +90,7 @@ class FramingEngine:
                 best = min(matching, key=lambda d: abs(d.timestamp - timestamp))
                 active_dets.append(best)
 
-        # If user pinned a specific subject
+        # If user pinned a specific subject / character
         if pinned_subject_id:
             pinned = [d for d in active_dets if d.subject_id == pinned_subject_id]
             if pinned:
@@ -98,6 +98,15 @@ class FramingEngine:
                 target_x = d.center_x
                 target_y = max(0.0, d.box_y - (self.headroom_factor * source_h)) + (d.box_h / 2.0)
                 return target_x, target_y, "single_subject", 1, warnings
+            else:
+                # Character was temporarily obscured; maintain closest observation from track
+                for trk in tracks:
+                    if trk.subject_id == pinned_subject_id and trk.detections:
+                        closest = min(trk.detections, key=lambda d: abs(d.timestamp - timestamp))
+                        if abs(closest.timestamp - timestamp) <= 3.0:
+                            target_x = closest.center_x
+                            target_y = max(0.0, closest.box_y - (self.headroom_factor * source_h)) + (closest.box_h / 2.0)
+                            return target_x, target_y, "single_subject", 1, warnings
 
         subject_count = len(active_dets)
 
@@ -291,6 +300,8 @@ class FramingEngine:
         keyframe_interval: float = 0.25,  # 4 keyframes per second
         scene_cut_timestamps: Optional[List[float]] = None,
         manual_overrides: Optional[List[Dict[str, Any]]] = None,
+        preferred_strategy: str = "auto",
+        pinned_subject_id: Optional[str] = None,
     ) -> Tuple[List[CropKeyframe], List[str]]:
         """Generate authoritative time-varying crop keyframe trajectory for clip interval."""
         all_warnings: List[str] = []
@@ -341,12 +352,14 @@ class FramingEngine:
                 )
                 raw_keyframes.append(kf)
             else:
-                # Automatic AI framing
+                # Automatic AI framing (honoring pinned subject / character focus)
                 target_x, target_y, strat, scount, warns = self.select_framing_target(
                     tracks=tracks,
                     timestamp=timestamp,
                     source_w=source_w,
                     source_h=source_h,
+                    preferred_strategy=preferred_strategy,
+                    pinned_subject_id=pinned_subject_id,
                 )
                 all_warnings.extend(warns)
 

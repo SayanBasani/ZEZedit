@@ -80,3 +80,38 @@ export const SearchInput: React.FC<SearchInputProps> = ({ value, onClear, ...pro
     />
   );
 };
+
+export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  label?: string;
+  error?: string;
+  helperText?: string;
+}
+
+export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
+  ({ label, error, helperText, className = '', id, children, ...props }, ref) => {
+    const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+
+    return (
+      <div className="w-full space-y-1">
+        {label && (
+          <label htmlFor={selectId} className="block text-xs font-medium text-text-secondary">
+            {label}
+          </label>
+        )}
+        <select
+          id={selectId}
+          ref={ref}
+          className={`w-full bg-surface border ${
+            error ? 'border-red-500 focus:ring-red-500' : 'border-border focus:border-brand'
+          } rounded-lg text-xs text-text-primary px-3 py-2 transition focus:outline-none focus:ring-1 appearance-none cursor-pointer ${className}`}
+          {...props}
+        >
+          {children}
+        </select>
+        {error && <p className="text-[11px] text-red-500 font-medium">{error}</p>}
+        {!error && helperText && <p className="text-[11px] text-text-muted">{helperText}</p>}
+      </div>
+    );
+  }
+);
+Select.displayName = 'Select';

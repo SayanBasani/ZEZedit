@@ -83,6 +83,19 @@ def sample_analysis_frames(
         frame_filename = f"frame_{ts_ms:08d}.jpg"
         target_path = output_dir / frame_filename
 
+        # Re-use existing cached frame if valid and non-empty
+        if target_path.exists() and target_path.stat().st_size > 0:
+            sampled_results.append(
+                SampledFrame(
+                    timestamp=ts,
+                    frame_path=str(target_path),
+                    scene_index=sc_idx,
+                    width=max_dimension,
+                    height=int(max_dimension * 9 / 16),
+                )
+            )
+            continue
+
         cmd = [
             ffmpeg_bin,
             "-y",
@@ -96,7 +109,7 @@ def sample_analysis_frames(
         ]
 
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=20.0)
             if target_path.exists() and target_path.stat().st_size > 0:
                 sampled_results.append(
                     SampledFrame(
@@ -104,9 +117,11 @@ def sample_analysis_frames(
                         frame_path=str(target_path),
                         scene_index=sc_idx,
                         width=max_dimension,
-                        height=int(max_dimension * 9 / 16), # estimated or probed
+                        height=int(max_dimension * 9 / 16),
                     )
                 )
+        except subprocess.TimeoutExpired:
+            logger.warning("Frame extraction timed out after 20s at %.2fs", ts)
         except Exception as exc:
             logger.warning("Failed to sample frame at %.2fs: %s", ts, exc)
 

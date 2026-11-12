@@ -95,8 +95,22 @@ class WhisperTranscriber:
                 vad_parameters=dict(min_silence_duration_ms=500),
             )
 
+            raw_list = list(raw_segments)
+            # If VAD filter classified everything as non-speech (common with dialogue over music/rhymes),
+            # retry without VAD filter to preserve real speech
+            if not raw_list:
+                logger.info("VAD filter yielded 0 segments for %s; retrying without VAD filter", audio_path.name)
+                raw_segments, info = model.transcribe(
+                    str(audio_path),
+                    language=language,
+                    beam_size=beam_size,
+                    word_timestamps=word_timestamps,
+                    vad_filter=False,
+                )
+                raw_list = list(raw_segments)
+
             normalized_segments: List[NormalizedSegment] = []
-            for seg in raw_segments:
+            for seg in raw_list:
                 seg_text = seg.text.strip()
                 if not seg_text:
                     continue

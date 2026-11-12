@@ -11,12 +11,38 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError, NotFoundError, ProcessingError, ValidationError
 from app.core.storage import StorageLayout
-from app.models.export import ExportPreset, RenderExportRequest
+from app.models.export import AudioConfig, CaptionConfig, ExportPreset, RenderExportRequest
 from app.services.export_service import ExportService
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger("zezedit.api.exports")
 
 router = APIRouter(prefix="/projects/{project_id}/exports", tags=["exports-and-rendering"])
+
+
+class BatchExportRequest(BaseModel):
+    candidate_ids: List[str] = Field(..., min_length=1, description="List of candidate IDs to render into Shorts")
+    preset_id: str = Field(default="shorts_reels_9_16", description="Export preset ID (e.g. 'shorts_reels_9_16')")
+    caption_config: Optional[CaptionConfig] = None
+    audio_config: Optional[AudioConfig] = None
+    custom_tag: Optional[str] = None
+
+
+class BatchExportItem(BaseModel):
+    candidate_id: str
+    export_id: str
+    job_id: str
+    status: str
+    output_filename: str
+
+
+class BatchExportResponse(BaseModel):
+    batch_id: str
+    project_id: str
+    total_requested: int
+    total_submitted: int
+    items: List[BatchExportItem]
+    skipped_candidates: List[Dict[str, str]] = Field(default_factory=list)
 
 
 def get_export_service(request: Request) -> ExportService:
@@ -67,6 +93,63 @@ def create_export_render_job(
     except Exception as exc:
         logger.error("Failed to enqueue export render: %s", exc)
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.post("/batch", response_model=BatchExportResponse)
+def create_batch_export_jobs(
+    project_id: str,
+    payload: BatchExportRequest,
+    background_tasks: BackgroundTasks,
+    run_synchronously: bool = Query(False, description="Run batch renders synchronously"),
+    service: ExportService = Depends(get_export_service),
+) -> BatchExportResponse:
+    """Enqueue parallel independent render jobs for multiple approved candidate shorts."""
+    import uuid
+
+    batch_id = f"batch_{uuid.uuid4().hex[:8]}"
+    submitted_items: List[BatchExportItem] = []
+    skipped_cands: List[Dict[str, str]] = []
+
+    for cid in payload.candidate_ids:
+        try:
+            render_req = RenderExportRequest(
+                candidate_id=cid,
+                preset_id=payload.preset_id,
+                caption_config=payload.caption_config or CaptionConfig(),
+                audio_config=payload.audio_config or AudioConfig(),
+            )
+            res = service.submit_export_job(project_id=project_id, request=render_req)
+            job_id = res["job_id"]
+            export_id = res["export_id"]
+
+            if run_synchronously:
+                service.execute_render_job(job_id)
+
+            submitted_items.append(
+                BatchExportItem(
+                    candidate_id=cid,
+                    export_id=export_id,
+                    job_id=job_id,
+                    status="rendering" if run_synchronously else "queued",
+                    output_filename=res.get("output_filename", f"{export_id}.mp4"),
+                )
+            )
+
+            if not run_synchronously:
+                background_tasks.add_task(service.execute_render_job, job_id)
+
+        except Exception as exc:
+            logger.warning("Skipping candidate '%s' in batch export: %s", cid, exc)
+            skipped_cands.append({"candidate_id": cid, "reason": str(exc)})
+
+    return BatchExportResponse(
+        batch_id=batch_id,
+        project_id=project_id,
+        total_requested=len(payload.candidate_ids),
+        total_submitted=len(submitted_items),
+        items=submitted_items,
+        skipped_candidates=skipped_cands,
+    )
 
 
 @router.post("/preview")

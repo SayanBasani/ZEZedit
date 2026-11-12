@@ -53,6 +53,9 @@ class ReframingService:
         base_zoom: float = 1.0,
         headroom_factor: float = 0.15,
         smoothing_window: float = 0.8,
+        pinned_subject_id: Optional[str] = None,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
     ) -> ReframingPlanRecord:
         """Analyze media clip, track subjects, compute authoritative portrait keyframes, and persist initial revision."""
         with sqlite_session(self.db_path) as conn:
@@ -79,9 +82,9 @@ class ReframingService:
             source_h = int(asset["height"] or 1080)
             asset_duration = float(asset["duration_seconds"] or 60.0)
 
-            # 2. Determine start and end time (from candidate if available)
-            start_time = 0.0
-            end_time = min(asset_duration, 30.0)
+            # 2. Determine start and end time (from candidate if available, or explicit overrides)
+            clip_start = 0.0
+            clip_end = min(asset_duration, 30.0)
 
             if candidate_id:
                 cand = conn.execute(
@@ -89,9 +92,16 @@ class ReframingService:
                     (candidate_id, project_id),
                 ).fetchone()
                 if cand:
-                    start_time = float(cand["start_time"])
-                    end_time = float(cand["end_time"])
+                    clip_start = float(cand["start_time"])
+                    clip_end = float(cand["end_time"])
 
+            if start_time is not None:
+                clip_start = float(start_time)
+            if end_time is not None:
+                clip_end = float(end_time)
+
+            start_time = clip_start
+            end_time = clip_end
             duration = max(0.5, round(end_time - start_time, 3))
 
             # 3. Load relevant visual scene cuts if available
@@ -102,21 +112,21 @@ class ReframingService:
                 WHERE media_asset_id = ? AND start_time >= ? AND start_time <= ?
                 ORDER BY start_time ASC
                 """,
-                (media_asset_id, start_time - 0.5, end_time + 0.5),
+                (media_asset_id, clip_start - 0.5, clip_end + 0.5),
             ).fetchall()
             for r in scene_rows:
-                if r["start_time"] > start_time:
+                if r["start_time"] > clip_start:
                     scene_cuts.append(round(float(r["start_time"]), 3))
 
             # 4. Run Subject Tracking
             logger.info(
                 "Tracking subjects for reframing plan: asset=%s interval=[%.2f, %.2f]",
-                media_asset_id, start_time, end_time
+                media_asset_id, clip_start, clip_end
             )
             tracks = self.tracker.track_clip(
                 media_path=media_path,
-                start_time=start_time,
-                end_time=end_time,
+                start_time=clip_start,
+                end_time=clip_end,
                 source_w=source_w,
                 source_h=source_h,
                 scene_cut_timestamps=scene_cuts,
@@ -137,6 +147,8 @@ class ReframingService:
                 source_w=source_w,
                 source_h=source_h,
                 scene_cut_timestamps=scene_cuts,
+                preferred_strategy=framing_strategy,
+                pinned_subject_id=pinned_subject_id,
             )
 
             # Determine dominant strategy
@@ -148,7 +160,14 @@ class ReframingService:
             now = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
             # Output dimensions for target aspect ratio
-            out_w, out_h = (1080, 1920) if target_aspect_ratio == "9:16" else ((1080, 1080) if target_aspect_ratio == "1:1" else (1920, 1080))
+            if target_aspect_ratio == "9:16":
+                out_w, out_h = (1080, 1920)
+            elif target_aspect_ratio == "1:1":
+                out_w, out_h = (1080, 1080)
+            elif target_aspect_ratio == "4:5":
+                out_w, out_h = (1080, 1350)
+            else:
+                out_w, out_h = (1920, 1080)
 
             # 6. Insert reframing plan
             conn.execute(

@@ -78,6 +78,43 @@ class MediaAssetUpdateRequest(BaseModel):
 
 class MediaRelinkRequest(BaseModel):
     new_storage_path: str = Field(..., min_length=1)
+    force: bool = False
+
+
+class MediaRelinkResponse(BaseModel):
+    asset: 'MediaAssetResponse'
+    match_status: str  # "exact", "compatible", "mismatch"
+    warnings: List[str] = Field(default_factory=list)
+    comparison: Dict[str, Any] = Field(default_factory=dict)
+
+
+class MediaIntegrityCheckResult(BaseModel):
+    asset_id: str
+    project_id: str
+    original_filename: str
+    storage_path: str
+    availability_status: str
+    integrity_status: str
+    file_exists: bool
+    file_size_bytes: int
+    size_matches: bool
+    probe_ok: bool
+    duration_seconds: Optional[float] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    issues: List[str] = Field(default_factory=list)
+    checked_at: str
+
+
+class ProjectMediaIntegrityResponse(BaseModel):
+    project_id: str
+    total_assets: int
+    online_count: int
+    missing_count: int
+    corrupted_count: int
+    all_healthy: bool
+    assets: List[MediaIntegrityCheckResult]
+    checked_at: str
 
 
 class MediaImportLocalRequest(BaseModel):
@@ -131,6 +168,9 @@ class MediaAssetListResponse(BaseModel):
     total: int
 
 
+MediaRelinkResponse.model_rebuild()
+
+
 # ==================== JOBS ====================
 
 class JobCreateRequest(BaseModel):
@@ -162,6 +202,7 @@ class JobResponse(BaseModel):
     cancellation_requested_at: Optional[str]
     cancelled_at: Optional[str]
     updated_at: str
+    checkpoint_data: Optional[Dict[str, Any]] = None
 
 
 class JobListResponse(BaseModel):
@@ -215,3 +256,120 @@ class CapabilitiesResponse(BaseModel):
     ollama_reachable: bool
     supported_aspect_ratios: List[str]
     supported_codecs: List[str]
+
+
+# ==================== SYSTEM RESOURCE MONITORING ====================
+
+class SystemResourceMetricsResponse(BaseModel):
+    cpu_percent: float
+    process_cpu_percent: float
+    cpu_count_logical: int
+    cpu_count_physical: int
+    memory_total_mb: float
+    memory_available_mb: float
+    memory_used_mb: float
+    memory_percent: float
+    process_memory_rss_mb: float
+    process_memory_vms_mb: float
+    active_workers: int
+    pending_jobs: int
+    max_concurrent_jobs: int
+    execution_mode: str = "cpu_first"
+    timestamp: str
+
+
+# ==================== WORKING QUEUE & STATS ====================
+
+class QueueStatsResponse(BaseModel):
+    total_jobs: int
+    queued: int
+    running: int
+    completed: int
+    failed: int
+    cancelled: int
+    by_type: Dict[str, int] = Field(default_factory=dict)
+    active_job_ids: List[str] = Field(default_factory=list)
+
+
+class JobLogsResponse(BaseModel):
+    job_id: str
+    job_type: str
+    status: str
+    current_stage: Optional[str] = None
+    progress_percent: float = 0.0
+    error_message: Optional[str] = None
+    logs: List[str] = Field(default_factory=list)
+    created_at: str
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+
+
+# ==================== AI PROVIDERS ====================
+
+class AIProviderCapability(BaseModel):
+    task: str
+    supported: bool
+    description: str
+
+
+class AIProviderDTO(BaseModel):
+    id: str
+    name: str
+    provider_type: str  # local_llm, local_asr, heuristic
+    status: str  # ready, offline, degraded
+    is_local: bool = True
+    base_url: Optional[str] = None
+    active_model: str
+    available_models: List[str] = Field(default_factory=list)
+    capabilities: List[AIProviderCapability] = Field(default_factory=list)
+    latency_ms: Optional[float] = None
+    last_health_check: Optional[str] = None
+    details: Optional[str] = None
+
+
+class AIProviderTestRequest(BaseModel):
+    provider_id: str
+    base_url: Optional[str] = None
+
+
+class AIProviderTestResponse(BaseModel):
+    provider_id: str
+    reachable: bool
+    latency_ms: Optional[float] = None
+    available_models: List[str] = Field(default_factory=list)
+    error: Optional[str] = None
+
+
+class AIProviderUpdateRequest(BaseModel):
+    base_url: Optional[str] = None
+    active_model: Optional[str] = None
+
+
+# ==================== DOCUMENTATION CENTER ====================
+
+class DocArticleDTO(BaseModel):
+    id: str
+    title: str
+    category: str
+    summary: str
+    tags: List[str] = Field(default_factory=list)
+    reading_time_minutes: int = 2
+
+
+class DocCategoryDTO(BaseModel):
+    id: str
+    name: str
+    description: str
+    article_count: int
+
+
+class DocArticleDetailResponse(BaseModel):
+    id: str
+    title: str
+    category: str
+    summary: str
+    markdown_content: str
+    tags: List[str] = Field(default_factory=list)
+    related_article_ids: List[str] = Field(default_factory=list)
+    updated_at: str
+

@@ -37,6 +37,7 @@ class CreateReframingPlanRequest(BaseModel):
     base_zoom: float = Field(default=1.0, ge=0.8, le=2.5)
     headroom_factor: float = Field(default=0.15, ge=0.05, le=0.35)
     smoothing_window: float = Field(default=0.8, ge=0.2, le=3.0)
+    pinned_subject_id: Optional[str] = Field(default=None, description="Optional character/subject ID to focus on")
 
 
 class ManualOverrideItem(BaseModel):
@@ -81,6 +82,7 @@ def create_reframing_plan(
         base_zoom=payload.base_zoom,
         headroom_factor=payload.headroom_factor,
         smoothing_window=payload.smoothing_window,
+        pinned_subject_id=payload.pinned_subject_id,
     )
     return plan.to_dict()
 

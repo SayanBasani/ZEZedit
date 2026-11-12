@@ -6,10 +6,11 @@ from pathlib import Path
 from typing import Iterator
 
 
-def create_sqlite_connection(db_path: Path) -> sqlite3.Connection:
+def create_sqlite_connection(db_path: Path | str) -> sqlite3.Connection:
     """Open an isolated SQLite connection with mandatory WAL and FK pragmas."""
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(str(db_path), timeout=10.0, isolation_level=None)
+    path_obj = Path(db_path)
+    path_obj.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(path_obj), timeout=10.0, isolation_level=None)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode = WAL;")
     conn.execute("PRAGMA synchronous = NORMAL;")
@@ -19,7 +20,7 @@ def create_sqlite_connection(db_path: Path) -> sqlite3.Connection:
 
 
 @contextmanager
-def sqlite_session(db_path: Path) -> Iterator[sqlite3.Connection]:
+def sqlite_session(db_path: Path | str) -> Iterator[sqlite3.Connection]:
     """Context manager yielding a properly configured SQLite connection."""
     conn = create_sqlite_connection(db_path)
     try:

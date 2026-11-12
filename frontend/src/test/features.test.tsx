@@ -43,6 +43,48 @@ vi.mock('../services/apiClient', () => ({
     },
   }),
   updateAppSettings: vi.fn().mockResolvedValue({}),
+  fetchStorageBreakdown: vi.fn().mockResolvedValue({
+    storage_root: 'D:\\ZezEdit\\storage',
+    total_disk_space_bytes: 500_000_000_000,
+    free_disk_space_bytes: 250_000_000_000,
+    used_disk_space_bytes: 250_000_000_000,
+    is_low_storage: false,
+    low_storage_threshold_bytes: 5_000_000_000,
+    categories: {
+      source_media_bytes: 0,
+      proxies_bytes: 0,
+      thumbnails_bytes: 0,
+      extracted_frames_bytes: 0,
+      temp_cache_bytes: 0,
+      exports_bytes: 0,
+      database_bytes: 0,
+      backups_bytes: 0,
+      logs_bytes: 0,
+    },
+    directories: {},
+  }),
+  fetchBackups: vi.fn().mockResolvedValue([]),
+  fetchRecoveryStatus: vi.fn().mockResolvedValue({
+    last_backup: null,
+    total_backups_available: 0,
+    interrupted_jobs_count: 0,
+    interrupted_jobs: [],
+    missing_media_count: 0,
+    missing_media_assets: [],
+    last_project_activity: null,
+    recovery_ready: true,
+    checked_at: '2026-11-12T00:00:00Z',
+  }),
+  fetchDbIntegrity: vi.fn().mockResolvedValue({
+    healthy: true,
+    integrity_check: 'ok',
+    foreign_key_check: 'ok',
+    journal_mode: 'WAL',
+    table_counts: {},
+    orphaned_records: {},
+    issues: [],
+    checked_at: '2026-11-12T00:00:00Z',
+  }),
 }));
 
 const createMockProject = (overrides: Partial<ProjectItem>): ProjectItem => ({
@@ -126,10 +168,9 @@ describe('Feature View: DashboardView', () => {
       />
     );
 
-    expect(screen.getByText('Total Projects')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument(); // total count
-    expect(screen.getByText('Podcast Highlight Reel')).toBeInTheDocument();
-    expect(screen.getByText(/extracting keyframes/i)).toBeInTheDocument();
+    expect(screen.getByText(/Video intelligence and short generation studio/i)).toBeInTheDocument();
+    expect(screen.getByText(/Open Short Video Generator/i)).toBeInTheDocument();
+    expect(screen.getByText(/Processing telemetry & pipeline stage performance/i)).toBeInTheDocument();
   });
 
   it('triggers navigation when clicking project card or action button', () => {
@@ -148,13 +189,13 @@ describe('Feature View: DashboardView', () => {
       />
     );
 
-    const newProjectBtn = screen.getByRole('button', { name: /new project/i });
-    fireEvent.click(newProjectBtn);
-    expect(handleCreateProject).toHaveBeenCalled();
+    const openGenBtn = screen.getByRole('button', { name: /Open Short Video Generator/i });
+    fireEvent.click(openGenBtn);
+    expect(handleNavigate).toHaveBeenCalledWith('videos');
 
-    const projectCard = screen.getByText('Podcast Highlight Reel');
-    fireEvent.click(projectCard);
-    expect(handleOpenProject).toHaveBeenCalledWith('proj-1');
+    const queueBtn = screen.getByRole('button', { name: /Inspect Working Queue/i });
+    fireEvent.click(queueBtn);
+    expect(handleNavigate).toHaveBeenCalledWith('queue');
   });
 });
 
@@ -222,7 +263,10 @@ describe('Feature View: SettingsManager', () => {
       expect(screen.getByText(/appearance & theme/i)).toBeInTheDocument();
     });
 
-    expect(screen.getByText(/cpu-first hardware limits/i)).toBeInTheDocument();
     expect(screen.getByText(/protected storage boundary/i)).toBeInTheDocument();
+
+    // Switch to performance tab
+    fireEvent.click(screen.getByRole('button', { name: /Processing & Performance/i }));
+    expect(screen.getByText(/cpu-first hardware limits/i)).toBeInTheDocument();
   });
 });

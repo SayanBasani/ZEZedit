@@ -34,14 +34,21 @@ class OllamaVisionAnalyzer:
         self,
         base_url: str = "http://127.0.0.1:11434",
         model: str = "qwen3-vl:4b-instruct",
-        timeout_seconds: float = 20.0,
+        timeout_seconds: float = 12.0,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.timeout_seconds = timeout_seconds
+        self._disabled = False
+
+    def reset(self) -> None:
+        """Reset disabled state for a new analysis run."""
+        self._disabled = False
 
     async def is_available(self) -> bool:
         """Check if Ollama service is reachable."""
+        if self._disabled:
+            return False
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
                 res = await client.get(f"{self.base_url}/api/tags")
@@ -58,6 +65,9 @@ class OllamaVisionAnalyzer:
         """Send frame to Ollama vision model and return structured observations."""
         if not image_path.exists():
             return []
+
+        if self._disabled:
+            return self._heuristic_fallback(image_path, timestamp, frame_id)
 
         prompt = (
             "Analyze this single video frame conservatively and factually. "
@@ -89,7 +99,8 @@ class OllamaVisionAnalyzer:
                     if response_text:
                         return self._parse_response(response_text, timestamp, frame_id)
         except Exception as exc:
-            logger.warning("Ollama vision analysis request failed: %s", exc)
+            logger.warning("Ollama vision analysis request failed: %s; using fast heuristic fallback for remaining frames", exc)
+            self._disabled = True
 
         # Graceful fallback when Ollama is offline or errors
         return self._heuristic_fallback(image_path, timestamp, frame_id)

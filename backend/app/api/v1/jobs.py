@@ -8,7 +8,9 @@ from app.core.storage import StorageLayout
 from app.schemas.core import (
     JobCreateRequest,
     JobListResponse,
+    JobLogsResponse,
     JobResponse,
+    QueueStatsResponse,
 )
 from app.services.jobs import JobOrchestrator
 
@@ -21,6 +23,15 @@ def get_job_orchestrator(request: Request) -> JobOrchestrator:
         settings.storage_root
     )
     return JobOrchestrator(settings=settings, db_path=layout.db_file)
+
+
+@router.get("/stats", response_model=QueueStatsResponse)
+def get_queue_stats(
+    service: JobOrchestrator = Depends(get_job_orchestrator),
+) -> QueueStatsResponse:
+    """Return aggregated queue metrics for all background jobs."""
+    stats = service.get_queue_stats()
+    return QueueStatsResponse(**stats)
 
 
 @router.post("", response_model=JobResponse, status_code=201)
@@ -61,6 +72,16 @@ def get_job(
     return JobResponse(**rec.__dict__)
 
 
+@router.get("/{job_id}/logs", response_model=JobLogsResponse)
+def get_job_logs(
+    job_id: str,
+    service: JobOrchestrator = Depends(get_job_orchestrator),
+) -> JobLogsResponse:
+    """Return structured logs and execution timeline for a specific job."""
+    logs_data = service.get_job_logs(job_id)
+    return JobLogsResponse(**logs_data)
+
+
 @router.post("/{job_id}/cancel", response_model=JobResponse)
 def cancel_job(
     job_id: str,
@@ -77,3 +98,13 @@ def retry_job(
 ) -> JobResponse:
     rec = service.retry_job(job_id)
     return JobResponse(**rec.__dict__)
+
+
+@router.get("/{job_id}/checkpoint")
+def get_job_checkpoint(
+    job_id: str,
+    service: JobOrchestrator = Depends(get_job_orchestrator),
+):
+    """Return persistent execution checkpoint data if available for this job."""
+    cp = service.get_checkpoint(job_id)
+    return {"job_id": job_id, "has_checkpoint": cp is not None, "checkpoint": cp}

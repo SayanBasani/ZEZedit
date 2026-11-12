@@ -5,6 +5,7 @@ import {
   Check,
   CheckCircle,
   Clock,
+  Crop,
   Eye,
   Flame,
   Layers,
@@ -32,6 +33,7 @@ import {
 } from '../../services/apiClient';
 import { CandidateItem, HighlightsOverview, ReviewStatus } from '../../types/highlights';
 import { MediaAssetItem } from '../../types/projects';
+import { ReframingReviewModal } from '../reframing/ReframingWorkspace';
 
 interface HighlightsWorkspaceProps {
   projectId: string;
@@ -62,6 +64,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
 
   // Selected candidate for details modal/drawer
   const [inspectCandidate, setInspectCandidate] = useState<CandidateItem | null>(null);
+  const [reframingCandidate, setReframingCandidate] = useState<CandidateItem | null>(null);
   const [alternatives, setAlternatives] = useState<CandidateItem[]>([]);
   const [_loadingAlternatives, setLoadingAlternatives] = useState<boolean>(false);
 
@@ -717,6 +720,15 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                         {c.queued_for_render ? 'Queued' : 'Queue'}
                       </button>
 
+                      {/* 9:16 Reframing Modal launcher (ZEZ-050) */}
+                      <button
+                        onClick={() => setReframingCandidate(c)}
+                        className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition border border-transparent hover:border-emerald-500/30"
+                        title="Review 9:16 Smart Reframing & Crop"
+                      >
+                        <Crop className="w-4 h-4" />
+                      </button>
+
                       {/* Inspect Detail Button */}
                       <Button
                         size="sm"
@@ -1032,6 +1044,14 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                   <Video className="w-3.5 h-3.5 mr-1" />
                   {inspectCandidate.queued_for_render ? 'Remove from Queue' : 'Queue for Render'}
                 </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={() => setReframingCandidate(inspectCandidate)}
+                  title="Open 9:16 Reframing Review Modal with synced dual-viewport and interactive crop"
+                >
+                  <Crop className="w-3.5 h-3.5 mr-1" /> Reframe (9:16)
+                </Button>
               </div>
 
               <Button size="sm" variant="secondary" onClick={() => setInspectCandidate(null)}>
@@ -1040,6 +1060,24 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Reframing Review Modal (ZEZ-050) */}
+      {reframingCandidate && (
+        <ReframingReviewModal
+          projectId={projectId}
+          mediaAsset={
+            mediaAssets.find((a) => a.id === reframingCandidate.media_asset_id) ||
+            mediaAssets[0] ||
+            ({
+              id: reframingCandidate.media_asset_id,
+              filename: 'source_video.mp4',
+              duration_seconds: reframingCandidate.duration,
+            } as unknown as MediaAssetItem)
+          }
+          candidateId={reframingCandidate.id}
+          onClose={() => setReframingCandidate(null)}
+        />
       )}
 
       {/* Discovery Configuration Modal */}

@@ -1,4 +1,4 @@
-"""Scene cut and boundary detection using FFmpeg scene filter."""
+"""Scene cut and boundary detection using FFmpeg scene filter and thumbnail generation."""
 
 import logging
 import re
@@ -32,11 +32,13 @@ def detect_scenes_ffmpeg(
     threshold: float = 0.35,
     min_scene_duration: float = 1.0,
     max_duration_seconds: Optional[float] = None,
+    thumbnails_dir: Optional[Path] = None,
 ) -> List[DetectedScene]:
     """Detect visual scene cuts using FFmpeg's scene change detection filter.
     
     threshold: sensitivity between 0.0 and 1.0 (default 0.35).
     min_scene_duration: minimum seconds between cuts to avoid micro-fragmentation.
+    thumbnails_dir: optional directory to save representative JPEG thumbnails for each scene.
     """
     settings = get_settings()
     ffmpeg_bin = settings.ffmpeg_path or "ffmpeg"
@@ -128,4 +130,44 @@ def detect_scenes_ffmpeg(
         )
 
     logger.info("Detected %d scene(s) across %.2fs video", len(scenes), effective_duration)
+
+    # Generate scene thumbnails if directory specified
+    if thumbnails_dir is not None:
+        generate_scene_thumbnails(video_path, scenes, thumbnails_dir)
+
     return scenes
+
+
+def generate_scene_thumbnails(
+    video_path: Path,
+    scenes: List[DetectedScene],
+    thumbnails_dir: Path,
+    max_dimension: int = 480,
+) -> None:
+    """Extract a fast JPEG thumbnail for each detected scene at its representative timestamp."""
+    settings = get_settings()
+    ffmpeg_bin = settings.ffmpeg_path or "ffmpeg"
+    thumbnails_dir.mkdir(parents=True, exist_ok=True)
+
+    scale_filter = f"scale='min({max_dimension},iw)':-2"
+
+    for sc in scenes:
+        thumb_path = thumbnails_dir / f"scene_{sc.scene_index:03d}.jpg"
+        ts = sc.representative_timestamp
+        cmd = [
+            ffmpeg_bin,
+            "-y",
+            "-loglevel", "error",
+            "-ss", f"{ts:.3f}",
+            "-i", str(video_path),
+            "-frames:v", "1",
+            "-vf", scale_filter,
+            "-q:v", "4",
+            str(thumb_path),
+        ]
+        try:
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if thumb_path.exists() and thumb_path.stat().st_size > 0:
+                sc.thumbnail_path = str(thumb_path)
+        except Exception as exc:
+            logger.warning("Failed to generate thumbnail for scene %d at %.2fs: %s", sc.scene_index, ts, exc)

@@ -330,6 +330,27 @@ def reject_plan(
     return ai_svc.reject_plan(plan_id)
 
 
+@router.get("/timelines/{timeline_id}/ai/plans", response_model=List[AIEditingPlan])
+def list_plans(
+    project_id: str,
+    timeline_id: str,
+    ai_svc: AIEditorService = Depends(get_ai_editor_service),
+) -> List[AIEditingPlan]:
+    """List historical AI editing plans/revisions for timeline version tracking."""
+    return ai_svc.list_plans(timeline_id)
+
+
+@router.post("/timelines/{timeline_id}/ai/plans/{plan_id}/restore", response_model=TimelineRecord)
+def restore_plan(
+    project_id: str,
+    timeline_id: str,
+    plan_id: str,
+    ai_svc: AIEditorService = Depends(get_ai_editor_service),
+) -> TimelineRecord:
+    """Restore and re-apply operations from an earlier AI editing plan revision."""
+    return ai_svc.restore_plan(plan_id)
+
+
 # ---------------------------------------------------------------------------
 # Timeline Rendering Integration
 # ---------------------------------------------------------------------------

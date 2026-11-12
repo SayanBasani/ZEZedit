@@ -28,6 +28,9 @@ export interface TranscriptSegmentItem {
   language?: string;
   confidence?: number;
   words?: WordTimestamp[];
+  corrected_text?: string | null;
+  is_corrected?: boolean;
+  correction_id?: string | null;
 }
 
 export interface SpeechTurnItem {
@@ -74,6 +77,32 @@ export interface VisualObservationItem {
   description: string;
   provider_model: string;
   confidence: number;
+}
+
+export interface AudioAnalysisItem {
+  id: string;
+  analysis_run_id: string;
+  media_asset_id: string;
+  has_audio: boolean;
+  sample_rate?: number | null;
+  channels?: number | null;
+  codec_name?: string | null;
+  bit_rate?: number | null;
+  duration_seconds?: number | null;
+  speech_density: number;
+  silence_intervals: Array<{ start: number; end: number; duration: number }>;
+}
+
+export interface TranscriptCorrectionItem {
+  id: string;
+  media_asset_id: string;
+  segment_id?: string | null;
+  start_time: number;
+  end_time: number;
+  original_text: string;
+  corrected_text: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface TemporalContextPayload {

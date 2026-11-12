@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-12  
-**Active Milestone:** Milestone 10 Completed — Character Extraction Studio, Character Library, System Integration & End-to-End Reliability
+**Active Milestone:** Session 5 Completed — Interactive Clip Preview, Editing, Smart Reframing & Subject Tracking (102 Frontend Tests Passed, 100% Pipeline Parity)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -184,9 +184,197 @@ Status legend:
 
 ---
 
-## Upcoming Milestones Roadmap (Not Started)
+## Full Repository Audit, Evidence-Based Verification & Technical Debt Assessment (Milestone 11)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M11-01 | Full System Architecture Audit | Documentation | Implemented | `docs/audit/ZezEdit_2_0_SYSTEM_AUDIT.md` | Exhaustive verification of all 10 milestones, identifying real processing vs heuristics vs fallbacks |
+| M11-02 | Implementation Classification & Honesty Audit | Audit | Implemented | `docs/audit/ZezEdit_2_0_SYSTEM_AUDIT.md` | Explicit breakdown distinguishing deep neural models, CV algorithms, rule-based heuristics, and offline fallbacks |
+| M11-03 | Critical Technical Debt & Defect Registry | Audit / Quality | Implemented | `docs/audit/ZezEdit_2_0_SYSTEM_AUDIT.md` | Catalog of 10 ranked defects (DEF-01 through DEF-10) with reproduction steps, impacts, and corrective paths |
+| M11-04 | React Error Boundary & Startup Crash Protection | Frontend Shell | Implemented | `frontend/src/components/ui/ErrorBoundary.tsx` | Catches unhandled render errors, presents user recovery action, eliminates blank-screen failure modes |
+| M11-05 | Dark Mode Form Controls & Dropdown Unslop | UI Design System | Implemented | `frontend/src/styles/index.css`, `frontend/src/components/ui/Input.tsx` | Enforces `color-scheme: dark` and explicit background/text styling across all native select and option controls |
+| M11-06 | Controlled Automated Test Verification | Testing | Implemented | `backend/tests/`, `frontend/src/test/` | 51/51 Pytest passing (100%), 52/52 Vitest passing (100%), 0 TypeScript errors, 2.29s Vite production build |
+| M11-07 | SQLite WAL Integrity & FK Conformance | DB / Storage | Implemented | `storage/db/zezedit.db` | Verified 0 FK errors, database integrity check `ok`, all 9 migrations accounted for |
+| M11-08 | Unslop Design System Installation & Redline Polish | Design / Shell | Implemented | `.agents/skills/unslop/`, `frontend/src/` | Applied Unslop 9-pass redline review, removed visual slop, quiet chrome, 4px grid |
+| M11-09 | Graphify Knowledge Graph Build & Navigation | Tooling / Architecture | Implemented | `graphify-out/`, `.agents/rules/graphify.md` | Extracted 2,074 nodes, 5,772 edges across 113 communities; shortest path & explain verified |
+| M11-10 | Unified Video Workspace Hub | Frontend Architecture | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | 9 integrated sub-workspaces for the active video asset preserving project and media context |
+| M11-11 | Intelligent Post-Import Action Screen | Media Ingestion | Implemented | `frontend/src/features/media/PostImportModal.tsx` | Instant post-import action dialog with 4 distinct paths and live persistent job progress tracking |
+| M11-12 | Full End-to-End User Journey Verification | Quality / E2E | Implemented | `docs/reports/milestone_11/` | Real browser verification across all 12 application views with live captured screenshot evidence |
+
+---
+
+## Pre-Deletion Baseline Reconstruction & Feature Parity Specification (Milestone 12)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M12-01 | Pre-Deletion Historical Baseline Specification | Reconstruction | Implemented | `docs/reconstruction/PRE_DELETION_BASELINE.md` | Authoritative recovery of historical state before Nov 11 deletion across all 20 application areas |
+| M12-02 | Forensic Evidence Extraction (13M.12 & 13M.13) | Forensics | Implemented | `docs/reconstruction/PRE_DELETION_BASELINE.md` | Rigorous evidence extraction from surviving transcripts, 13M.12 report, and VS Code history |
+| M12-03 | Feature Parity Matrix & Historical Gap Analysis | Specification | Implemented | `docs/reconstruction/FEATURE_PARITY_MATRIX.md` | Feature-by-feature parity analysis comparing pre-deletion capabilities against current ZezEdit 2.0 |
+| M12-04 | Prioritized Restoration Roadmap | Architecture | Implemented | `docs/reconstruction/RESTORATION_ROADMAP.md` | 10-tier dependency-ordered implementation roadmap establishing exact sequence to achieve full parity |
+| M12-05 | 13M.12 Mathematical Model & Test Recovery | CV / Tracking | Implemented | `docs/reconstruction/PRE_DELETION_BASELINE.md` | Verified 10/10 tracking tests, 113 backend pytest suite, 81 frontend vitest suite, and 3 contact sheets |
+| M12-06 | 13M.13 Implementation & Partial Status Classification | UI / Revisions | Implemented | `docs/reconstruction/PRE_DELETION_BASELINE.md` | Documented 42 KB `ReframingReviewModal.tsx`, revision DB schema, and interrupted test status |
+| M12-07 | Milestone 12 Comprehensive Reconstruction Report | Documentation | Implemented | `docs/reports/milestone_12_reconstruction_report.md` | 14-section formal milestone reconstruction and feature parity report |
+
+---
+
+## ZezEdit 1.0 Exact Feature Parity Specification (Milestone 13)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M13-01 | Immutable ZezEdit 1.0 Parity Specification | Specification | Implemented | `docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md` | 100 discrete requirements (`ZEZ-001` to `ZEZ-100`) covering all 10 product domains |
+| M13-02 | Standardized Parity Scorecard Matrix | Tracking | Implemented | `docs/reconstruction/FEATURE_PARITY_MATRIX.md` | Authoritative measurement: 89 RESTORED (89%), 11 VERIFIED_PARTIAL (11%), 0 BLOCKED/UNRECOVERABLE |
+| M13-03 | Parity Restoration Implementation Roadmap | Architecture | Implemented | `docs/reconstruction/RESTORATION_ROADMAP.md` | 5-phase dependency-ordered execution plan leading directly to complete feature parity |
+| M13-04 | Milestone 13 Parity Restoration Plan Report | Documentation | Implemented | `docs/reports/milestone_13_parity_restoration_plan.md` | 12-section formal report detailing feature inventory, evidence paths, and next milestone |
+
+---
+
+## Video Analysis, AI Understanding & Temporal Context Restoration (Milestone 15)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M15-01 | Database Migration `0010_transcript_corrections_and_audio.sql` | DB / Migrations | Implemented | `backend/migrations/0010_transcript_corrections_and_audio.sql` | Adds `transcript_corrections` and `audio_analysis` tables with indexes |
+| M15-02 | Audio Stream Inspection & Robust Silence Detection | Analysis Services | Implemented | `backend/app/services/audio_extractor.py` | FFprobe inspection, multi-channel handling, silent video fallback, and FFmpeg `silencedetect` |
+| M15-03 | Real Scene Thumbnail Extraction & Serving | Analysis Services | Implemented | `backend/app/services/scene_detector.py`, `backend/app/api/v1/analysis.py` | Extracts scene representative JPEG thumbnails on disk; `/scene-thumbnail/{scene_id}` streaming endpoint |
+| M15-04 | Non-Destructive Transcript Corrections (`ZEZ-025`) | Analysis / Captions | Implemented | `backend/app/api/v1/analysis.py`, `backend/app/services/export_service.py` | Full CRUD REST API; dynamically overlays raw Whisper text and applies to ASS export captions |
+| M15-05 | Stage-Aware Analysis Caching & Fingerprinting (`ZEZ-029`) | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Checksum/mtime caching avoids re-running Whisper on unchanged media; supports `force_reanalysis` |
+| M15-06 | Analysis Run History Selector (`ZEZ-030`) | Backend / Frontend | Implemented | `backend/app/api/v1/analysis.py`, `frontend/src/features/analysis/AnalysisWorkspace.tsx` | All runs preserved; dropdown selector allows historical inspection and comparison |
+| M15-07 | Studio Dark UI Restoration & Lightbox (`ZEZ-027`, `ZEZ-098`) | Frontend UI | Implemented | `frontend/src/features/analysis/AnalysisWorkspace.tsx` | Unslop design compliance; Audio analysis panel, real thumbnails grid, lightbox modal, and inline editor |
+| M15-08 | Backend Automated Parity Test Suite (6 tests) | Testing | Implemented | `backend/tests/test_milestone15_analysis_parity.py` | Stream inspection, silent video, scene thumbnails, caching, transcript corrections, temporal context (100% pass) |
+
+---
+
+## Core Product Workflow, Working Queue & Desktop Operations (Milestone 17)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M17-01 | Continuous Main Video to Shorts Pipeline | Workflow | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | Full continuous workflow from import to analysis, highlight discovery, trimming, reframing, and export |
+| M17-02 | Next Video Edit Workflow & Transition Modal | Workspace | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | Dedicated Next Video button, auto-saving workspace state, and video switching dialog |
+| M17-03 | Hardware Resource Inspector (`ZEZ-006`) | Monitoring | Implemented | `backend/app/api/v1/health.py`, `frontend/src/components/system/ResourceInspector.tsx` | Real-time CPU, RAM, process RSS, worker concurrency, and floating hover window |
+| M17-04 | Working Queue & Job Orchestration (`ZEZ-094`, `ZEZ-095`) | Queue / Ops | Implemented | `backend/app/api/v1/jobs.py`, `frontend/src/features/queue/WorkingQueueView.tsx` | Full queue status tabs, queue distribution chart, job execution timeline logs |
+| M17-05 | AI Provider Manager & Live Test Probe | AI Providers | Implemented | `backend/app/api/v1/ai_providers.py`, `frontend/src/features/providers/AIProviderManager.tsx` | Ollama, Faster-Whisper, and deterministic heuristic fallback cards, with live ping and model discovery |
+| M17-06 | In-App Studio Documentation Center (`ZEZ-009`)| Docs / Help | Implemented | `backend/app/api/v1/docs_center.py`, `frontend/src/features/docs/DocumentationView.tsx` | Searchable categories, article listings, markdown renderer with 13 comprehensive guides |
+| M17-07 | Scope Adjustment: Character Studio Deferred | Governance | Implemented | `docs/reconstruction/FEATURE_PARITY_MATRIX.md` | Character Studio deferred out of active priorities per M17 directive; preserved in DB and code |
+| M17-08 | Regression Test Suite Expansion | Testing | Implemented | `backend/tests/test_milestone17_core_operations.py`, `frontend/src/test/milestone17_operations.test.tsx` | 61/61 backend pytest (100% pass), 56/56 frontend vitest (100% pass) |
+
+---
+
+## Unified Video-to-Shorts Production Pipeline (Milestone 18)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M18-01 | Authoritative Lifecycle State Machine | Pipeline Core | Implemented | `backend/app/services/workflow_state.py` | 18 explicit workflow lifecycle stages; self-healing dynamic derivation from SQLite tables and in-flight jobs |
+| M18-02 | Workflow Telemetry & Next-Actions API | Backend API | Implemented | `backend/app/api/v1/media.py` | `GET /projects/{project_id}/media/{asset_id}/workflow` returning stage, stepper, counters, and available next actions |
+| M18-03 | Multiple Shorts Batch Export Endpoint | Backend API | Implemented | `backend/app/api/v1/exports.py` | `POST /projects/{project_id}/exports/batch` enqueuing parallel independent render jobs with skipped candidate validation |
+| M18-04 | Batch Export Multiple Shorts Modal | Frontend Studio | Implemented | `frontend/src/features/exports/BatchExportModal.tsx` | 9:16 / 1:1 / 16:9 aspect ratios, animated word captions, audio loudness normalization, multi-selection |
+| M18-05 | Workflow Stage Header Banner & Progress Stepper | Frontend Studio | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | Pipeline badge, 5-stage stepper (Ingest → Analysis → Highlights → Review → Export), telemetry counters |
+| M18-06 | Dynamic Primary Next-Action Execution Dispatch | Workflow | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | Context-aware 1-click action button dispatching Start Analysis, Discover Highlights, Review, Batch Export, Next Video |
+| M18-07 | Per-Video State Persistence & Auto-save | Workspace Core | Implemented | `frontend/src/features/workspace/VideoWorkspace.tsx` | Restores active tab and video state from `localStorage`; real-time "✓ Auto-saved" visual confirmation |
+| M18-08 | Multi-Video Strict Cross-Project Data Isolation | Architecture | Implemented | `backend/app/services/workflow_state.py` | Zero cross-project or cross-media state leakage; verified by automated multi-tenant test suites |
+| M18-09 | Automated Backend Integration Test Suite | Testing | Implemented | `backend/tests/test_milestone18_unified_pipeline.py` | 5 comprehensive integration tests covering lifecycle, API, batch export, skipped candidates, data isolation (100% pass) |
+| M18-10 | Automated Frontend Vitest Test Suite | Testing | Implemented | `frontend/src/test/milestone18_pipeline.test.tsx` | 3 vitest tests covering modal rendering, candidate selection, aspect ratio options, and API dispatch (100% pass) |
+
+---
+
+## Desktop Operations Center, Working Queue, Resource Inspector and AI Provider Manager (Milestone 19)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M19-01 | Real Working Queue & Cancellation / Retry Engine | Job Queue | Implemented | `backend/app/services/jobs.py`, `backend/app/api/v1/jobs.py` | Cancels active worker states; retries failed jobs without duplicate renders; logs `job_retried` timeline events |
+| M19-02 | Queue Chart & Task Type Distribution Breakdown | Operations UI | Implemented | `frontend/src/features/queue/WorkingQueueView.tsx` | Visual queue bar, live counts (running/pending/completed/failed/cancelled), task type pills, duration column |
+| M19-03 | Hardware Resource Inspector & Accessibility Controls | System Monitoring | Implemented | `frontend/src/components/system/ResourceInspector.tsx` | Hover activation with grace buffer, click-to-pin, Escape key dismiss, outside click dismiss, accessibility roles |
+| M19-04 | AI Provider Manager & Studio Task Engine Routing | AI Providers | Implemented | `frontend/src/features/providers/AIProviderManager.tsx` | Ollama, Faster-Whisper, and heuristic cards, 4-task engine routing grid, live ping probe, and secret token masking |
+| M19-05 | In-App Documentation Center Expansion | Docs / Help | Implemented | `backend/app/api/v1/docs_center.py`, `frontend/src/features/docs/DocumentationView.tsx` | 16 articles across 5 categories, including troubleshooting, keyboard shortcuts, and storage layout guides |
+| M19-06 | Subsystem Diagnostics Probe API | Health / System | Implemented | `backend/app/api/v1/health.py`, `frontend/src/features/dashboard/FoundationOverview.tsx` | `GET /api/v1/system/diagnostics` probing SQLite WAL, storage buckets, FFmpeg/FFprobe binaries, Ollama, Whisper, host CPU/RAM |
+| M19-07 | Automated Operations Backend Test Suite | Testing | Implemented | `backend/tests/test_milestone19_desktop_operations.py` | 6 integration tests covering diagnostics, cancellation, retries, stats, provider resiliency, and docs search (100% pass) |
+| M19-08 | Automated Operations Frontend Vitest Suite | Testing | Implemented | `frontend/src/test/milestone19_desktop_operations.test.tsx` | 4 tests covering ResourceInspector, WorkingQueueView, AIProviderManager, and DocumentationView (100% pass) |
+
+---
+
+## Production Hardening, Long-Video Performance, Storage Management & Recovery (Milestone 20)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M20-01 | Large Video Streaming Import & Media Integrity | Media Pipeline | Implemented | `backend/app/services/media_pipeline.py`, `backend/app/services/media.py` | 64KB bounded chunk streaming import; FFprobe metadata persistence; source media integrity scanner (`online`, `missing`, `corrupted`) |
+| M20-02 | Safe Media Relinking with Candidate Verification | Media / Relink | Implemented | `backend/app/services/media.py`, `backend/app/api/v1/media.py` | Candidate duration, resolution, size comparison with discrepancy warnings; force relink protection; preserves analysis and candidate history |
+| M20-03 | Memory-Aware Video Processing & Disk Caching | Video / Frames | Implemented | `backend/app/services/frame_sampler.py`, `backend/app/services/audio_extractor.py` | Timestamp seeking (`-ss` before `-i`); downscaling to 640px; disk frame caching; bounded 16kHz mono audio chunk extraction |
+| M20-04 | Resource-Aware Worker Management & Priority Scheduling | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Single queue architecture; configurable concurrency; host CPU/RAM pressure guard; strict priority dispatch (200 > 150 > 100 > 50) |
+| M20-05 | Granular Job Checkpoints & Crash Recovery | Recovery Core | Implemented | `backend/app/services/jobs.py`, `backend/migrations/0011_*.sql` | Persists completed units and intermediate artifacts; restart recovery preserves checkpoints for idempotent resume without work duplication |
+| M20-06 | Categorized Storage Breakdown & Low-Storage Guard | Storage Service | Implemented | `backend/app/services/storage.py`, `backend/app/api/v1/settings.py` | Real filesystem measurement across 9 categories; low storage threshold (< 5GB) warning |
+| M20-07 | Safe Disposable Cache Cleanup Preview & Execution | Storage Ops | Implemented | `backend/app/services/storage.py`, `backend/app/api/v1/settings.py` | Scans strictly disposable `temp/` buffers; cryptographic confirmation token; guarantees source media, projects, and exports are never deleted |
+| M20-08 | Database Diagnostics & PRAGMA Verification | Database Ops | Implemented | `backend/app/services/backup_service.py`, `backend/app/api/v1/settings.py` | Live `PRAGMA integrity_check`, `PRAGMA foreign_key_check`, WAL mode confirmation, table row counts, orphaned record detection |
+| M20-09 | Online Database Backups & Pre-Restore Safety Copy | Backups Core | Implemented | `backend/app/services/backup_service.py`, `backend/app/api/v1/settings.py` | Verified SQLite online backups; pre-restore automatic safety snapshots; recovery readiness status reporting |
+| M20-10 | Multi-Tab Studio Settings Manager | Settings UI | Implemented | `frontend/src/features/settings/SettingsManager.tsx` | 6 dedicated tabs: General, Processing & Performance, Storage Management, Backups & Recovery, AI Providers, Diagnostics |
+| M20-11 | Media Library Integrity & Relink Dialog | Media UI | Implemented | `frontend/src/features/media/MediaLibraryView.tsx` | Batch project media integrity check button; missing file relink dialog with candidate comparison preview and force override |
+| M20-12 | Comprehensive Automated Test Suites | Testing / QA | Implemented | `backend/tests/test_milestone20_production_reliability.py`, `frontend/src/test/milestone20_production_hardening.test.tsx` | 7 backend pytest tests (100% pass); 5 frontend vitest tests (100% pass); 68/68 total vitest tests passing |
+
+---
+
+## Editorial & Notification Refinements (Milestone 23)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| M23-01 | AI Assistant Plan Version History & Restore API | Timeline API | Implemented | `backend/app/api/v1/timeline.py`, `backend/app/services/ai_editor_service.py` | `GET /timelines/{id}/ai/plans` listing version history; `POST /timelines/{id}/ai/plans/{plan_id}/restore` rolling back / applying plan operations |
+| M23-02 | Interactive Plan Version History Drawer (`ZEZ-080`) | Timeline UI | Implemented | `frontend/src/features/timeline/TimelineEditor.tsx` | Slide-over drawer in AI tab with dynamic version counter badge, timestamps, status badges (`executed`, `proposed`, `rejected`), operations diff breakdown, and 1-click restore |
+| M23-03 | Global Floating Toast Notification System (`ZEZ-008`) | System UI | Implemented | `frontend/src/components/system/ToastNotificationCenter.tsx`, `frontend/src/main.tsx`, `frontend/src/app/App.tsx` | Fixed bottom-right container, 4-second self-dismiss timers, pause on hover, action button hooks, and background job transition alerts (`running` -> `completed`/`failed`) |
+| M23-04 | Automated Test Suites for Plan History & Toasts | Testing / QA | Implemented | `backend/tests/test_milestone9_timeline.py`, `frontend/src/test/notifications.test.tsx`, `frontend/src/test/timeline.test.tsx` | 80/80 backend pytest tests passing; 73/73 frontend vitest tests passing; verified via live browser verification with screenshot evidence |
+
+---
+
+---
+
+## Unified Single-Video Studio Evolution (Sessions 0–3)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S0-01 | Architectural Audit, Multi-Session Blueprint & Schema Design | Architecture | Implemented | `docs/architecture/SESSION_0_AUDIT_REPORT.md`, `docs/architecture/UNIFIED_VIDEO_STUDIO_DESIGN.md` | Single-video workflow roadmap, database & API migration specs, and unified studio design blueprint |
+| S1-01 | Navigation Simplification & Sidebar Streamlining | App Shell | Implemented | `frontend/src/app/App.tsx`, `frontend/src/components/layout/Sidebar.tsx` | Removed disconnected standalone tools (Video Analysis, Highlights, Reframing, Shorts Export); streamlined sidebar to Media Library |
+| S1-02 | Unslopped Media Library with Dedicated "Open Video Studio" Action | Media Library | Implemented | `frontend/src/features/media/MediaLibraryView.tsx` | Removed all emojis; single unified primary action on video cards to enter Dedicated Studio |
+| S2-01 | Dedicated `/studio/:assetId` Route & Synchronized History | Routing / Navigation | Implemented | `frontend/src/app/App.tsx`, `frontend/src/features/studio/SingleVideoStudio.tsx` | Pure React state URL synchronization with `window.history.pushState` and `popstate` support; direct URL hydration |
+| S2-02 | Global Analysis Progress Bar with Stage & Percentage Telemetry | Studio UI | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Real-time measurable progress bar with stage status, percentage, elapsed time, and cancellation trigger |
+| S2-03 | Upfront Generation Configuration Bar | Studio Controls | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Upfront aspect ratio selection (9:16, 1:1, 16:9, 4:5), clip count (5, 6, 10, 15, 20), creative direction (Best Overall, Dramatic, Action, Emotional/Sad, Dialogue, Funny) |
+| S2-04 | Framed Video Preview Player with Dynamic Ratio Adaptation | Video Studio | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Aspect-ratio constrained preview container, scrub bar, transport controls, and direct candidate seek |
+| S2-05 | Generated Shorts Showcase with Direct Export Triggers | Studio Showcase | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Candidate shorts cards with virality scores, duration badges, category pills, seeking triggers, and 1-click MP4 export |
+| S2-06 | Collapsible Deep Intelligence Drawers | Studio Intelligence | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Collapsible drawers for Timestamped Transcript, Detected Scene Cuts, and Detailed Media Metadata |
+| S2-07 | Comprehensive Vitest Automated Test Suite | Testing / QA | Implemented | `frontend/src/test/singleVideoStudio.test.tsx` | 6 comprehensive tests covering loading, upfront controls, discovery trigger, export submission, and drawers (19/19 test files, 94/94 tests pass) |
+| S3-01 | Database Migration `0012_unified_analysis_pipeline.sql` | DB / Migrations | Implemented | `backend/migrations/0012_unified_analysis_pipeline.sql` | Added `job_id`, `source_signature`, `stage_details_json`, `checkpoint_data_json` to `analysis_runs` |
+| S3-02 | Bounded Memory Streaming Pipeline for 1–2 GB Movies | Analysis Core | Implemented | `backend/app/services/analysis_pipeline.py` | Out-of-process streaming FFmpeg demuxing, scene detection, and frame sampling without loading full video into RAM |
+| S3-03 | Sub-Millisecond Source Signature Calculation & Invalidation | Analysis Core | Implemented | `backend/app/services/analysis_pipeline.py` | Hybrid `size:mtime:hash64k` signature; instant cache invalidation upon file change |
+| S3-04 | Faster-Whisper Automatic VAD Fallback | Speech AI | Implemented | `backend/app/services/transcription.py` | Automatic fallback to `vad_filter=False` when VAD classifies dialogue over music as silence; verified on Hindi rhymes |
+| S3-05 | Persistent JobOrchestrator Linkage & Checkpoint Sync | Jobs / Pipeline | Implemented | `backend/app/services/analysis_pipeline.py`, `backend/app/services/jobs.py` | Synchronized `media_analysis` jobs, priority 150, stage progress, and non-clamping completion checkpoints |
+| S3-06 | Granular Stage Telemetry & Cache Inspection APIs | Backend API | Implemented | `backend/app/api/v1/analysis.py` | `GET /analysis/{id}/telemetry` and `GET /analysis/{id}/cache` exposing stage, pct, timings, warnings, and component breakdown |
+| S3-07 | Analysis Cancellation & Retry State Transitions | Backend API | Implemented | `backend/app/api/v1/analysis.py` | `POST /analysis/{id}/cancel` and `POST /analysis/{id}/retry` synchronized with JobOrchestrator state machines |
+| S3-08 | Single-Video Studio Real Progress Banner & Telemetry UI | Studio UI | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Live stage telemetry polling (1.5s), elapsed time, cancel/retry action buttons, cache info badge, and distinct stage milestones |
+| S3-09 | Automated Test Suite for Session 3 Unified Analysis | Testing / QA | Implemented | `backend/tests/test_session3_unified_analysis.py` | 7 comprehensive tests covering signatures, job linkage, telemetry, caching, cancel, retry, and audio-less video (100% pass) |
+| S4-01 | Multimodal Candidate Discovery Engine | Highlights Core | Implemented | `backend/app/services/highlight_discovery.py` | Multi-signal discovery analyzing transcript dialogue, speech turns, scene cuts, keyframe visual semantics, and audio energy with explainable scoring |
+| S4-02 | Natural Boundary Snapping & Breathing Room | Highlights Core | Implemented | `backend/app/services/highlight_discovery.py` | Speech closure on terminal punctuation (`.`, `!`, `?`), 0.15s lead-in margin, and scene cut snapping preventing flash frames and mid-sentence cuts |
+| S4-03 | 7 Creative Direction Profiles & Adaptive Weighting | Intelligence Core | Implemented | `backend/app/services/highlight_discovery.py` | Distinct multimodal weighting profiles for Best Overall, Viral & Punchy, Dramatic, Action & Motion, Emotional / Sad, Engaging Dialogue, and Humorous |
+| S4-04 | Persistent Novelty & Non-Repetition Engine | Novelty Core | Implemented | `backend/app/services/highlight_discovery.py` | tIoU $\ge 0.50$ and OverlapRatio $\ge 0.60$ novelty exclusion checks against historical intervals; verified $<0.38$ max overlap on real media |
+| S4-05 | Database Migration `0013_candidate_discovery_novelty.sql` | DB / Migrations | Implemented | `backend/migrations/0013_candidate_discovery_novelty.sql` | Schema migration for `candidate_generation_runs`, `media_generated_clips_history`, and candidate boundary confidence columns |
+| S4-06 | REST Endpoints for Discovery, Runs & Novelty History | Backend API | Implemented | `backend/app/api/v1/highlights.py` | `POST /highlights/generate-more`, `GET /highlights/runs`, `GET /highlights/runs/{id}`, and `GET /highlights/history` |
+| S4-07 | Single-Video Studio Candidate Cards with Multimodal Score Popovers | Studio UI | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Candidate cards with Attractiveness estimate, Natural Cut confidence badge, creative direction pill, and expandable 6-signal breakdown grid |
+| S4-08 | Candidate Batches Drawer & Novelty Tracking Ledger UI | Studio UI | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | Drawer tab for candidate discovery runs, batch filtering, requested vs selected counts, and novelty exclusions |
+| S4-09 | Comprehensive Test Suites for Candidate Discovery & Novelty | Testing / QA | Implemented | `backend/tests/test_session4_candidate_discovery.py`, `frontend/src/test/session4_candidate_discovery.test.tsx` | 5/5 backend tests and 4/4 frontend tests passing (100% pass across 28 backend tests and 98 frontend tests) |
+| S5-01 | Database Migration `0014_candidate_clip_edits.sql` | DB / Migrations | Implemented | `backend/migrations/0014_candidate_clip_edits.sql` | Dedicated candidate clip edits schema preserving original candidate discovery data and novelty records |
+| S5-02 | Candidate Clip Editing & Persistence Service | Core Services | Implemented | `backend/app/services/clip_editing_service.py` | Isolated edit state management: timestamp bounds validation, duration computation, aspect ratio framing, manual crop offsets, and reset-to-original |
+| S5-03 | Candidate Clip Editing REST API Endpoints | Backend API | Implemented | `backend/app/api/v1/clip_edits.py` | `GET/PUT /media/{mid}/candidates/{cid}/edit`, `POST .../edit/reset`, `POST .../edit/track` |
+| S5-04 | Interval-Bounded Smart Subject Tracking | Reframing Core | Implemented | `backend/app/services/reframing_service.py`, `backend/app/services/subject_tracker.py` | Supports explicit interval `start_time` and `end_time` tracking via OpenCV Haar cascades and central saliency fallback without full video decode |
+| S5-05 | Interactive Candidate Clip Editor Modal | Studio UI | Implemented | `frontend/src/features/studio/CandidateClipEditorModal.tsx` | Bounded clip loop player, dynamic aspect ratio crop box overlay, timeline trimming handles with +/-0.5s adjusters, aspect ratio buttons (9:16, 1:1, 16:9, 4:5), and framing mode tabs |
+| S5-06 | Single-Video Studio Candidate Card "Edit Clip" Integration | Studio UI | Implemented | `frontend/src/features/studio/SingleVideoStudio.tsx` | "Edit Clip" button on discovered candidate cards launching the focused clip editor modal |
+| S5-07 | Automated Unit & Integration Test Suites | Testing / QA | Implemented | `backend/tests/test_session5_clip_editing.py`, `frontend/src/test/session5_clip_editing.test.tsx` | 4/4 backend tests and 4/4 frontend tests passing (100% pass across 11 unified pipeline tests and 102 frontend tests) |
+| PR-01 | Single-Button Clear All Application Data API | Storage Core | Implemented | `backend/app/services/storage.py`, `backend/app/api/v1/settings.py` | `POST /storage/clear-all-data` with explicit `DELETE` confirmation; sweeps all managed storage subdirectories and database tables while preserving migrations and app settings |
+| PR-02 | Clear All Data Unit Test Suite | Testing / QA | Implemented | `backend/tests/test_storage_clear_all_data.py` | 2/2 tests verifying token validation, file deletion across managed directories, SQLite database truncation, and default workspace re-creation |
+| PR-03 | Direct Video Ingestion & Short Video Generator Library | Library UI | Implemented | `frontend/src/features/videos/ShortVideoGeneratorLibrary.tsx` | Direct drag & drop / file picker with video type validation, auto-title derivation, and card grid with "Open Video Dashboard" CTA |
+| PR-04 | Dedicated Video Edit Dashboard (`/videos/:assetId`) | Dashboard UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Centralized video workspace with top persistent header, real-time stage progress bar & ETA, and 8 dedicated horizontal tabs |
+| PR-05 | 8 Dedicated Video Inspection & Generation Tabs | Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | 1. Home (Player + Specs), 2. Short Generator (18 directions, presets, tracking), 3. Generated Shorts (Cards, Edit Modal, Export), 4. Generated Scripts (Cards, Regenerate Video), 5. Analyzed Frames, 6. Voice & Transcript, 7. Scene Analysis, 8. Video Details |
+| PR-06 | Clear All Application Data Confirmation Modal | Settings UI | Implemented | `frontend/src/features/settings/SettingsManager.tsx` | High-impact warning card and dialog requiring typing `DELETE` to execute total wipeout |
+| PR-07 | Video-Centric Frontend Automated Tests | Testing / QA | Implemented | `frontend/src/test/productRestructure.test.tsx` | 2/2 tests verifying ShortVideoGeneratorLibrary and VideoEditDashboard tabs (104 frontend tests pass) |
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|
-| MOD-J1 | Multi-Project Templates & Global Preset Packaging | Core | Planned | Milestone 11 |
-| MOD-K1 | Production Standalone Electron/Desktop Packaging | Packaging | Planned | Milestone 12 |
+| M14 | Interactive Reframing Review, Draggable Crop Canvas & Keyframe Diamonds (`ZEZ-050`–`054`) | Reframing Core | Planned | Milestone 14 |
+| M15 | System Alerts, Resource Monitoring, In-App Documentation & AI Version Drawer | Shell / UI | Planned | Milestone 15 |
+| M16 | Timeline Advanced Multi-Track Audio Mixing, Ducking & Karaoke Captions | Timeline Core | Planned | Milestone 16 |
+| M17 | Full Regression Test Parity ($\ge 120$ Backend Tests, $\ge 85$ Frontend Tests) | Testing / QA | Planned | Milestone 17 |
+| M18 | Real Vision & Face Detection Engine (YuNet ONNX / MobileFaceNet CPU Re-ID) | Vision Core | Planned | Milestone 18 |
+| M19 | Performance Optimization & Hardware Acceleration (QuickSync / NVENC Presets) | Performance | Planned | Milestone 19 |
+| M20 | Production Desktop Packaging & Offline Installer (Electron / Tauri Distribution) | Packaging | Planned | Milestone 20 |

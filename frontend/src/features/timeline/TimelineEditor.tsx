@@ -26,6 +26,9 @@ import {
   Sliders,
   Download,
   FileVideo,
+  History,
+  RotateCcw,
+  X,
 } from 'lucide-react';
 
 import {
@@ -46,6 +49,8 @@ import {
   sendAIMessage,
   approveAIPlan,
   rejectAIPlan,
+  fetchAIPlans,
+  restoreAIPlan,
   renderTimeline,
   fetchProjectMedia,
 } from '../../services/apiClient';
@@ -55,8 +60,10 @@ import {
   TimelineTrack,
   TimelineClip,
   AIConversation,
+  AIEditingPlan,
   TrackType,
 } from '../../types/timeline';
+import { useToast } from '../../components/system/ToastNotificationCenter';
 
 import { ProjectItem, MediaAssetItem } from '../../types/projects';
 
@@ -87,6 +94,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
   const [aiConversation, setAiConversation] = useState<AIConversation | null>(null);
   const [aiInput, setAiInput] = useState<string>('');
   const [aiLoading, setAiLoading] = useState<boolean>(false);
+  const [plans, setPlans] = useState<AIEditingPlan[]>([]);
+  const [showVersionDrawer, setShowVersionDrawer] = useState<boolean>(false);
+  const [restoringPlanId, setRestoringPlanId] = useState<string | null>(null);
+  const toast = useToast();
 
   // Media picker modal
   const [mediaAssets, setMediaAssets] = useState<MediaAssetItem[]>([]);
@@ -113,6 +124,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
       setTimeline(tl);
       await refreshHistory(tl.id);
       await refreshAIConversation(tl.id);
+      await refreshAIPlans(tl.id);
 
       const mediaRes = await fetchProjectMedia(currentProject.id);
       setMediaAssets(mediaRes.items || []);
@@ -139,6 +151,16 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
     try {
       const conv = await fetchAIConversation(currentProject.id, timelineId);
       setAiConversation(conv);
+    } catch {
+      // non-fatal
+    }
+  };
+
+  const refreshAIPlans = async (timelineId: string) => {
+    if (!currentProject) return;
+    try {
+      const planList = await fetchAIPlans(currentProject.id, timelineId);
+      setPlans(planList);
     } catch {
       // non-fatal
     }
@@ -410,8 +432,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
       });
 
       await refreshAIConversation(timeline.id);
+      await refreshAIPlans(timeline.id);
     } catch (err: any) {
-      alert(err?.message || 'AI message failed');
+      toast.error(err?.message || 'AI message failed');
     } finally {
       setAiLoading(false);
     }
@@ -425,8 +448,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
       setTimeline(updated);
       await refreshHistory(timeline.id);
       await refreshAIConversation(timeline.id);
+      await refreshAIPlans(timeline.id);
+      toast.success('AI editing plan approved & executed');
     } catch (err: any) {
-      alert(err?.message || 'Plan approval failed');
+      toast.error(err?.message || 'Plan approval failed');
     } finally {
       setAiLoading(false);
     }
@@ -437,8 +462,27 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
     try {
       await rejectAIPlan(currentProject.id, timeline.id, planId);
       await refreshAIConversation(timeline.id);
+      await refreshAIPlans(timeline.id);
+      toast.info('AI editing plan rejected');
     } catch (err: any) {
-      alert(err?.message || 'Plan rejection failed');
+      toast.error(err?.message || 'Plan rejection failed');
+    }
+  };
+
+  const handleRestorePlan = async (planId: string) => {
+    if (!currentProject || !timeline) return;
+    try {
+      setRestoringPlanId(planId);
+      const updated = await restoreAIPlan(currentProject.id, timeline.id, planId);
+      setTimeline(updated);
+      await refreshHistory(timeline.id);
+      await refreshAIConversation(timeline.id);
+      await refreshAIPlans(timeline.id);
+      toast.success('Restored timeline to selected plan version');
+    } catch (err: any) {
+      toast.error(err?.message || 'Plan restore failed');
+    } finally {
+      setRestoringPlanId(null);
     }
   };
 
@@ -879,117 +923,250 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({ currentProject }
 
           {/* AI Editor Tab Content */}
           {activeTab === 'ai' && (
-            <div className="flex flex-1 flex-col overflow-hidden">
-              {/* Message Feed */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
-                {aiConversation?.messages.map((m) => (
-                  <div
-                    key={m.id}
-                    className={`rounded p-2.5 max-w-[90%] ${
-                      m.role === 'user'
-                        ? 'ml-auto bg-amber-600/30 text-amber-100 border border-amber-500/30'
-                        : 'bg-neutral-800/80 text-neutral-200 border border-neutral-700'
-                    }`}
-                  >
-                    <div className="text-[10px] text-neutral-400 mb-0.5 font-semibold">
-                      {m.role === 'user' ? 'You' : 'ZezEdit AI'}
+            <div className="flex flex-1 flex-col overflow-hidden relative">
+              {/* AI Assistant Sub-Header with Version History Drawer Toggle */}
+              <div className="flex items-center justify-between border-b border-neutral-800 bg-neutral-900/90 px-3 py-1.5 text-xs shrink-0">
+                <div className="flex items-center space-x-1.5 text-neutral-300">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="font-medium text-[11px]">AI Assistant</span>
+                </div>
+                <button
+                  onClick={() => setShowVersionDrawer(!showVersionDrawer)}
+                  className={`flex items-center space-x-1 rounded px-2 py-0.5 text-[11px] font-medium transition ${
+                    showVersionDrawer
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      : 'bg-neutral-800 text-neutral-400 hover:text-neutral-200 border border-neutral-700/60'
+                  }`}
+                  title="Toggle Plan Version History Drawer"
+                >
+                  <History className="h-3 w-3 text-amber-400" />
+                  <span>Version History ({plans.length})</span>
+                </button>
+              </div>
+
+              {/* Version History Drawer (ZEZ-080) */}
+              {showVersionDrawer ? (
+                <div className="flex-1 flex flex-col overflow-hidden bg-neutral-900/95">
+                  <div className="flex items-center justify-between border-b border-neutral-800 px-3 py-2 bg-neutral-900">
+                    <div>
+                      <div className="text-xs font-semibold text-neutral-200 flex items-center space-x-1.5">
+                        <History className="h-3.5 w-3.5 text-amber-400" />
+                        <span>Plan Version History</span>
+                      </div>
+                      <p className="text-[10px] text-neutral-400 mt-0.5">
+                        {plans.length} plan {plans.length === 1 ? 'version' : 'versions'} recorded
+                      </p>
                     </div>
-                    <div>{m.content}</div>
+                    <button
+                      onClick={() => setShowVersionDrawer(false)}
+                      className="rounded p-1 text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800 transition"
+                      aria-label="Close Version History Drawer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
 
-                    {/* Proposed Plan Box */}
-                    {m.plan && m.plan.status === 'proposed' && (
-                      <div className="mt-2.5 rounded bg-neutral-900 border border-amber-500/40 p-2.5 space-y-2">
-                        <div className="flex items-center text-amber-400 font-semibold text-[11px]">
-                          <Sparkles className="mr-1.5 h-3.5 w-3.5" />
-                          Proposed Editing Plan
-                        </div>
-                        <p className="text-neutral-300 text-[10px]">{m.plan.explanation}</p>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+                    {plans.length === 0 ? (
+                      <div className="text-center py-12 text-neutral-500 text-xs">
+                        <History className="mx-auto h-8 w-8 text-neutral-700 mb-2" />
+                        <p>No edit plan versions yet.</p>
+                        <p className="text-[10px] text-neutral-600 mt-1">
+                          Ask AI to edit clips to generate versioned edit plans.
+                        </p>
+                      </div>
+                    ) : (
+                      plans.map((p) => {
+                        const isRestoring = restoringPlanId === p.id;
+                        const statusColors: Record<string, string> = {
+                          executed: 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60',
+                          approved: 'bg-emerald-950/50 text-emerald-300 border-emerald-800/60',
+                          proposed: 'bg-amber-950/50 text-amber-300 border-amber-800/60',
+                          rejected: 'bg-neutral-800 text-neutral-400 border-neutral-700',
+                          failed: 'bg-rose-950/50 text-rose-300 border-rose-800/60',
+                        };
+                        const statusStyle = statusColors[p.status] || 'bg-neutral-800 text-neutral-400 border-neutral-700';
 
-                        {/* Operations list */}
-                        <div className="space-y-1">
-                          {m.plan.operations.map((op, idx) => (
-                            <div key={idx} className="rounded bg-neutral-800 px-2 py-1 text-[10px] text-neutral-300">
-                              • {op.description}
+                        return (
+                          <div
+                            key={p.id}
+                            className="rounded-lg border border-neutral-800 bg-neutral-950/70 p-3 space-y-2 hover:border-neutral-700 transition"
+                          >
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="font-mono text-neutral-400">
+                                Rev #{p.target_revision}
+                              </span>
+                              <div className="flex items-center space-x-2">
+                                <span className="text-neutral-500">
+                                  {new Date(p.created_at).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                  })}
+                                </span>
+                                <span
+                                  className={`rounded px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider border ${statusStyle}`}
+                                >
+                                  {p.status}
+                                </span>
+                              </div>
                             </div>
-                          ))}
-                        </div>
 
-                        {/* Warnings */}
-                        {m.plan.warnings.length > 0 && (
-                          <div className="flex items-start text-amber-400/90 text-[10px]">
-                            <AlertTriangle className="mr-1 h-3.5 w-3.5 shrink-0" />
-                            <span>{m.plan.warnings.join(' ')}</span>
+                            <p className="text-xs text-neutral-200 font-medium leading-snug">
+                              &ldquo;{p.user_instruction}&rdquo;
+                            </p>
+
+                            {p.explanation && (
+                              <p className="text-[10px] text-neutral-400 leading-normal">
+                                {p.explanation}
+                              </p>
+                            )}
+
+                            {/* Operations diff breakdown */}
+                            <div className="space-y-1 pt-1">
+                              <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                                Operations ({p.operations.length})
+                              </span>
+                              {p.operations.map((op, idx) => (
+                                <div
+                                  key={idx}
+                                  className="rounded bg-neutral-900/90 border border-neutral-800/80 px-2 py-1 text-[10px] text-neutral-300 flex items-start space-x-1.5"
+                                >
+                                  <span className="text-amber-400">•</span>
+                                  <span className="break-words">{op.description}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* 1-Click Restore to this Version */}
+                            <button
+                              onClick={() => handleRestorePlan(p.id)}
+                              disabled={isRestoring}
+                              className="w-full mt-2 flex items-center justify-center space-x-1.5 rounded bg-neutral-800 hover:bg-neutral-750 border border-neutral-700 hover:border-amber-500/50 py-1.5 text-[11px] font-medium text-neutral-200 hover:text-white transition disabled:opacity-50"
+                            >
+                              <RotateCcw className={`h-3 w-3 text-amber-400 ${isRestoring ? 'animate-spin' : ''}`} />
+                              <span>{isRestoring ? 'Restoring version...' : 'Restore to this version'}</span>
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Message Feed */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+                    {aiConversation?.messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={`rounded p-2.5 max-w-[90%] ${
+                          m.role === 'user'
+                            ? 'ml-auto bg-amber-600/30 text-amber-100 border border-amber-500/30'
+                            : 'bg-neutral-800/80 text-neutral-200 border border-neutral-700'
+                        }`}
+                      >
+                        <div className="text-[10px] text-neutral-400 mb-0.5 font-semibold">
+                          {m.role === 'user' ? 'You' : 'ZezEdit AI'}
+                        </div>
+                        <div>{m.content}</div>
+
+                        {/* Proposed Plan Box */}
+                        {m.plan && m.plan.status === 'proposed' && (
+                          <div className="mt-2.5 rounded bg-neutral-900 border border-amber-500/40 p-2.5 space-y-2">
+                            <div className="flex items-center text-amber-400 font-semibold text-[11px]">
+                              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                              Proposed Editing Plan
+                            </div>
+                            <p className="text-neutral-300 text-[10px]">{m.plan.explanation}</p>
+
+                            {/* Operations list */}
+                            <div className="space-y-1">
+                              {m.plan.operations.map((op, idx) => (
+                                <div key={idx} className="rounded bg-neutral-800 px-2 py-1 text-[10px] text-neutral-300">
+                                  • {op.description}
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Warnings */}
+                            {m.plan.warnings.length > 0 && (
+                              <div className="flex items-start text-amber-400/90 text-[10px]">
+                                <AlertTriangle className="mr-1 h-3.5 w-3.5 shrink-0" />
+                                <span>{m.plan.warnings.join(' ')}</span>
+                              </div>
+                            )}
+
+                            {/* Action buttons */}
+                            <div className="flex space-x-2 pt-1">
+                              <button
+                                onClick={() => handleApprovePlan(m.plan!.id)}
+                                className="flex-1 rounded bg-amber-500 py-1 text-center font-semibold text-neutral-950 hover:bg-amber-400"
+                              >
+                                Approve & Execute
+                              </button>
+                              <button
+                                onClick={() => handleRejectPlan(m.plan!.id)}
+                                className="rounded bg-neutral-800 px-3 py-1 text-neutral-400 hover:text-white"
+                              >
+                                Reject
+                              </button>
+                            </div>
                           </div>
                         )}
+                      </div>
+                    ))}
 
-                        {/* Action buttons */}
-                        <div className="flex space-x-2 pt-1">
-                          <button
-                            onClick={() => handleApprovePlan(m.plan!.id)}
-                            className="flex-1 rounded bg-amber-500 py-1 text-center font-semibold text-neutral-950 hover:bg-amber-400"
-                          >
-                            Approve & Execute
-                          </button>
-                          <button
-                            onClick={() => handleRejectPlan(m.plan!.id)}
-                            className="rounded bg-neutral-800 px-3 py-1 text-neutral-400 hover:text-white"
-                          >
-                            Reject
-                          </button>
-                        </div>
+                    {aiLoading && (
+                      <div className="flex items-center space-x-2 text-neutral-400 text-xs py-2">
+                        <Sparkles className="h-4 w-4 animate-spin text-amber-400" />
+                        <span>ZezEdit AI is analyzing sequence...</span>
                       </div>
                     )}
                   </div>
-                ))}
 
-                {aiLoading && (
-                  <div className="flex items-center space-x-2 text-neutral-400 text-xs py-2">
-                    <Sparkles className="h-4 w-4 animate-spin text-amber-400" />
-                    <span>ZezEdit AI is analyzing sequence...</span>
+                  {/* Suggestions Chips */}
+                  <div className="border-t border-neutral-800 p-2 flex flex-wrap gap-1.5 bg-neutral-900/60">
+                    <button
+                      onClick={() => handleSendAIMessage('Split clip at playhead')}
+                      className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
+                    >
+                      Split at playhead
+                    </button>
+                    <button
+                      onClick={() => handleSendAIMessage('Add text overlay "Watch this!"')}
+                      className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
+                    >
+                      Add text overlay
+                    </button>
+                    <button
+                      onClick={() => handleSendAIMessage('Shorten this clip')}
+                      className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
+                    >
+                      Shorten clip
+                    </button>
                   </div>
-                )}
-              </div>
 
-              {/* Suggestions Chips */}
-              <div className="border-t border-neutral-800 p-2 flex flex-wrap gap-1.5 bg-neutral-900/60">
-                <button
-                  onClick={() => handleSendAIMessage('Split clip at playhead')}
-                  className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
-                >
-                  Split at playhead
-                </button>
-                <button
-                  onClick={() => handleSendAIMessage('Add text overlay "Watch this!"')}
-                  className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
-                >
-                  Add text overlay
-                </button>
-                <button
-                  onClick={() => handleSendAIMessage('Shorten this clip')}
-                  className="rounded-full bg-neutral-800 hover:bg-neutral-700 px-2.5 py-0.5 text-[10px] text-neutral-300"
-                >
-                  Shorten clip
-                </button>
-              </div>
-
-              {/* Input Area */}
-              <div className="border-t border-neutral-800 p-2 flex items-center space-x-2 bg-neutral-900">
-                <input
-                  type="text"
-                  placeholder="Ask AI to trim, split, add text..."
-                  value={aiInput}
-                  onChange={(e) => setAiInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSendAIMessage()}
-                  className="flex-1 rounded bg-neutral-800 border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-amber-500"
-                />
-                <button
-                  onClick={() => handleSendAIMessage()}
-                  disabled={aiLoading || !aiInput.trim()}
-                  className="rounded bg-amber-500 p-1.5 text-neutral-950 hover:bg-amber-400 disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                </button>
-              </div>
+                  {/* Input Area */}
+                  <div className="border-t border-neutral-800 p-2 flex items-center space-x-2 bg-neutral-900">
+                    <input
+                      type="text"
+                      placeholder="Ask AI to trim, split, add text..."
+                      value={aiInput}
+                      onChange={(e) => setAiInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendAIMessage()}
+                      className="flex-1 rounded bg-neutral-800 border border-neutral-700 px-2.5 py-1.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-amber-500"
+                    />
+                    <button
+                      onClick={() => handleSendAIMessage()}
+                      disabled={aiLoading || !aiInput.trim()}
+                      className="rounded bg-amber-500 p-1.5 text-neutral-950 hover:bg-amber-400 disabled:opacity-50"
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>

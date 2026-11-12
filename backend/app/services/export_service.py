@@ -354,6 +354,19 @@ class ExportService:
             ).fetchall()
             segments = [dict(r) for r in transcript_rows]
 
+            # Overlay any non-destructive transcript corrections (ZEZ-025)
+            corr_rows = conn.execute(
+                """
+                SELECT segment_id, corrected_text FROM transcript_corrections
+                WHERE media_asset_id = ?
+                """,
+                (media_asset_id,),
+            ).fetchall()
+            corr_map = {c["segment_id"]: c["corrected_text"] for c in corr_rows if c["segment_id"]}
+            for s in segments:
+                if s["id"] in corr_map:
+                    s["text"] = corr_map[s["id"]]
+
         # Stage 7: Prepare temporary workspace
         job_temp_dir = self.layout.temp / f"job_{job_id}"
         job_temp_dir.mkdir(parents=True, exist_ok=True)

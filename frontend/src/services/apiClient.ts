@@ -1,16 +1,22 @@
 import { ApiErrorEnvelope, HealthResponse, SystemInfoResponse } from '../types/health';
 import {
   AnalysisRunItem,
+  AudioAnalysisItem,
   SampledFrameItem,
   TemporalContextPayload,
+  TranscriptCorrectionItem,
   TranscriptPayload,
   VideoSceneItem,
   VisualObservationItem,
 } from '../types/analysis';
 import {
   CandidateItem,
+  CandidateClipEdit,
+  CandidateClipEditSavePayload,
+  CandidateGenerationRunItem,
   DiscoverHighlightsOptions,
   HighlightsOverview,
+  NoveltyHistoryResponse,
   UpdateCandidatePayload,
 } from '../types/highlights';
 import {
@@ -59,6 +65,16 @@ import {
   SplitCandidateRequest,
   UpdateProfileRequest,
 } from '../types/character';
+import {
+  BackupItem,
+  CleanupExecution,
+  CleanupPreview,
+  DbIntegrityReport,
+  MediaIntegrityResult,
+  MediaRelinkResult,
+  RecoveryStatus,
+  StorageBreakdown,
+} from '../types/system';
 
 const API_BASE = '/api/v1';
 
@@ -165,8 +181,7 @@ export function deleteProject(projectId: string): Promise<void> {
 }
 
 // ==================== MEDIA ASSETS ====================
-export function fetchProjectMedia(
-  projectId: string,
+export function fetchAllMedia(
   params?: {
     media_type?: string;
     availability?: string;
@@ -181,13 +196,48 @@ export function fetchProjectMedia(
   if (params?.search && params.search.trim()) query.set('search', params.search.trim());
 
   const q = query.toString() ? `?${query.toString()}` : '';
+  return request<MediaAssetListResponse>(`/media${q}`);
+}
+
+export function fetchProjectMedia(
+  projectId: string,
+  params?: {
+    media_type?: string;
+    availability?: string;
+    proxy_status?: string;
+    search?: string;
+  }
+): Promise<MediaAssetListResponse> {
+  if (!projectId || projectId === 'all') {
+    return fetchAllMedia(params);
+  }
+  const query = new URLSearchParams();
+  if (params?.media_type && params.media_type !== 'all') query.set('media_type', params.media_type);
+  if (params?.availability && params.availability !== 'all') query.set('availability', params.availability);
+  if (params?.proxy_status && params.proxy_status !== 'all') query.set('proxy_status', params.proxy_status);
+  if (params?.search && params.search.trim()) query.set('search', params.search.trim());
+
+  const q = query.toString() ? `?${query.toString()}` : '';
   return request<MediaAssetListResponse>(`/projects/${projectId}/media${q}`);
+}
+
+export function fetchMediaAsset(assetId: string, projectId?: string): Promise<MediaAssetItem> {
+  if (projectId && projectId !== 'all') {
+    return request<MediaAssetItem>(`/projects/${projectId}/media/${assetId}`);
+  }
+  return request<MediaAssetItem>(`/media/${assetId}`);
 }
 
 export function importLocalMedia(
   projectId: string,
   payload: MediaImportLocalPayload
 ): Promise<MediaAssetItem> {
+  if (!projectId || projectId === 'all') {
+    return request<MediaAssetItem>(`/media/import-local`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
   return request<MediaAssetItem>(`/projects/${projectId}/media/import-local`, {
     method: 'POST',
     body: JSON.stringify(payload),
@@ -203,13 +253,14 @@ export async function uploadMediaFile(
   const formData = new FormData();
   formData.append('file', file);
 
-  const res = await fetch(
-    `${API_BASE}/projects/${projectId}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`,
-    {
-      method: 'POST',
-      body: formData,
-    }
-  );
+  const endpoint = (!projectId || projectId === 'all')
+    ? `${API_BASE}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`
+    : `${API_BASE}/projects/${projectId}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    body: formData,
+  });
 
   if (!res.ok) {
     let msg = `Upload failed with status ${res.status}`;
@@ -248,11 +299,47 @@ export function regenerateThumbnail(
 export function relinkMedia(
   projectId: string,
   assetId: string,
+  newStoragePath: string,
+  force = false
+): Promise<MediaRelinkResult> {
+  return request<MediaRelinkResult>(`/projects/${projectId}/media/${assetId}/relink`, {
+    method: 'POST',
+    body: JSON.stringify({ new_storage_path: newStoragePath, force }),
+  });
+}
+
+export function inspectRelinkCandidate(
+  projectId: string,
+  assetId: string,
   newStoragePath: string
-): Promise<MediaAssetItem> {
-  return request<MediaAssetItem>(`/projects/${projectId}/media/${assetId}/relink`, {
+): Promise<{ match_status: 'exact' | 'compatible' | 'mismatch'; warnings: string[]; comparison: Record<string, any> }> {
+  return request(`/projects/${projectId}/media/${assetId}/relink/inspect`, {
     method: 'POST',
     body: JSON.stringify({ new_storage_path: newStoragePath }),
+  });
+}
+
+export function checkAssetIntegrity(
+  projectId: string,
+  assetId: string
+): Promise<MediaIntegrityResult> {
+  return request<MediaIntegrityResult>(`/projects/${projectId}/media/${assetId}/integrity`);
+}
+
+export function checkProjectMediaIntegrity(
+  projectId: string
+): Promise<{
+  project_id: string;
+  total_assets: number;
+  online_count: number;
+  missing_count: number;
+  corrupted_count: number;
+  all_healthy: boolean;
+  assets: MediaIntegrityResult[];
+  checked_at: string;
+}> {
+  return request(`/projects/${projectId}/media/check-integrity`, {
+    method: 'POST',
   });
 }
 
@@ -272,7 +359,14 @@ export function fetchMediaStats(projectId: string): Promise<MediaStorageStats> {
 }
 
 export function getThumbnailUrl(projectId: string, assetId: string): string {
+  if (!projectId || projectId === 'all') {
+    return `${API_BASE}/media/${assetId}/thumbnail`;
+  }
   return `${API_BASE}/projects/${projectId}/media/${assetId}/thumbnail`;
+}
+
+export function getGlobalThumbnailUrl(assetId: string): string {
+  return `${API_BASE}/media/${assetId}/thumbnail`;
 }
 
 export function getProxyUrl(projectId: string, assetId: string): string {
@@ -309,17 +403,102 @@ export function updateAppSettings(updates: Partial<AppSettingsData>): Promise<Ap
   });
 }
 
+export function fetchStorageBreakdown(): Promise<StorageBreakdown> {
+  return request<StorageBreakdown>('/storage/breakdown');
+}
+
+export function previewCacheCleanup(): Promise<CleanupPreview> {
+  return request<CleanupPreview>('/storage/cleanup/preview', { method: 'POST' });
+}
+
+export function executeCacheCleanup(confirmationToken: string): Promise<CleanupExecution> {
+  return request<CleanupExecution>('/storage/cleanup/execute', {
+    method: 'POST',
+    body: JSON.stringify({ confirmation_token: confirmationToken }),
+  });
+}
+
+export interface ClearAllDataResult {
+  status: string;
+  message: string;
+  deleted_files_count: number;
+  freed_bytes: number;
+  cleared_categories: string[];
+  truncated_tables: string[];
+  timestamp: string;
+}
+
+export function clearAllData(confirmation = 'DELETE'): Promise<ClearAllDataResult> {
+  return request<ClearAllDataResult>('/storage/clear-all-data', {
+    method: 'POST',
+    body: JSON.stringify({ confirmation }),
+  });
+}
+
+export function deleteMediaAssetGlobal(assetId: string, deleteSource = false): Promise<void> {
+  return request<void>(`/media/${assetId}?delete_source=${deleteSource}`, {
+    method: 'DELETE',
+  });
+}
+
+export function getStreamMediaUrl(assetId: string): string {
+  return `${API_BASE}/media/${assetId}/stream`;
+}
+
+export function fetchBackups(): Promise<BackupItem[]> {
+  return request<BackupItem[]>('/backups');
+}
+
+export function createBackup(label = 'manual'): Promise<{
+  backup_filename: string;
+  backup_path: string;
+  file_size_bytes: number;
+  created_at: string;
+  integrity_verified: boolean;
+}> {
+  return request('/backups', {
+    method: 'POST',
+    body: JSON.stringify({ label }),
+  });
+}
+
+export function restoreBackup(backupFilename: string): Promise<{
+  restored_from: string;
+  safety_snapshot: string;
+  restored_at: string;
+  status: string;
+}> {
+  return request('/backups/restore', {
+    method: 'POST',
+    body: JSON.stringify({ backup_filename: backupFilename }),
+  });
+}
+
+export function fetchDbIntegrity(): Promise<DbIntegrityReport> {
+  return request<DbIntegrityReport>('/system/db-integrity');
+}
+
+export function fetchRecoveryStatus(): Promise<RecoveryStatus> {
+  return request<RecoveryStatus>('/system/recovery-status');
+}
+
 // ==================== VIDEO ANALYSIS ====================
 export function startMediaAnalysis(
   projectId: string,
   assetId: string,
   profile: 'fast' | 'balanced' | 'detailed' = 'balanced',
   config: Record<string, unknown> = {},
-  runSynchronously = false
+  runSynchronously = false,
+  forceReanalysis = false
 ): Promise<AnalysisRunItem> {
   return request<AnalysisRunItem>(`/projects/${projectId}/media/${assetId}/analysis`, {
     method: 'POST',
-    body: JSON.stringify({ profile, config, run_synchronously: runSynchronously }),
+    body: JSON.stringify({
+      profile,
+      config,
+      run_synchronously: runSynchronously,
+      force_reanalysis: forceReanalysis,
+    }),
   });
 }
 
@@ -347,6 +526,10 @@ export function fetchAnalysisObservations(projectId: string, assetId: string, ru
   return request<VisualObservationItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/visual-observations`);
 }
 
+export function fetchAudioAnalysis(projectId: string, assetId: string, runId: string): Promise<AudioAnalysisItem | null> {
+  return request<AudioAnalysisItem | null>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/audio`);
+}
+
 export function fetchAnalysisContext(
   projectId: string,
   assetId: string,
@@ -366,8 +549,85 @@ export function cancelAnalysisRun(projectId: string, assetId: string, runId: str
   );
 }
 
+export function fetchAnalysisTelemetry(
+  projectId: string,
+  assetId: string,
+  runId: string
+): Promise<{
+  run_id: string;
+  job_id?: string;
+  media_asset_id: string;
+  project_id: string;
+  status: string;
+  profile: string;
+  progress_pct: number;
+  current_stage: string;
+  error_message?: string;
+  started_at?: string;
+  completed_at?: string;
+  source_signature?: string;
+  stage_details?: Record<string, any>;
+  job?: Record<string, any>;
+}> {
+  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/telemetry`);
+}
+
+export function retryAnalysisRun(
+  projectId: string,
+  assetId: string,
+  runId: string
+): Promise<{ run_id: string; job_id?: string; status: string }> {
+  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/retry`, { method: 'POST' });
+}
+
+export function fetchAnalysisCacheInfo(
+  projectId: string,
+  assetId: string,
+  runId: string
+): Promise<{
+  run_id: string;
+  media_asset_id: string;
+  status: string;
+  persisted_signature?: string;
+  current_signature: string;
+  is_cache_valid: boolean;
+  records: Record<string, number>;
+}> {
+  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/cache`);
+}
+
 export function getFrameImageUrl(projectId: string, assetId: string, frameId: string): string {
   return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/frame-image/${frameId}`;
+}
+
+export function getSceneThumbnailUrl(projectId: string, assetId: string, sceneId: string): string {
+  return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/scene-thumbnail/${sceneId}`;
+}
+
+export function fetchTranscriptCorrections(projectId: string, assetId: string): Promise<TranscriptCorrectionItem[]> {
+  return request<TranscriptCorrectionItem[]>(`/projects/${projectId}/media/${assetId}/transcript/corrections`);
+}
+
+export function saveTranscriptCorrection(
+  projectId: string,
+  assetId: string,
+  payload: { segment_id?: string; start_time: number; end_time: number; original_text: string; corrected_text: string }
+): Promise<TranscriptCorrectionItem> {
+  return request<TranscriptCorrectionItem>(`/projects/${projectId}/media/${assetId}/transcript/corrections`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export function deleteTranscriptCorrection(
+  projectId: string,
+  assetId: string,
+  correctionId: string
+): Promise<{ message: string; correction_id: string }> {
+  return request<{ message: string; correction_id: string }>(
+    `/projects/${projectId}/media/${assetId}/transcript/corrections/${correctionId}`,
+    { method: 'DELETE' }
+  );
 }
 
 // ==================== HIGHLIGHT DISCOVERY & REVIEW ====================
@@ -383,6 +643,49 @@ export function discoverHighlights(
       body: JSON.stringify(options),
     },
     options.run_synchronously ? 60000 : 15000
+  );
+}
+
+export function generateMoreHighlights(
+  projectId: string,
+  assetId: string,
+  options: DiscoverHighlightsOptions = {}
+): Promise<CandidateItem[]> {
+  return request<CandidateItem[]>(
+    `/projects/${projectId}/media/${assetId}/highlights/generate-more`,
+    {
+      method: 'POST',
+      body: JSON.stringify(options),
+    },
+    options.run_synchronously ? 60000 : 15000
+  );
+}
+
+export function fetchCandidateGenerationRuns(
+  projectId: string,
+  assetId: string
+): Promise<CandidateGenerationRunItem[]> {
+  return request<CandidateGenerationRunItem[]>(
+    `/projects/${projectId}/media/${assetId}/highlights/runs`
+  );
+}
+
+export function fetchCandidateGenerationRun(
+  projectId: string,
+  assetId: string,
+  runId: string
+): Promise<CandidateGenerationRunItem> {
+  return request<CandidateGenerationRunItem>(
+    `/projects/${projectId}/media/${assetId}/highlights/runs/${runId}`
+  );
+}
+
+export function fetchCandidateNoveltyHistory(
+  projectId: string,
+  assetId: string
+): Promise<NoveltyHistoryResponse> {
+  return request<NoveltyHistoryResponse>(
+    `/projects/${projectId}/media/${assetId}/highlights/history`
   );
 }
 
@@ -404,10 +707,14 @@ export function fetchProjectHighlights(
 export function fetchMediaHighlights(
   projectId: string,
   assetId: string,
-  reviewStatus?: string
+  reviewStatus?: string,
+  generationRunId?: string
 ): Promise<CandidateItem[]> {
-  const qs = reviewStatus ? `?review_status=${reviewStatus}` : '';
-  return request<CandidateItem[]>(`/projects/${projectId}/media/${assetId}/highlights${qs}`);
+  const params = new URLSearchParams();
+  if (reviewStatus) params.append('review_status', reviewStatus);
+  if (generationRunId) params.append('generation_run_id', generationRunId);
+  const qs = params.toString();
+  return request<CandidateItem[]>(`/projects/${projectId}/media/${assetId}/highlights${qs ? `?${qs}` : ''}`);
 }
 
 export function fetchCandidateDetails(
@@ -488,6 +795,59 @@ export function fetchCandidateAlternatives(
   return request<CandidateItem[]>(`/projects/${projectId}/highlights/${candidateId}/alternatives`);
 }
 
+export function fetchCandidateEdit(
+  projectId: string,
+  mediaAssetId: string,
+  candidateId: string
+): Promise<CandidateClipEdit> {
+  return request<CandidateClipEdit>(
+    `/projects/${projectId}/media/${mediaAssetId}/candidates/${candidateId}/edit`
+  );
+}
+
+export function saveCandidateEdit(
+  projectId: string,
+  mediaAssetId: string,
+  candidateId: string,
+  payload: CandidateClipEditSavePayload
+): Promise<CandidateClipEdit> {
+  return request<CandidateClipEdit>(
+    `/projects/${projectId}/media/${mediaAssetId}/candidates/${candidateId}/edit`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+export function resetCandidateEdit(
+  projectId: string,
+  mediaAssetId: string,
+  candidateId: string
+): Promise<CandidateClipEdit> {
+  return request<CandidateClipEdit>(
+    `/projects/${projectId}/media/${mediaAssetId}/candidates/${candidateId}/edit/reset`,
+    {
+      method: 'POST',
+    }
+  );
+}
+
+export function trackCandidateSubjects(
+  projectId: string,
+  mediaAssetId: string,
+  candidateId: string,
+  targetAspectRatio: string = '9:16'
+): Promise<CandidateClipEdit> {
+  return request<CandidateClipEdit>(
+    `/projects/${projectId}/media/${mediaAssetId}/candidates/${candidateId}/edit/track`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ target_aspect_ratio: targetAspectRatio }),
+    }
+  );
+}
+
 // ==================== SMART REFRAMING & PORTRAIT COMPOSITION ====================
 export function analyzeReframing(
   projectId: string,
@@ -499,6 +859,7 @@ export function analyzeReframing(
     base_zoom?: number;
     headroom_factor?: number;
     smoothing_window?: number;
+    pinned_subject_id?: string;
   } = {}
 ): Promise<ReframingPlanItem> {
   return request<ReframingPlanItem>(
@@ -881,6 +1242,23 @@ export function rejectAIPlan(
   });
 }
 
+export function fetchAIPlans(
+  projectId: string,
+  timelineId: string
+): Promise<AIEditingPlan[]> {
+  return request<AIEditingPlan[]>(`/projects/${projectId}/timelines/${timelineId}/ai/plans`);
+}
+
+export function restoreAIPlan(
+  projectId: string,
+  timelineId: string,
+  planId: string
+): Promise<TimelineRecord> {
+  return request<TimelineRecord>(`/projects/${projectId}/timelines/${timelineId}/ai/plans/${planId}/restore`, {
+    method: 'POST',
+  });
+}
+
 export function renderTimeline(
   projectId: string,
   timelineId: string,
@@ -1023,6 +1401,102 @@ export function exportCharacterJson(
 ): Promise<CharacterExportPayload> {
   return request<CharacterExportPayload>(`/projects/${projectId}/characters/library/${characterId}/export`);
 }
+
+
+// ==================== SYSTEM RESOURCE MONITORING ====================
+
+export function fetchSystemResources(): Promise<import('../types/system').SystemResourceMetrics> {
+  return request<import('../types/system').SystemResourceMetrics>('/system/resources');
+}
+
+
+// ==================== WORKING QUEUE & STATS ====================
+
+export function fetchQueueStats(): Promise<import('../types/system').QueueStats> {
+  return request<import('../types/system').QueueStats>('/jobs/stats');
+}
+
+export function fetchJobLogs(jobId: string): Promise<import('../types/system').JobLogs> {
+  return request<import('../types/system').JobLogs>(`/jobs/${jobId}/logs`);
+}
+
+
+// ==================== AI PROVIDERS ====================
+
+export function fetchAIProviders(): Promise<import('../types/system').AIProvider[]> {
+  return request<import('../types/system').AIProvider[]>('/ai-providers');
+}
+
+export function testAIProvider(
+  providerId: string,
+  baseUrl?: string
+): Promise<import('../types/system').AIProviderTestResult> {
+  return request<import('../types/system').AIProviderTestResult>('/ai-providers/test', {
+    method: 'POST',
+    body: JSON.stringify({ provider_id: providerId, base_url: baseUrl }),
+  });
+}
+
+export function updateAIProvider(
+  providerId: string,
+  data: { base_url?: string; active_model?: string }
+): Promise<import('../types/system').AIProvider> {
+  return request<import('../types/system').AIProvider>(`/ai-providers/${providerId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+
+// ==================== DOCUMENTATION CENTER ====================
+
+export function fetchDocCategories(): Promise<import('../types/system').DocCategory[]> {
+  return request<import('../types/system').DocCategory[]>('/docs/categories');
+}
+
+export function fetchDocArticles(
+  category?: string,
+  query?: string
+): Promise<import('../types/system').DocArticle[]> {
+  const params = new URLSearchParams();
+  if (category) params.append('category', category);
+  if (query) params.append('query', query);
+  const qs = params.toString() ? `?${params.toString()}` : '';
+  return request<import('../types/system').DocArticle[]>(`/docs/articles${qs}`);
+}
+
+export function fetchDocArticleDetail(
+  articleId: string
+): Promise<import('../types/system').DocArticleDetail> {
+  return request<import('../types/system').DocArticleDetail>(`/docs/articles/${articleId}`);
+}
+
+
+// ==================== MILESTONE 18 WORKFLOW & BATCH EXPORT ====================
+
+export function fetchVideoWorkflowState(
+  projectId: string,
+  mediaAssetId: string
+): Promise<import('../types/system').VideoWorkflowState> {
+  return request<import('../types/system').VideoWorkflowState>(
+    `/projects/${projectId}/media/${mediaAssetId}/workflow`
+  );
+}
+
+export function submitBatchExport(
+  projectId: string,
+  payload: import('../types/system').BatchExportPayload
+): Promise<import('../types/system').BatchExportResponse> {
+  return request<import('../types/system').BatchExportResponse>(
+    `/projects/${projectId}/exports/batch`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+
 
 
 

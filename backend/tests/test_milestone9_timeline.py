@@ -413,3 +413,66 @@ def test_timeline_rest_api_lifecycle(timeline_env):
         # 5. POST /redo
         res_redo = client.post(f"/api/v1/projects/{proj_id}/timelines/{tl_id}/history/redo")
         assert res_redo.status_code == 200
+
+
+def test_ai_plan_version_history_and_restore(timeline_env):
+    """Verify listing historical AI editing plans and restoring an earlier plan version (ZEZ-080)."""
+    app = create_app(settings_override=timeline_env["settings"])
+    app.state.storage = StorageLayout.from_root(timeline_env["settings"].storage_root)
+
+    proj_id = timeline_env["project_id"]
+    media_id = timeline_env["media_id"]
+
+    with TestClient(app) as client:
+        # 1. Fetch timeline and track
+        res = client.get(f"/api/v1/projects/{proj_id}/timeline")
+        assert res.status_code == 200
+        tl_data = res.json()
+        tl_id = tl_data["id"]
+        v1_id = next(t["id"] for t in tl_data["tracks"] if t["track_type"] == "video")
+
+        # 2. Add an initial clip
+        res_clip = client.post(
+            f"/api/v1/projects/{proj_id}/timelines/{tl_id}/clips",
+            json={
+                "track_id": v1_id,
+                "source_media_id": media_id,
+                "name": "Historical Clip",
+                "timeline_start": 0.0,
+                "duration": 8.0,
+            },
+        )
+        assert res_clip.status_code == 200
+        clip_id = res_clip.json()["id"]
+
+        # 3. Send AI instruction that produces a plan
+        res_ai = client.post(
+            f"/api/v1/projects/{proj_id}/timelines/{tl_id}/ai/messages",
+            json={
+                "message": "split this clip at 4.0 seconds",
+                "playhead_time": 4.0,
+                "selected_clip_id": clip_id,
+            },
+        )
+        assert res_ai.status_code == 200
+        msg_data = res_ai.json()
+        assert msg_data["plan"] is not None
+        plan_id = msg_data["plan"]["id"]
+
+        # 4. GET /timelines/{tl_id}/ai/plans
+        res_plans = client.get(f"/api/v1/projects/{proj_id}/timelines/{tl_id}/ai/plans")
+        assert res_plans.status_code == 200
+        plans = res_plans.json()
+        assert len(plans) >= 1
+        assert any(p["id"] == plan_id for p in plans)
+
+        # 5. Approve plan
+        res_app = client.post(f"/api/v1/projects/{proj_id}/timelines/{tl_id}/ai/plans/{plan_id}/approve")
+        assert res_app.status_code == 200
+
+        # 6. Test restore endpoint
+        res_restore = client.post(f"/api/v1/projects/{proj_id}/timelines/{tl_id}/ai/plans/{plan_id}/restore")
+        assert res_restore.status_code == 200
+        restored_tl = res_restore.json()
+        assert restored_tl["id"] == tl_id
+

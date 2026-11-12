@@ -66,6 +66,7 @@ class JobRecord:
     cancellation_requested_at: Optional[str]
     cancelled_at: Optional[str]
     updated_at: str
+    checkpoint_data: Optional[Dict[str, Any]] = None
 
 
 @dataclass
@@ -200,3 +201,27 @@ class ShortsCandidateRecord:
     alternative_of_candidate_id: Optional[str] = None
     overlap_group_id: Optional[str] = None
     queued_for_render: bool = False
+
+
+@dataclass
+class CandidateClipEditRecord:
+    id: str
+    candidate_id: str
+    project_id: str
+    media_asset_id: str
+    original_start_time: float
+    original_end_time: float
+    edited_start_time: float
+    edited_end_time: float
+    edited_duration: float
+    aspect_ratio: str = "9:16"
+    framing_mode: str = "center"  # 'center', 'manual', 'smart_tracking'
+    manual_crop_x_pct: float = 50.0
+    manual_crop_y_pct: float = 50.0
+    manual_crop_zoom: float = 1.0
+    tracked_subject_id: Optional[str] = None
+    tracking_status: str = "none"  # 'none', 'tracking', 'tracked', 'fallback'
+    reframing_plan_id: Optional[str] = None
+    version: int = 1
+    created_at: str = ""
+    updated_at: str = ""

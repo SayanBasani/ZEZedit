@@ -2,60 +2,57 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
   Activity,
   AlertCircle,
-  Camera,
+  BookOpen,
+  Brain,
   ChevronLeft,
   ChevronRight,
   Film,
-  FolderKanban,
   LayoutDashboard,
   Menu,
   Moon,
-  Scissors,
   Settings as SettingsIcon,
   Shield,
   Sparkles,
   Sun,
-  Users,
-  Video,
   X,
 } from 'lucide-react';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
+import { ResourceInspector } from '../components/system/ResourceInspector';
+import { useToast } from '../components/system/ToastNotificationCenter';
 import { useTheme } from '../context/ThemeContext';
 import { DashboardView } from '../features/dashboard/DashboardView';
-import { FoundationOverview } from '../features/dashboard/FoundationOverview';
-import { MediaLibraryView } from '../features/media/MediaLibraryView';
-import { AnalysisWorkspace } from '../features/analysis/AnalysisWorkspace';
-import { HighlightsWorkspace } from '../features/highlights/HighlightsWorkspace';
-import { ReframingWorkspace } from '../features/reframing/ReframingWorkspace';
-import { ExportStudio } from '../features/exports/ExportStudio';
-import { TimelineEditor } from '../features/timeline/TimelineEditor';
-import { CharacterStudio } from '../features/characters/CharacterStudio';
-import { ProjectsManager } from '../features/projects/ProjectsManager';
 import { SettingsManager } from '../features/settings/SettingsManager';
+import { WorkingQueueView } from '../features/queue/WorkingQueueView';
+import { AIProviderManager } from '../features/providers/AIProviderManager';
+import { DocumentationView } from '../features/docs/DocumentationView';
+import { ShortVideoGeneratorLibrary } from '../features/videos/ShortVideoGeneratorLibrary';
+import { VideoEditDashboard } from '../features/videos/VideoEditDashboard';
 import {
-  archiveProject,
-  createProject,
-  deleteProject,
   fetchHealth,
   fetchJobs,
-  fetchMediaStats,
   fetchProjectMedia,
   fetchProjects,
-  restoreProject,
 } from '../services/apiClient';
 import { HealthResponse } from '../types/health';
-import { JobItem, MediaAssetItem, MediaStorageStats, ProjectItem } from '../types/projects';
+import { JobItem, MediaAssetItem, ProjectItem } from '../types/projects';
 
 export type NavSection =
   | 'dashboard'
+  | 'videos'
+  | 'video-dashboard'
   | 'projects'
   | 'media'
+  | 'studio'
+  | 'workspace'
   | 'analysis'
   | 'highlights'
   | 'reframing'
   | 'timeline'
   | 'ai-editor'
+  | 'queue'
+  | 'ai-providers'
+  | 'docs'
   | 'characters'
   | 'exports'
   | 'settings'
@@ -63,38 +60,100 @@ export type NavSection =
 
 export const App: React.FC = () => {
   const { theme, setTheme } = useTheme();
+  const toast = useToast();
   const [activeTab, setActiveTab] = useState<NavSection>('dashboard');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Global Centralized State (avoiding repeated duplicate polling)
   const [projects, setProjects] = useState<ProjectItem[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [projectMedia, setProjectMedia] = useState<MediaAssetItem[]>([]);
-  const [analysisAsset, setAnalysisAsset] = useState<MediaAssetItem | null>(null);
-  const [mediaStats, setMediaStats] = useState<MediaStorageStats | null>(null);
-  const [mediaLoading, setMediaLoading] = useState<boolean>(false);
+  const [selectedMediaAsset, setSelectedMediaAsset] = useState<MediaAssetItem | null>(null);
+  const [studioAssetId, setStudioAssetId] = useState<string | null>(null);
 
   const [jobs, setJobs] = useState<JobItem[]>([]);
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const prevJobsRef = React.useRef<Map<string, string>>(new Map());
+
+  const checkJobTransitions = useCallback(
+    (newJobs: JobItem[]) => {
+      const prevMap = prevJobsRef.current;
+      if (prevMap.size > 0) {
+        for (const job of newJobs) {
+          const prevStatus = prevMap.get(job.id);
+          if (prevStatus === 'running' || prevStatus === 'queued') {
+            const friendlyType = (job.job_type || 'Background job').replace(/_/g, ' ');
+            if (job.status === 'completed') {
+              toast.success(`${friendlyType} finished successfully.`, {
+                title: 'Operation Completed',
+                action: {
+                  label: 'View Queue',
+                  onClick: () => setActiveTab('queue'),
+                },
+              });
+            } else if (job.status === 'failed') {
+              toast.error(`${friendlyType} failed: ${job.error_message || 'Unknown error'}`, {
+                title: 'Operation Failed',
+                action: {
+                  label: 'Inspect Queue',
+                  onClick: () => setActiveTab('queue'),
+                },
+              });
+            }
+          }
+        }
+      }
+      const nextMap = new Map<string, string>();
+      for (const job of newJobs) {
+        nextMap.set(job.id, job.status);
+      }
+      prevJobsRef.current = nextMap;
+    },
+    [toast]
+  );
 
   const loadProjectMedia = useCallback(async (pid: string) => {
     if (!pid) return;
-    setMediaLoading(true);
     try {
-      const [mediaRes, statsRes] = await Promise.all([
-        fetchProjectMedia(pid),
-        fetchMediaStats(pid).catch(() => null),
-      ]);
+      const mediaRes = await fetchProjectMedia(pid);
       setProjectMedia(mediaRes.items);
-      setMediaStats(statsRes);
     } catch {
       // ignore
-    } finally {
-      setMediaLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      if (path.startsWith('/videos/')) {
+        const aid = path.slice('/videos/'.length).split('/')[0];
+        if (aid) {
+          setStudioAssetId(aid);
+          setActiveTab('video-dashboard');
+          return;
+        }
+      }
+      if (path.startsWith('/studio/')) {
+        const aid = path.slice('/studio/'.length).split('/')[0];
+        if (aid) {
+          setStudioAssetId(aid);
+          setActiveTab('video-dashboard');
+          return;
+        }
+      }
+      if (path === '/videos' || path === '/media') setActiveTab('videos');
+      else if (path === '/queue') setActiveTab('queue');
+      else if (path === '/ai-providers') setActiveTab('ai-providers');
+      else if (path === '/settings') setActiveTab('settings');
+      else if (path === '/' || path === '/dashboard') setActiveTab('dashboard');
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    handlePopState();
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const loadGlobalData = useCallback(async () => {
@@ -108,20 +167,22 @@ export const App: React.FC = () => {
       ]);
       setProjects(projRes.items);
       setJobs(jobsRes.items);
+      checkJobTransitions(jobsRes.items);
       setHealth(healthRes);
 
-      const activeList = projRes.items.filter((p) => p.status === 'active');
-      const targetPid = selectedProjectId || (activeList[0]?.id || projRes.items[0]?.id);
-      if (targetPid) {
-        setSelectedProjectId(targetPid);
-        void loadProjectMedia(targetPid);
-      }
+      setSelectedProjectId((currentPid) => {
+        if (currentPid === 'all') return 'all';
+        if (currentPid && projRes.items.some((p) => p.id === currentPid)) {
+          return currentPid;
+        }
+        return 'all';
+      });
     } catch (err) {
       setGlobalError(err instanceof Error ? err.message : 'Backend unreachable');
     } finally {
       setLoading(false);
     }
-  }, [selectedProjectId, loadProjectMedia]);
+  }, [checkJobTransitions]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -133,37 +194,32 @@ export const App: React.FC = () => {
     void loadGlobalData();
     // Poll jobs & health every 15s gently without high-frequency spam
     const interval = setInterval(() => {
-      void fetchJobs().then((r) => setJobs(r.items)).catch(() => {});
-      void fetchHealth().then((h) => setHealth(h)).catch(() => {});
+      void fetchJobs()
+        .then((r) => {
+          setJobs(r.items);
+          checkJobTransitions(r.items);
+        })
+        .catch(() => {});
+      void fetchHealth()
+        .then((h) => setHealth(h))
+        .catch(() => {});
     }, 15000);
     return () => clearInterval(interval);
-  }, [loadGlobalData]);
+  }, [loadGlobalData, checkJobTransitions]);
 
-  // Project handlers
-  const handleCreateProject = async (name: string, description?: string) => {
-    await createProject({ name, description });
-    await loadGlobalData();
-  };
-
-  const handleArchiveToggle = async (project: ProjectItem) => {
-    if (project.status === 'active') {
-      await archiveProject(project.id);
-    } else {
-      await restoreProject(project.id);
-    }
-    await loadGlobalData();
-  };
-
-  const handleDeleteProject = async (projectId: string) => {
-    await deleteProject(projectId);
-    await loadGlobalData();
-  };
-
-  const selectedProject = projects.find((p) => p.id === selectedProjectId) || projects[0] || null;
   const activeJobsCount = jobs.filter((j) => j.status === 'running').length;
 
   return (
     <div className="h-screen max-h-screen w-screen overflow-hidden flex bg-canvas text-text-primary">
+      {/* Mobile Backdrop Overlay */}
+      {mobileMenuOpen && (
+        <div
+          onClick={() => setMobileMenuOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-xs md:hidden"
+          aria-hidden="true"
+        />
+      )}
+
       {/* Sidebar (Desktop Collapsible + Mobile Slide-over) */}
       <aside
         className={`${
@@ -178,8 +234,8 @@ export const App: React.FC = () => {
             onClick={() => setActiveTab('dashboard')}
             className="flex items-center gap-2.5 cursor-pointer truncate"
           >
-            <div className="p-1.5 rounded-lg bg-indigo-600/15 border border-indigo-500/30 text-indigo-400 shrink-0">
-              <Film className="w-5 h-5" />
+            <div className="p-1.5 rounded-md bg-surface-hover border border-border text-text-primary shrink-0">
+              <Film className="w-4 h-4" />
             </div>
             {!sidebarCollapsed && (
               <div className="truncate">
@@ -203,9 +259,9 @@ export const App: React.FC = () => {
           </button>
         </div>
 
-        {/* Navigation Items */}
-        <nav className="flex-1 min-h-0 overflow-y-auto p-2.5 space-y-1">
-          {/* Main items */}
+        {/* Navigation Items: 34px rows with 2px gaps */}
+        <nav className="flex-1 min-h-0 overflow-y-auto p-2 space-y-0.5">
+          {/* 1. Dashboard */}
           <SidebarNavButton
             active={activeTab === 'dashboard'}
             collapsed={sidebarCollapsed}
@@ -217,115 +273,56 @@ export const App: React.FC = () => {
             }}
           />
 
+          {/* 2. Short Video Generator (Central Video Library) */}
           <SidebarNavButton
-            active={activeTab === 'projects'}
+            active={activeTab === 'videos' || activeTab === 'video-dashboard'}
             collapsed={sidebarCollapsed}
-            icon={<FolderKanban className="w-4 h-4" />}
-            label="Projects"
-            badge={projects.length ? String(projects.length) : undefined}
+            icon={<Sparkles className="w-4 h-4" />}
+            label="Short Video Generator"
+            badge={projectMedia.length ? String(projectMedia.length) : undefined}
             onClick={() => {
-              setActiveTab('projects');
+              setActiveTab('videos');
               setMobileMenuOpen(false);
             }}
           />
 
-          {/* Upcoming Milestone Stubs with Clear Labels */}
-          <div className="pt-3 pb-1">
+          {/* 3. Operations & Queue */}
+          <div className="pt-2.5 pb-0.5">
             {!sidebarCollapsed && (
-              <span className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
-                Studio Tools
+              <span className="px-2 text-[11px] font-medium text-text-muted">
+                Operations
               </span>
             )}
           </div>
 
           <SidebarNavButton
-            active={activeTab === 'media'}
+            active={activeTab === 'queue'}
             collapsed={sidebarCollapsed}
-            icon={<Video className="w-4 h-4" />}
-            label="Media Library"
-            badge={projectMedia.length ? String(projectMedia.length) : undefined}
+            icon={<Activity className="w-4 h-4" />}
+            label="Working Queue"
+            badge={activeJobsCount > 0 ? String(activeJobsCount) : undefined}
             onClick={() => {
-              setActiveTab('media');
+              setActiveTab('queue');
               setMobileMenuOpen(false);
             }}
           />
 
+          {/* 4. AI Providers */}
           <SidebarNavButton
-            active={activeTab === 'analysis'}
+            active={activeTab === 'ai-providers'}
             collapsed={sidebarCollapsed}
-            icon={<Activity className="w-4 h-4 text-sky-400" />}
-            label="Video Analysis"
-            badge="M5"
+            icon={<Brain className="w-4 h-4" />}
+            label="AI Providers"
             onClick={() => {
-              setActiveTab('analysis');
+              setActiveTab('ai-providers');
               setMobileMenuOpen(false);
             }}
           />
 
-          <SidebarNavButton
-            active={activeTab === 'highlights'}
-            collapsed={sidebarCollapsed}
-            icon={<Sparkles className="w-4 h-4 text-amber-400" />}
-            label="AI Highlights"
-            badge="M6"
-            onClick={() => {
-              setActiveTab('highlights');
-              setMobileMenuOpen(false);
-            }}
-          />
-
-          <SidebarNavButton
-            active={activeTab === 'reframing'}
-            collapsed={sidebarCollapsed}
-            icon={<Camera className="w-4 h-4 text-emerald-400" />}
-            label="Smart Reframing"
-            badge="M7"
-            onClick={() => {
-              setActiveTab('reframing');
-              setMobileMenuOpen(false);
-            }}
-          />
-
-          <SidebarNavButton
-            active={activeTab === 'exports'}
-            collapsed={sidebarCollapsed}
-            icon={<Film className="w-4 h-4 text-purple-400" />}
-            label="Shorts Export"
-            badge="M8"
-            onClick={() => {
-              setActiveTab('exports');
-              setMobileMenuOpen(false);
-            }}
-          />
-
-          <SidebarNavButton
-            active={activeTab === 'timeline' || activeTab === 'ai-editor'}
-            collapsed={sidebarCollapsed}
-            icon={<Scissors className="w-4 h-4 text-amber-400" />}
-            label="Timeline & AI Editor"
-            badge="M9"
-            onClick={() => {
-              setActiveTab('timeline');
-              setMobileMenuOpen(false);
-            }}
-          />
-
-          <SidebarNavButton
-            active={activeTab === 'characters'}
-            collapsed={sidebarCollapsed}
-            icon={<Users className="w-4 h-4 text-indigo-400" />}
-            label="Character Studio"
-            badge="M10"
-            onClick={() => {
-              setActiveTab('characters');
-              setMobileMenuOpen(false);
-            }}
-          />
-
-          {/* System & Diagnostics */}
-          <div className="pt-3 pb-1">
+          {/* 5. System & Settings */}
+          <div className="pt-2.5 pb-0.5">
             {!sidebarCollapsed && (
-              <span className="px-2.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">
+              <span className="px-2 text-[11px] font-medium text-text-muted">
                 System
               </span>
             )}
@@ -338,6 +335,17 @@ export const App: React.FC = () => {
             label="Settings"
             onClick={() => {
               setActiveTab('settings');
+              setMobileMenuOpen(false);
+            }}
+          />
+
+          <SidebarNavButton
+            active={activeTab === 'docs'}
+            collapsed={sidebarCollapsed}
+            icon={<BookOpen className="w-4 h-4" />}
+            label="Documentation"
+            onClick={() => {
+              setActiveTab('docs');
               setMobileMenuOpen(false);
             }}
           />
@@ -361,7 +369,7 @@ export const App: React.FC = () => {
           )}
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="hidden md:flex p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover ml-auto"
+            className="hidden md:flex p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-hover ml-auto"
             aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {sidebarCollapsed ? (
@@ -380,18 +388,24 @@ export const App: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMobileMenuOpen(true)}
-              className="md:hidden p-1.5 rounded-lg text-text-muted hover:text-text-primary"
+              className="md:hidden p-1.5 rounded-md text-text-muted hover:text-text-primary hover:bg-surface-hover"
               aria-label="Open mobile navigation"
             >
               <Menu className="w-4 h-4" />
             </button>
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-text-primary">
+            <h2 className="text-sm font-medium text-text-primary">
               {activeTab === 'dashboard'
                 ? 'Dashboard'
+                : activeTab === 'videos'
+                ? 'Short Video Generator'
+                : activeTab === 'video-dashboard'
+                ? 'Video Edit Dashboard'
                 : activeTab === 'projects'
                 ? 'Projects Manager'
                 : activeTab === 'media'
-                ? 'Media Library'
+                ? 'Short Video Generator'
+                : activeTab === 'studio' || activeTab === 'workspace'
+                ? 'Video Edit Dashboard'
                 : activeTab === 'analysis'
                 ? 'Video Analysis Workspace'
                 : activeTab === 'highlights'
@@ -400,8 +414,12 @@ export const App: React.FC = () => {
                 ? 'Smart Reframing & Subject Tracking Studio'
                 : activeTab === 'exports'
                 ? 'Shorts Rendering & Export Studio'
-                : activeTab === 'characters'
-                ? 'Character Extraction Studio & Library'
+                : activeTab === 'queue'
+                ? 'Working Queue & Job Orchestration'
+                : activeTab === 'ai-providers'
+                ? 'AI Provider Manager'
+                : activeTab === 'docs'
+                ? 'Studio Documentation'
                 : activeTab === 'settings'
                 ? 'Studio Settings'
                 : 'Diagnostics & Health'}
@@ -409,19 +427,15 @@ export const App: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* Active Job Activity Pill */}
-            {activeJobsCount > 0 && (
-              <Badge variant="purple" icon={<Activity className="w-3 h-3 animate-pulse" />}>
-                {activeJobsCount} Task Running
-              </Badge>
-            )}
+            {/* Live CPU & RAM Resource Inspector Hover Window */}
+            <ResourceInspector />
 
             {/* Backend Health Badge */}
             <Badge
               variant={health?.status === 'ready' ? 'success' : 'warning'}
               icon={<Shield className="w-3 h-3" />}
             >
-              {health?.status ? health.status.toUpperCase() : 'CONNECTING'}
+              {health?.status === 'ready' ? 'Ready' : health?.status || 'Connecting'}
             </Badge>
 
             {/* Theme Toggle Button */}
@@ -460,120 +474,67 @@ export const App: React.FC = () => {
               projects={projects}
               jobs={jobs}
               loading={loading}
-              onNavigate={(tab) => setActiveTab(tab)}
-              onCreateProject={() => setActiveTab('projects')}
+              media={projectMedia}
+              onNavigate={(tab) => {
+                if (tab === 'media' || tab === 'projects') {
+                  setActiveTab('videos');
+                } else {
+                  setActiveTab(tab);
+                }
+              }}
+              onCreateProject={() => setActiveTab('videos')}
               onOpenProject={(pid) => {
                 setSelectedProjectId(pid);
-                setActiveTab('media');
+                setActiveTab('videos');
+              }}
+              onOpenVideo={(asset) => {
+                setSelectedMediaAsset(asset);
+                setStudioAssetId(asset.id);
+                setActiveTab('video-dashboard');
               }}
             />
           )}
 
-          {activeTab === 'projects' && (
-            <ProjectsManager
-              projects={projects}
-              loading={loading}
-              onRefresh={() => void loadGlobalData()}
-              onCreate={handleCreateProject}
-              onArchiveToggle={handleArchiveToggle}
-              onDelete={handleDeleteProject}
-            />
-          )}
-
-          {activeTab === 'media' && (
-            <MediaLibraryView
-              projects={projects}
-              currentProjectId={selectedProjectId || (projects[0]?.id || '')}
-              onSelectProject={(id) => {
-                setSelectedProjectId(id);
-                void loadProjectMedia(id);
-              }}
-              media={projectMedia}
-              stats={mediaStats}
-              loading={mediaLoading}
-              onRefresh={() => void loadProjectMedia(selectedProjectId || (projects[0]?.id || ''))}
-              onOpenAnalysis={(asset) => {
-                setAnalysisAsset(asset);
-                setActiveTab('analysis');
+          {(activeTab === 'videos' || activeTab === 'media') && (
+            <ShortVideoGeneratorLibrary
+              onOpenDashboard={(asset) => {
+                setSelectedMediaAsset(asset);
+                setStudioAssetId(asset.id);
+                setActiveTab('video-dashboard');
               }}
             />
           )}
 
-          {activeTab === 'analysis' && (
-            analysisAsset ? (
-              <AnalysisWorkspace
-                projectId={selectedProjectId || (projects[0]?.id || '')}
-                mediaAsset={analysisAsset}
-                onBack={() => setActiveTab('media')}
-                onNavigateToHighlights={() => setActiveTab('highlights')}
+          {(activeTab === 'video-dashboard' || activeTab === 'studio') && (
+            (studioAssetId || selectedMediaAsset?.id || projectMedia[0]?.id) ? (
+              <VideoEditDashboard
+                assetId={studioAssetId || selectedMediaAsset?.id || projectMedia[0]?.id || ''}
+                projectId={selectedMediaAsset?.project_id || 'default'}
+                onBack={() => setActiveTab('videos')}
               />
             ) : (
-              <div className="p-8 text-center text-text-muted">
-                <p>Select a video asset from the Media Library to open the Analysis Workspace.</p>
-                <Button className="mt-4" size="sm" onClick={() => setActiveTab('media')}>
-                  Go to Media Library
-                </Button>
-              </div>
+              <ShortVideoGeneratorLibrary
+                onOpenDashboard={(asset) => {
+                  setSelectedMediaAsset(asset);
+                  setStudioAssetId(asset.id);
+                  setActiveTab('video-dashboard');
+                }}
+              />
             )
           )}
 
-          {activeTab === 'highlights' && (
-            <HighlightsWorkspace
-              projectId={selectedProjectId || (projects[0]?.id || '')}
-              mediaAssets={projectMedia}
-              preselectedAssetId={analysisAsset?.id}
-              onNavigateToAnalysis={(aid) => {
-                const found = projectMedia.find((m) => m.id === aid);
-                if (found) setAnalysisAsset(found);
-                setActiveTab('analysis');
-              }}
+          {activeTab === 'queue' && (
+            <WorkingQueueView
+              projects={projects}
+              onOpenProject={() => setActiveTab('videos')}
             />
           )}
 
-          {activeTab === 'reframing' && (
-            (analysisAsset || projectMedia[0]) ? (
-              <ReframingWorkspace
-                projectId={selectedProjectId || (projects[0]?.id || '')}
-                mediaAsset={analysisAsset || projectMedia[0]}
-                onBack={() => setActiveTab('highlights')}
-              />
-            ) : (
-              <div className="p-8 text-center text-text-muted">
-                <p>Please import or select a video asset to open the Smart Reframing Studio.</p>
-                <Button className="mt-4" size="sm" onClick={() => setActiveTab('media')}>
-                  Go to Media Library
-                </Button>
-              </div>
-            )
-          )}
+          {activeTab === 'ai-providers' && <AIProviderManager />}
 
-          {activeTab === 'exports' && (
-            <ExportStudio
-              projectId={selectedProjectId || (projects[0]?.id || '')}
-              mediaAssets={projectMedia}
-              onNavigateToHighlights={() => setActiveTab('highlights')}
-              onNavigateToReframing={(aid) => {
-                const found = projectMedia.find((m) => m.id === aid);
-                if (found) setAnalysisAsset(found);
-                setActiveTab('reframing');
-              }}
-            />
-          )}
+          {activeTab === 'docs' && <DocumentationView />}
 
-          {(activeTab === 'timeline' || activeTab === 'ai-editor') && (
-            <TimelineEditor currentProject={selectedProject} />
-          )}
-
-          {activeTab === 'characters' && (
-            <CharacterStudio
-              projectId={selectedProjectId || (projects[0]?.id || '')}
-              mediaAssets={projectMedia}
-            />
-          )}
-
-          {activeTab === 'settings' && <SettingsManager />}
-
-          {activeTab === 'diagnostics' && <FoundationOverview />}
+          {(activeTab === 'settings' || activeTab === 'diagnostics') && <SettingsManager />}
         </main>
       </div>
     </div>
@@ -607,18 +568,20 @@ const SidebarNavButton: React.FC<SidebarNavButtonProps> = ({
       onClick={disabled ? undefined : onClick}
       disabled={disabled}
       title={title || (collapsed ? label : undefined)}
-      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition select-none ${
+      className={`w-full h-[34px] flex items-center gap-2 px-2.5 rounded-md text-xs font-medium transition select-none ${
         disabled
           ? 'opacity-40 cursor-not-allowed text-text-muted'
           : active
-          ? 'bg-brand/15 text-brand border border-brand/30 shadow-xs'
+          ? 'bg-surface-active text-text-primary border border-border shadow-2xs'
           : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover'
       } ${collapsed ? 'justify-center px-0' : ''}`}
     >
-      <span className="shrink-0">{icon}</span>
+      <span className={`shrink-0 ${active ? 'text-text-primary' : 'text-text-muted'}`}>
+        {icon}
+      </span>
       {!collapsed && <span className="truncate flex-1 text-left">{label}</span>}
       {!collapsed && badge && (
-        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-surface border border-border text-text-muted shrink-0">
+        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-surface-hover border border-border text-text-muted shrink-0">
           {badge}
         </span>
       )}

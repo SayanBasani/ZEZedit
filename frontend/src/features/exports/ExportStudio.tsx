@@ -36,6 +36,7 @@ import {
 } from '../../types/exports';
 import { CandidateItem } from '../../types/highlights';
 import { JobItem, MediaAssetItem } from '../../types/projects';
+import { BatchExportModal } from './BatchExportModal';
 
 interface ExportStudioProps {
   projectId: string;
@@ -101,6 +102,7 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [activeConfigTab, setActiveConfigTab] = useState<'preset' | 'captions' | 'audio'>('preset');
+  const [batchModalOpen, setBatchModalOpen] = useState<boolean>(false);
 
   // 1. Initial Load: Presets, Candidates, and Past Exports
   const loadStudioData = useCallback(async () => {
@@ -255,6 +257,18 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          {candidates.length > 0 && (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setBatchModalOpen(true)}
+              leftIcon={<Download className="w-3.5 h-3.5" />}
+              className="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs shadow-sm"
+            >
+              Batch Export ({candidates.filter((c) => c.review_status === 'approved').length || candidates.length})
+            </Button>
+          )}
+
           <Button variant="outline" size="sm" onClick={loadStudioData} disabled={loading}>
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -824,6 +838,17 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Batch Export Modal (Milestone 18) */}
+      <BatchExportModal
+        isOpen={batchModalOpen}
+        onClose={() => setBatchModalOpen(false)}
+        projectId={projectId}
+        candidates={candidates}
+        onSuccess={() => {
+          void loadStudioData();
+        }}
+      />
     </div>
   );
 };
