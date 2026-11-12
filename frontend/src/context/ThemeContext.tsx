@@ -74,10 +74,16 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   );
 };
 
+const DEFAULT_THEME_CONTEXT: ThemeContextType = {
+  theme: 'dark',
+  resolvedTheme: 'dark',
+  setTheme: () => {},
+};
+
 export const useTheme = (): ThemeContextType => {
   const ctx = useContext(ThemeContext);
   if (!ctx) {
-    throw new Error('useTheme must be used within a ThemeProvider');
+    return DEFAULT_THEME_CONTEXT;
   }
   return ctx;
 };
