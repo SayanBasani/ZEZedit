@@ -67,6 +67,9 @@ class JobRecord:
     cancelled_at: Optional[str]
     updated_at: str
     checkpoint_data: Optional[Dict[str, Any]] = None
+    media_asset_id: Optional[str] = None
+    parent_job_id: Optional[str] = None
+    video_title: Optional[str] = None
 
 
 @dataclass

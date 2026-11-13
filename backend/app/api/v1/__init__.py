@@ -11,7 +11,7 @@ from app.api.v1.docs_center import router as docs_router
 from app.api.v1.exports import router as exports_router
 from app.api.v1.health import router as health_router
 from app.api.v1.highlights import router as highlights_router
-from app.api.v1.jobs import router as jobs_router
+from app.api.v1.jobs import processes_router, router as jobs_router
 from app.api.v1.media import global_media_router, router as media_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.reframing import router as reframing_router
@@ -31,6 +31,7 @@ api_v1_router.include_router(exports_router)
 api_v1_router.include_router(timeline_router)
 api_v1_router.include_router(characters_router)
 api_v1_router.include_router(jobs_router)
+api_v1_router.include_router(processes_router)
 api_v1_router.include_router(ai_providers_router)
 api_v1_router.include_router(docs_router)
 api_v1_router.include_router(settings_router)

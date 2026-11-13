@@ -32,6 +32,7 @@ import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState, Skeleton } from '../../components/ui/States';
 import {
+  cancelJob,
   discoverHighlights,
   fetchAnalysisCacheInfo,
   fetchAnalysisRuns,
@@ -46,6 +47,7 @@ import {
   getGlobalThumbnailUrl,
   getSceneThumbnailUrl,
   getStreamMediaUrl,
+  retryJob,
   startMediaAnalysis,
   submitExportRender,
 } from '../../services/apiClient';
@@ -126,6 +128,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   // Analysis & Job State
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRunItem[]>([]);
   const [activeJob, setActiveJob] = useState<JobItem | null>(null);
+  const [videoJobs, setVideoJobs] = useState<JobItem[]>([]);
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [cacheInfo, setCacheInfo] = useState<any>(null);
 
@@ -242,11 +245,11 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     let timer: any;
     const pollJobs = async () => {
       try {
-        const jobsRes = await fetchJobs();
-        const matchingJob = jobsRes.items?.find(
-          (j: JobItem) =>
-            (j.input_config?.media_asset_id === assetId || j.input_config?.asset_id === assetId) &&
-            (j.status === 'running' || j.status === 'queued')
+        const jobsRes = await fetchJobs({ mediaAssetId: assetId });
+        const items = jobsRes.items || [];
+        setVideoJobs(items);
+        const matchingJob = items.find(
+          (j: JobItem) => j.status === 'running' || j.status === 'queued'
         );
         setActiveJob(matchingJob || null);
 
@@ -1903,6 +1906,85 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                 </div>
               </Card>
             </div>
+
+            {/* Processes for this video */}
+            <Card className="p-4 space-y-3">
+              <div className="flex items-center justify-between border-b border-border pb-2.5">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-indigo-400" />
+                  Processes &amp; Background Tasks for this Video ({videoJobs.length})
+                </h3>
+              </div>
+
+              {videoJobs.length === 0 ? (
+                <p className="text-xs text-text-muted py-3 text-center">
+                  No background tasks have been recorded for this video yet.
+                </p>
+              ) : (
+                <div className="divide-y divide-border text-xs">
+                  {videoJobs.map((vj) => (
+                    <div key={vj.id} className="py-2.5 flex items-center justify-between gap-3">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-text-primary capitalize truncate">
+                            {vj.job_type.replace(/_/g, ' ')}
+                          </span>
+                          <Badge
+                            variant={
+                              vj.status === 'running'
+                                ? 'purple'
+                                : vj.status === 'completed'
+                                ? 'success'
+                                : ['failed', 'interrupted'].includes(vj.status)
+                                ? 'danger'
+                                : 'warning'
+                            }
+                          >
+                            {vj.status.toUpperCase()}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] font-mono text-text-muted">
+                          <span>ID: {vj.id.slice(0, 12)}...</span>
+                          <span>Stage: {vj.current_stage || '—'}</span>
+                          <span>{Math.round(vj.progress_pct)}%</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(vj.status === 'running' || vj.status === 'queued') && (
+                          <Button
+                            size="sm"
+                            variant="danger"
+                            onClick={async () => {
+                              await cancelJob(vj.id).catch(() => {});
+                              const updated = await fetchJobs({ mediaAssetId: assetId });
+                              setVideoJobs(updated.items || []);
+                            }}
+                            className="text-xs h-6 px-2"
+                          >
+                            Stop
+                          </Button>
+                        )}
+                        {(vj.status === 'failed' || vj.status === 'cancelled') && (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={async () => {
+                              await retryJob(vj.id, true).catch(() => {});
+                              const updated = await fetchJobs({ mediaAssetId: assetId });
+                              setVideoJobs(updated.items || []);
+                            }}
+                            className="text-xs h-6 px-2"
+                          >
+                            Retry
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           </div>
         )}
       </main>

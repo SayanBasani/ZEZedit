@@ -29,7 +29,7 @@ import { Card } from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
 import { useTheme } from '../../context/ThemeContext';
 import {
-  clearAllData,
+  clearAllUserData,
   createBackup,
   executeCacheCleanup,
   fetchAppSettings,
@@ -38,6 +38,7 @@ import {
   fetchHealth,
   fetchRecoveryStatus,
   fetchStorageBreakdown,
+  fetchUserDataCleanupPreview,
   previewCacheCleanup,
   restoreBackup,
   updateAppSettings,
@@ -93,6 +94,8 @@ export const SettingsManager: React.FC = () => {
   const [clearAllModalOpen, setClearAllModalOpen] = useState(false);
   const [clearAllInput, setClearAllInput] = useState('');
   const [clearingAll, setClearingAll] = useState(false);
+  const [userDataPreview, setUserDataPreview] = useState<any>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
   // Backup states
   const [backupLabel, setBackupLabel] = useState('manual');
@@ -193,21 +196,41 @@ export const SettingsManager: React.FC = () => {
     }
   };
 
+  const handleOpenClearAllModal = async () => {
+    setClearAllInput('');
+    setClearAllModalOpen(true);
+    setLoadingPreview(true);
+    try {
+      const prev = await fetchUserDataCleanupPreview();
+      setUserDataPreview(prev);
+    } catch {
+      setUserDataPreview(null);
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
   const handleExecuteClearAll = async () => {
-    if (clearAllInput.trim().toUpperCase() !== 'DELETE') {
-      setErrorToast("Please type 'DELETE' in all caps to confirm total wipeout.");
+    const trimmed = clearAllInput.trim().toUpperCase();
+    if (trimmed !== 'DELETE ALL USER DATA' && trimmed !== 'DELETE') {
+      setErrorToast("Please type 'DELETE ALL USER DATA' or 'DELETE' to confirm total reset.");
       return;
     }
     setClearingAll(true);
     setErrorToast(null);
     try {
-      const res = await clearAllData('DELETE');
+      const res = await clearAllUserData(clearAllInput.trim());
       setClearAllModalOpen(false);
       setClearAllInput('');
-      setSuccessToast(`Total Data Wipe Successful: ${res.deleted_files_count} files deleted (${formatBytes(res.freed_bytes)} freed).`);
+      setUserDataPreview(null);
+      const freedText = res.formatted_reclaimed_space || `${res.actual_reclaimed_bytes ?? 0} B`;
+      const tablesText = res.purged_tables_count !== undefined ? `${res.purged_tables_count} database tables purged` : 'tables cleared';
+      setSuccessToast(
+        `Total Storage Reclamation Complete: Reclaimed ${freedText} (${res.deleted_files_count} files removed, ${tablesText}).`
+      );
       void loadData();
     } catch (err) {
-      setErrorToast(err instanceof Error ? err.message : 'Failed to clear all data');
+      setErrorToast(err instanceof Error ? err.message : 'Failed to clear user data');
     } finally {
       setClearingAll(false);
     }
@@ -558,9 +581,23 @@ export const SettingsManager: React.FC = () => {
                   Disk Space Overview
                 </h2>
               </div>
-              <Badge variant={storageData?.is_low_storage ? 'warning' : 'success'}>
-                {storageData?.is_low_storage ? 'Storage Low' : 'Storage Healthy'}
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={async () => {
+                    const st = await fetchStorageBreakdown().catch(() => null);
+                    if (st) setStorageData(st);
+                  }}
+                  className="text-xs h-7 px-2"
+                  leftIcon={<RefreshCw className="w-3 h-3" />}
+                >
+                  Refresh Storage Usage
+                </Button>
+                <Badge variant={storageData?.is_low_storage ? 'warning' : 'success'}>
+                  {storageData?.is_low_storage ? 'Storage Low' : 'Storage Healthy'}
+                </Badge>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -692,33 +729,30 @@ export const SettingsManager: React.FC = () => {
             )}
           </Card>
 
-          {/* CLEAR ALL DATA / FACTORY RESET */}
+          {/* CLEAR ALL DATA / TOTAL STORAGE RECLAMATION */}
           <Card className="space-y-4 border-red-500/30 bg-red-500/5">
             <div className="flex items-center justify-between border-b border-red-500/20 pb-2.5">
               <div className="flex items-center gap-2">
                 <AlertOctagon className="w-4 h-4 text-red-400" />
                 <h2 className="text-xs font-semibold text-red-400 uppercase tracking-wider">
-                  Clear All Application Data (Single Button Total Reset)
+                  Complete User Data Deletion &amp; Storage Reclamation
                 </h2>
               </div>
               <Badge variant="danger">High Impact</Badge>
             </div>
 
             <p className="text-xs text-text-secondary leading-relaxed">
-              Permanently erase all stored videos, thumbnails, proxies, extracted audio, visual keyframes, cache, candidate clips, scripts, and database records. Restores ZezEdit to a clean, fresh initial state. Original files on your computer outside the managed storage folder are never touched.
+              Permanently stop all running background tasks, delete all managed videos, proxies, thumbnails, extracted frames, candidate clips, scripts, timelines, exports, and temporary files, purge user database tables, and compact the SQLite database file to reclaim physical disk space. External original videos on your drive outside the managed storage directory are safely preserved.
             </p>
 
             <div className="pt-2 flex items-center justify-between">
               <div className="text-[11px] text-text-muted">
-                Requires typing confirmation: <span className="font-mono text-red-400 font-semibold">DELETE</span>
+                Requires typing confirmation: <span className="font-mono text-red-400 font-semibold">DELETE ALL USER DATA</span>
               </div>
               <Button
                 variant="danger"
                 size="sm"
-                onClick={() => {
-                  setClearAllInput('');
-                  setClearAllModalOpen(true);
-                }}
+                onClick={handleOpenClearAllModal}
                 leftIcon={<Trash2 className="w-3.5 h-3.5" />}
               >
                 Clear All Data...
@@ -728,32 +762,85 @@ export const SettingsManager: React.FC = () => {
         </div>
       )}
 
-      {/* CLEAR ALL DATA CONFIRMATION MODAL */}
+      {/* CLEAR ALL DATA CONFIRMATION MODAL WITH PREVIEW */}
       <Dialog
         isOpen={clearAllModalOpen}
         onClose={() => !clearingAll && setClearAllModalOpen(false)}
-        title="Confirm Total Data Deletion"
+        title="Confirm Complete User Data Deletion & Storage Reclamation"
       >
         <div className="space-y-4 p-4 text-text-primary">
           <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-3">
             <AlertOctagon className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
             <div className="text-xs space-y-1">
-              <p className="font-semibold text-red-400">Warning: This action cannot be undone.</p>
+              <p className="font-semibold text-red-400">Warning: This action permanently wipes all user data.</p>
               <p className="text-text-secondary">
-                This will permanently delete all managed videos, audio, keyframes, candidate clips, scripts, and project database tables.
+                All managed videos, proxies, thumbnails, frames, short clips, timelines, exports, and database records will be erased. The SQLite database will be truncated and compacted (VACUUM).
               </p>
             </div>
           </div>
 
+          {/* Cleanup Assessment Preview */}
+          {loadingPreview ? (
+            <div className="p-4 bg-canvas-subtle rounded-xl border border-border text-center text-xs text-text-muted flex items-center justify-center gap-2">
+              <RefreshCw className="w-3.5 h-3.5 animate-spin text-brand" />
+              <span>Inspecting storage usage &amp; counting files...</span>
+            </div>
+          ) : userDataPreview ? (
+            <div className="p-3.5 bg-canvas-subtle rounded-xl border border-border space-y-3">
+              <div className="flex items-center justify-between text-xs font-semibold text-text-primary">
+                <span>Storage Cleanup Assessment</span>
+                <span className="text-emerald-400 font-mono">
+                  ~{userDataPreview.formatted_reclaimable_space} reclaimable
+                </span>
+              </div>
+
+              {userDataPreview.active_jobs_count > 0 && (
+                <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-lg text-amber-400 text-xs flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 shrink-0" />
+                  <span>
+                    Warning: {userDataPreview.active_jobs_count} running process(es) will be stopped and terminated immediately.
+                  </span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                <div className="p-2 bg-surface rounded-lg border border-border">
+                  <span className="text-text-muted text-[10px] uppercase block">Videos</span>
+                  <span className="font-mono font-bold text-text-primary mt-0.5 block">
+                    {userDataPreview.video_count}
+                  </span>
+                </div>
+                <div className="p-2 bg-surface rounded-lg border border-border">
+                  <span className="text-text-muted text-[10px] uppercase block">Short Clips</span>
+                  <span className="font-mono font-bold text-text-primary mt-0.5 block">
+                    {userDataPreview.clip_count}
+                  </span>
+                </div>
+                <div className="p-2 bg-surface rounded-lg border border-border">
+                  <span className="text-text-muted text-[10px] uppercase block">Frames</span>
+                  <span className="font-mono font-bold text-text-primary mt-0.5 block">
+                    {userDataPreview.frame_count}
+                  </span>
+                </div>
+                <div className="p-2 bg-surface rounded-lg border border-border">
+                  <span className="text-text-muted text-[10px] uppercase block">Temp Files</span>
+                  <span className="font-mono font-bold text-text-primary mt-0.5 block">
+                    {userDataPreview.temp_file_count}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <div className="text-xs space-y-2">
             <label className="block text-text-secondary">
-              To proceed, please type <span className="font-mono text-red-400 font-bold">DELETE</span> in capital letters:
+              To proceed, please type <span className="font-mono text-red-400 font-bold">DELETE ALL USER DATA</span> in capital letters:
             </label>
             <input
               type="text"
               value={clearAllInput}
               onChange={(e) => setClearAllInput(e.target.value)}
-              placeholder="Type DELETE to confirm"
+              placeholder="Type DELETE ALL USER DATA to confirm"
               className="w-full bg-canvas border border-border focus:border-red-500 rounded-lg text-sm font-mono text-text-primary px-3 py-2 outline-none"
               autoFocus
             />
@@ -772,11 +859,14 @@ export const SettingsManager: React.FC = () => {
               variant="danger"
               size="sm"
               isLoading={clearingAll}
-              disabled={clearAllInput.trim().toUpperCase() !== 'DELETE'}
+              disabled={
+                clearAllInput.trim().toUpperCase() !== 'DELETE ALL USER DATA' &&
+                clearAllInput.trim().toUpperCase() !== 'DELETE'
+              }
               onClick={handleExecuteClearAll}
               leftIcon={<Trash2 className="w-3.5 h-3.5" />}
             >
-              Permanently Clear All Data
+              Permanently Reclaim All User Data
             </Button>
           </div>
         </div>

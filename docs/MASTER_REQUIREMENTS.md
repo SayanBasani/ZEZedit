@@ -183,3 +183,23 @@ All features MUST comply with these baseline constraints:
     - Reused analysis `run_b0ebbcb45a17` in 0.127s.
     - Batch A produced 2 new candidates; Batch B "Generate More" evaluated 366 candidates and generated 0 duplicates with honest exhaustion detection.
   - Comprehensive Automated Regression Parity: 152/152 backend tests and 106/106 frontend tests passing.
+- **Session 6B (Completed):** Central Process Manager + Complete User Data Deletion & Storage Reclamation:
+  - **Part A — Central Process Manager:**
+    - Sidebar navigation relabeled to **Processes** with backwards-compatible routing (`/processes` alongside `/queue`).
+    - Centralized monitoring dashboard for all background operations across all source videos (Upload, Validation, Analysis, Whisper, Frames, Scenes, Tracking, Highlights, Short generation, Clip editing, Reframing, MP4 export, Cache cleanup, Clear data).
+    - Multi-dimensional filtering by Category (Media, Analysis, Generation, Rendering, Storage), Status (All, Running, Queued, Completed, Failed, Cancelled), Source Video selector, and fast substring search across process ID, job type, video title, and stage.
+    - Process lifecycle controls: Stop/Cancel (gracefully terminates running OS process trees via `psutil` and unlinks temporary file handles), Retry (creates new linked attempt preserving original job record with retry lineage), Delete Record (removes terminal record without touching media), Clear Completed History (purges finished jobs).
+    - Detailed process drawer displaying execution telemetry, elapsed/remaining time, child/parent lineage, and live formatted log stream.
+    - Backend startup crash recovery: marks stale `running`/`cancelling` jobs as `interrupted` upon daemon restart.
+    - Full API parity across `/api/v1/processes` and `/api/v1/jobs`.
+  - **Part B — Complete User Data Deletion & Storage Reclamation:**
+    - Root cause analysis and resolution for previous disk reclamation failures: single video deletion now removes all associated files on disk (`media/`, `proxies/`, `thumbnails/`, `analysis/`), SQLite WAL mode compactor executes `PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);`, and active file handles are cleanly closed.
+    - Storage Cleanup Preview endpoint (`GET /api/v1/storage/cleanup-preview`) reporting item counts (videos, clips, frames, temp files) and estimated reclaimable bytes.
+    - Complete Storage Reclamation endpoint (`POST /api/v1/storage/clear-all-user-data`) requiring strict confirmation (`DELETE ALL USER DATA` or `DELETE`):
+      - Terminates all active child processes.
+      - Sweeps and recreates all managed storage subdirectories (`media/`, `proxies/`, `thumbnails/`, `analysis/`, `characters/`, `timelines/`, `shorts/`, `exports/`, `temp/`).
+      - Preserves external files outside `storage_root` and preserves `schema_migrations` and `app_settings`.
+      - Truncates database tables in dependency-safe order and resets default project.
+      - Executes double WAL truncation and SQLite vacuum, returning exact pre/post byte measurements.
+    - UI integration in Settings > Storage with live storage metrics, preview breakdown, active job warnings, and confirmation modal.
+    - Comprehensive Automated Regression Parity: 164/164 backend tests and 115/115 frontend tests passing.

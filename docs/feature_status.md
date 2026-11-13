@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-13  
-**Active Milestone:** Session 6A Completed — AI-First Video Analysis, Simple Short Generation, Advanced Settings & Non-Repeating Generate More (152 Backend Tests Passed, 106 Frontend Tests Passed, 100% Pipeline Parity)
+**Active Milestone:** Session 6B Completed — Central Process Manager + Complete User Data Deletion & Storage Reclamation (164 Backend Tests Passed, 115 Frontend Tests Passed, 100% Pipeline Parity)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -376,6 +376,16 @@ Status legend:
 | S6A-06 | Database Migration `0015_reusable_intelligence_and_generate_more.sql` | DB / Migrations | Implemented | `backend/migrations/0015_reusable_intelligence_and_generate_more.sql` | Added `generation_type`, `reused_analysis_run_id`, `duration_preference`, and `is_novelty_exhausted` to `candidate_generation_runs` |
 | S6A-07 | Real Video Verification on 73.3MB Media File | Testing / QA | Implemented | `backend/scripts/verify_session6a_real_video.py` | Verified on `Ek Mota Hathi Ghumne Chala.mp4` (0.127s discovery time, 0 duplicates generated, novelty exhaustion recorded) |
 | S6A-08 | Comprehensive Automated Test Suites | Testing / QA | Implemented | `backend/tests/test_session6a_reusable_intelligence_and_generate_more.py` | 6/6 dedicated session tests passing (152/152 backend tests, 106/106 frontend tests passing) |
+| S6B-01 | Database Migration `0016_process_manager_and_storage_reclamation.sql` | DB / Migrations | Implemented | `backend/migrations/0016_process_manager_and_storage_reclamation.sql` | Adds `media_asset_id` and `parent_job_id` columns with indexes to `jobs` table |
+| S6B-02 | Central Process Manager Dashboard & Subprocess Lineage | Core Services | Implemented | `frontend/src/features/queue/WorkingQueueView.tsx`, `backend/app/services/jobs.py` | Unified table of background tasks across all videos, Category & Status filters, video picker, search, retry attempt lineage, and subprocess tree cancellation via `psutil` |
+| S6B-03 | Process Details Drawer with Live Logs & Elapsed/ETA Timers | Dashboard UI | Implemented | `frontend/src/features/queue/WorkingQueueView.tsx` | Slide-over drawer with process metadata, progress bar, duration counters, retry tree, and raw execution logs |
+| S6B-04 | Process Manager API Parity across `/processes` and `/jobs` | Backend API | Implemented | `backend/app/api/v1/jobs.py`, `backend/app/api/v1/__init__.py` | Full route parity for listing, getting, cancelling, retrying, and deleting jobs |
+| S6B-05 | Stale Process Crash Recovery on Startup | Jobs / Core | Implemented | `backend/app/services/jobs.py` | Auto-detects interrupted running/cancelling jobs on server startup and flags them as `interrupted` |
+| S6B-06 | Single Video Deletion Storage Reclamation | Media Core | Implemented | `backend/app/services/media.py` | Deletes associated physical files (`media/`, `proxies/`, `thumbnails/`, `analysis/`) and marks active jobs cancelled on single video delete |
+| S6B-07 | Complete User Data Cleanup & Physical Storage Reclamation | Storage Core | Implemented | `backend/app/services/storage.py`, `backend/app/api/v1/settings.py` | Sweeps all managed storage directories, terminates active jobs, empties user DB tables, compacts SQLite physical file with double WAL checkpoints, and re-creates default project |
+| S6B-08 | Storage Cleanup Preview API & Reclaimed Byte Telemetry | Storage Core | Implemented | `backend/app/services/storage.py`, `backend/app/api/v1/settings.py` | Computes item counts (videos, clips, frames, temp files), estimated reclaimable bytes, and pre/post physical disk delta |
+| S6B-09 | Settings Storage Manager UI Integration | Settings UI | Implemented | `frontend/src/features/settings/SettingsManager.tsx` | "Refresh Storage Usage" button, dynamic cleanup preview breakdown, active jobs warnings, and `DELETE ALL USER DATA` confirmation modal |
+| S6B-10 | Automated Test Suites for Process Manager & Storage Reclamation | Testing / QA | Implemented | `backend/tests/test_process_manager_lifecycle.py`, `backend/tests/test_storage_reclamation_e2e.py`, `frontend/src/test/processesManager.test.tsx`, `frontend/src/test/storageReclamation.test.tsx` | 8/8 backend lifecycle tests, 4/4 backend storage tests, 9/9 frontend process manager tests, 2/2 frontend storage tests (100% pass) |
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|

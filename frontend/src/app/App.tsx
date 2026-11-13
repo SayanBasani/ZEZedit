@@ -145,7 +145,7 @@ export const App: React.FC = () => {
         }
       }
       if (path === '/videos' || path === '/media') setActiveTab('videos');
-      else if (path === '/queue') setActiveTab('queue');
+      else if (path === '/processes' || path === '/queue') setActiveTab('queue');
       else if (path === '/ai-providers') setActiveTab('ai-providers');
       else if (path === '/settings') setActiveTab('settings');
       else if (path === '/' || path === '/dashboard') setActiveTab('dashboard');
@@ -299,10 +299,11 @@ export const App: React.FC = () => {
             active={activeTab === 'queue'}
             collapsed={sidebarCollapsed}
             icon={<Activity className="w-4 h-4" />}
-            label="Working Queue"
+            label="Processes"
             badge={activeJobsCount > 0 ? String(activeJobsCount) : undefined}
             onClick={() => {
               setActiveTab('queue');
+              window.history.pushState(null, '', '/processes');
               setMobileMenuOpen(false);
             }}
           />
@@ -415,7 +416,7 @@ export const App: React.FC = () => {
                 : activeTab === 'exports'
                 ? 'Shorts Rendering & Export Studio'
                 : activeTab === 'queue'
-                ? 'Working Queue & Job Orchestration'
+                ? 'Central Process Manager'
                 : activeTab === 'ai-providers'
                 ? 'AI Provider Manager'
                 : activeTab === 'docs'

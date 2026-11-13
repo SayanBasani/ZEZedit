@@ -90,6 +90,14 @@ def get_storage_breakdown_endpoint(
     return service.get_storage_breakdown()
 
 
+@router.get("/storage/cleanup-preview")
+def preview_user_data_cleanup_endpoint(
+    service: StorageService = Depends(get_storage_service),
+) -> Dict[str, Any]:
+    """Return full preview of user data to be cleared with counts and estimated reclaimable bytes."""
+    return service.preview_user_data_cleanup()
+
+
 @router.post("/storage/cleanup/preview")
 def preview_cleanup_endpoint(
     service: StorageService = Depends(get_storage_service),
@@ -107,13 +115,24 @@ def execute_cleanup_endpoint(
     return service.execute_cache_cleanup(req.confirmation_token)
 
 
+@router.get("/storage/cleanup-preview")
+@router.get("/settings/storage/cleanup-preview")
+def preview_user_data_cleanup_endpoint(
+    service: StorageService = Depends(get_storage_service),
+) -> Dict[str, Any]:
+    """Preview categories and estimated space to be freed before full user data wipe."""
+    return service.preview_user_data_cleanup()
+
+
 @router.post("/storage/clear-all-data")
-def clear_all_data_endpoint(
+@router.post("/storage/clear-all-user-data")
+@router.post("/settings/storage/clear-all-user-data")
+def clear_all_user_data_endpoint(
     req: ClearAllDataRequest,
     service: StorageService = Depends(get_storage_service),
 ) -> Dict[str, Any]:
-    """Execute complete cleanup of managed media, proxies, frames, cache, temp, clips, and DB data."""
-    return service.clear_all_data(req.confirmation)
+    """Execute complete storage reclamation and permanent user data purge."""
+    return service.clear_all_user_data(req.confirmation)
 
 
 @router.get("/backups")

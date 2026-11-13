@@ -373,10 +373,31 @@ export function getProxyUrl(projectId: string, assetId: string): string {
   return `${API_BASE}/projects/${projectId}/media/${assetId}/proxy`;
 }
 
-// ==================== JOBS ====================
-export function fetchJobs(projectId?: string): Promise<JobListResponse> {
-  const q = projectId ? `?project_id=${projectId}` : '';
-  return request<JobListResponse>(`/jobs${q}`);
+// ==================== JOBS / PROCESSES ====================
+export interface FetchJobsParams {
+  projectId?: string;
+  mediaAssetId?: string;
+  status?: string;
+  jobType?: string;
+  search?: string;
+  limit?: number;
+}
+
+export function fetchJobs(params?: FetchJobsParams | string): Promise<JobListResponse> {
+  if (typeof params === 'string') {
+    const q = params ? `?project_id=${params}` : '';
+    return request<JobListResponse>(`/jobs${q}`);
+  }
+  const searchParams = new URLSearchParams();
+  if (params?.projectId && params.projectId !== 'all') searchParams.set('project_id', params.projectId);
+  if (params?.mediaAssetId) searchParams.set('media_asset_id', params.mediaAssetId);
+  if (params?.status && params.status !== 'all') searchParams.set('status', params.status);
+  if (params?.jobType && params.jobType !== 'all') searchParams.set('job_type', params.jobType);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+
+  const qs = searchParams.toString();
+  return request<JobListResponse>(`/jobs${qs ? `?${qs}` : ''}`);
 }
 
 export function fetchJob(jobId: string): Promise<JobItem> {
@@ -387,8 +408,17 @@ export function cancelJob(jobId: string): Promise<JobItem> {
   return request<JobItem>(`/jobs/${jobId}/cancel`, { method: 'POST' });
 }
 
-export function retryJob(jobId: string): Promise<JobItem> {
-  return request<JobItem>(`/jobs/${jobId}/retry`, { method: 'POST' });
+export function retryJob(jobId: string, newAttempt = false): Promise<JobItem> {
+  return request<JobItem>(`/jobs/${jobId}/retry?new_attempt=${newAttempt}`, { method: 'POST' });
+}
+
+export function deleteJob(jobId: string): Promise<{ status: string; deleted_job_id: string }> {
+  return request<{ status: string; deleted_job_id: string }>(`/jobs/${jobId}`, { method: 'DELETE' });
+}
+
+export function deleteJobHistory(status?: string): Promise<{ status: string; deleted_count: number }> {
+  const q = status ? `?status=${status}` : '';
+  return request<{ status: string; deleted_count: number }>(`/jobs/history${q}`, { method: 'DELETE' });
 }
 
 // ==================== SETTINGS ====================
@@ -420,16 +450,67 @@ export function executeCacheCleanup(confirmationToken: string): Promise<CleanupE
 
 export interface ClearAllDataResult {
   status: string;
-  message: string;
+  message?: string;
+  before_bytes?: number;
+  after_bytes?: number;
+  reclaimed_bytes?: number;
+  freed_bytes?: number;
+  actual_reclaimed_bytes?: number;
+  formatted_reclaimed_space?: string;
   deleted_files_count: number;
-  freed_bytes: number;
-  cleared_categories: string[];
-  truncated_tables: string[];
-  timestamp: string;
+  purged_tables_count?: number;
+  source_videos_deleted?: number;
+  generated_clips_deleted?: number;
+  extracted_frames_deleted?: number;
+  thumbnails_deleted?: number;
+  analysis_records_deleted?: number;
+  temp_files_deleted?: number;
+  remaining_managed_user_files?: number;
+  cleared_categories?: string[];
+  truncated_tables?: string[];
+  timestamp?: string;
+}
+
+export interface UserDataCleanupPreview {
+  total_managed_user_bytes?: number;
+  estimated_reclaimable_bytes: number;
+  formatted_reclaimable_space?: string;
+  categories: Record<string, any>;
+  source_videos_count?: number;
+  video_count?: number;
+  generated_clips_count?: number;
+  clip_count?: number;
+  analysis_artifacts_count?: number;
+  frame_count?: number;
+  temp_files_count?: number;
+  temp_file_count?: number;
+  active_jobs_count: number;
+  active_jobs?: Array<{
+    id: string;
+    job_type: string;
+    status: string;
+    current_stage: string;
+  }>;
+  warning?: string | null;
+  required_confirmation_text?: string;
+  confirmation_prompt?: string;
+  storage_root?: string;
+  generated_at?: string;
+}
+
+export function fetchUserDataCleanupPreview(): Promise<UserDataCleanupPreview> {
+  return request<UserDataCleanupPreview>('/storage/cleanup-preview');
 }
 
 export function clearAllData(confirmation = 'DELETE'): Promise<ClearAllDataResult> {
   return request<ClearAllDataResult>('/storage/clear-all-data', {
+    method: 'POST',
+    body: JSON.stringify({ confirmation }),
+  });
+}
+
+export function clearAllUserData(confirmation = 'DELETE ALL USER DATA'): Promise<ClearAllDataResult> {
+  return request<ClearAllDataResult>('/storage/clear-all-user-data', {
     method: 'POST',
     body: JSON.stringify({ confirmation }),
   });

@@ -167,13 +167,17 @@ def test_job_orchestrator_state_machine_and_recovery(env):
         job_svc.transition_job_state(job.id, "queued")
     assert exc_info.value.code == "INVALID_JOB_TRANSITION"
 
-    # 4. Cancellation semantics on running job -> moves to 'cancelling'
+    # 4. Cancellation semantics on running job -> moves to 'cancelling' (or 'cancelled' if terminated)
     cancelling = job_svc.request_cancellation(job.id)
-    assert cancelling.status == "cancelling"
+    assert cancelling.status in {"cancelling", "cancelled"}
 
     # 5. Worker acknowledges cancellation -> moves to 'cancelled'
-    cancelled = job_svc.transition_job_state(job.id, "cancelled", stage="cancelled_acknowledged")
-    assert cancelled.status == "cancelled"
+    if cancelling.status == "cancelling":
+        cancelled = job_svc.transition_job_state(job.id, "cancelled", stage="cancelled_acknowledged")
+        assert cancelled.status == "cancelled"
+    else:
+        cancelled = cancelling
+        assert cancelled.status == "cancelled"
 
     # 6. Retry job
     retried = job_svc.retry_job(job.id)

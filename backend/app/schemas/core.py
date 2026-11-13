@@ -175,6 +175,7 @@ MediaRelinkResponse.model_rebuild()
 
 class JobCreateRequest(BaseModel):
     project_id: Optional[str] = None
+    media_asset_id: Optional[str] = None
     job_type: str = Field(..., min_length=1)
     priority: int = 100
     input_config: Optional[Dict[str, Any]] = Field(default_factory=dict)
@@ -184,6 +185,11 @@ class JobCreateRequest(BaseModel):
 class JobResponse(BaseModel):
     id: str
     project_id: Optional[str]
+    media_asset_id: Optional[str] = None
+    parent_job_id: Optional[str] = None
+    video_title: Optional[str] = None
+    elapsed_seconds: Optional[float] = None
+    estimated_remaining_seconds: Optional[float] = None
     job_type: str
     status: str
     priority: int

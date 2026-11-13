@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -45,11 +47,22 @@ class JobOrchestrator:
         priority: int = 100,
         input_config: Optional[dict] = None,
         max_attempts: int = 2,
+        media_asset_id: Optional[str] = None,
+        parent_job_id: Optional[str] = None,
     ) -> JobRecord:
         """Create a new queued job record."""
+        # Backward compatibility for positional input_config: create_job(job_type, input_config_dict)
+        if isinstance(project_id, dict) and input_config is None:
+            input_config = project_id
+            project_id = None
+
         job_id = f"job_{uuid.uuid4().hex[:12]}"
         now = datetime.now(timezone.utc).isoformat()
-        cfg_json = json.dumps(input_config or {})
+        cfg = input_config or {}
+        cfg_json = json.dumps(cfg)
+        raw_asset_id = media_asset_id or cfg.get("media_asset_id") or cfg.get("asset_id")
+        asset_id = str(raw_asset_id) if raw_asset_id is not None else None
+        parent_id = str(parent_job_id) if parent_job_id is not None else None
 
         with sqlite_session(self.db_path) as conn:
             # If project_id provided, verify exists
@@ -65,14 +78,14 @@ class JobOrchestrator:
             conn.execute(
                 """
                 INSERT INTO jobs (
-                    id, project_id, job_type, status, priority, progress_pct,
+                    id, project_id, media_asset_id, parent_job_id, job_type, status, priority, progress_pct,
                     current_stage, worker_id, worker_pid, input_config_json,
                     result_metadata_json, error_message, retry_count, max_attempts,
                     created_at, started_at, completed_at, cancellation_requested_at,
                     cancelled_at, updated_at
-                ) VALUES (?, ?, ?, 'queued', ?, 0.0, 'queued', NULL, NULL, ?, NULL, NULL, 0, ?, ?, NULL, NULL, NULL, NULL, ?)
+                ) VALUES (?, ?, ?, ?, ?, 'queued', ?, 0.0, 'queued', NULL, NULL, ?, NULL, NULL, 0, ?, ?, NULL, NULL, NULL, NULL, ?)
                 """,
-                (job_id, project_id, job_type, priority, cfg_json, max_attempts, now, now),
+                (job_id, project_id, asset_id, parent_id, job_type, priority, cfg_json, max_attempts, now, now),
             )
             if project_id:
                 event_id = f"evt_{uuid.uuid4().hex[:12]}"
@@ -85,7 +98,7 @@ class JobOrchestrator:
                         event_id,
                         project_id,
                         f"Job '{job_type}' submitted",
-                        json.dumps({"job_id": job_id, "job_type": job_type}),
+                        json.dumps({"job_id": job_id, "job_type": job_type, "media_asset_id": asset_id}),
                         now,
                     ),
                 )
@@ -95,19 +108,49 @@ class JobOrchestrator:
     def list_jobs(
         self,
         project_id: Optional[str] = None,
+        media_asset_id: Optional[str] = None,
         status: Optional[str] = None,
-        limit: int = 50,
+        job_type: Optional[str] = None,
+        search: Optional[str] = None,
+        limit: int = 100,
     ) -> List[JobRecord]:
-        """List jobs matching filters."""
-        query = "SELECT * FROM jobs WHERE 1=1"
+        """List jobs matching filters with video metadata joined."""
+        query = """
+        SELECT j.*, m.original_filename as video_title
+        FROM jobs j
+        LEFT JOIN media_assets m ON j.media_asset_id = m.id
+        WHERE 1=1
+        """
         params: list = []
-        if project_id:
-            query += " AND project_id = ?"
+        if project_id and project_id != "all":
+            query += " AND j.project_id = ?"
             params.append(project_id)
+        if media_asset_id:
+            query += " AND j.media_asset_id = ?"
+            params.append(media_asset_id)
         if status:
-            query += " AND status = ?"
-            params.append(status)
-        query += " ORDER BY created_at DESC LIMIT ?"
+            if status == "running":
+                query += " AND j.status = 'running'"
+            elif status == "queued":
+                query += " AND j.status IN ('queued', 'pending')"
+            elif status == "completed":
+                query += " AND j.status = 'completed'"
+            elif status == "failed":
+                query += " AND j.status IN ('failed', 'interrupted')"
+            elif status == "cancelled":
+                query += " AND j.status IN ('cancelled', 'cancelling')"
+            elif status != "all":
+                query += " AND j.status = ?"
+                params.append(status)
+        if job_type:
+            query += " AND j.job_type = ?"
+            params.append(job_type)
+        if search and search.strip():
+            s = f"%{search.strip().lower()}%"
+            query += " AND (LOWER(j.id) LIKE ? OR LOWER(j.job_type) LIKE ? OR LOWER(COALESCE(j.current_stage, '')) LIKE ? OR LOWER(COALESCE(m.original_filename, '')) LIKE ?)"
+            params.extend([s, s, s, s])
+
+        query += " ORDER BY j.created_at DESC LIMIT ?"
         params.append(limit)
 
         with sqlite_session(self.db_path) as conn:
@@ -115,9 +158,24 @@ class JobOrchestrator:
             return [self._row_to_record(row) for row in rows]
 
     def get_job(self, job_id: str) -> JobRecord:
-        """Fetch job details."""
+        """Fetch job details with joined video metadata."""
         with sqlite_session(self.db_path) as conn:
-            row = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
+            row = conn.execute(
+                """
+                SELECT j.*, m.original_filename as video_title
+                FROM jobs j
+                LEFT JOIN media_assets m ON j.media_asset_id = m.id
+                WHERE j.id = ?
+                """,
+                (job_id,),
+            ).fetchone()
+            if not row:
+                raise AppError(
+                    code="JOB_NOT_FOUND",
+                    message=f"Job with ID '{job_id}' does not exist.",
+                    status_code=404,
+                )
+            return self._row_to_record(row)
             if not row:
                 raise AppError(
                     code="JOB_NOT_FOUND",
@@ -203,7 +261,7 @@ class JobOrchestrator:
         """
         Request cancellation of a job.
         If queued: transitions to 'cancelled' immediately.
-        If running: transitions to 'cancelling' until worker acknowledges.
+        If running: transitions to 'cancelling', terminates worker subprocesses safely, and transitions to 'cancelled'.
         """
         job = self.get_job(job_id)
         if job.status in {"completed", "cancelled", "failed"}:
@@ -216,11 +274,49 @@ class JobOrchestrator:
         if job.status == "queued":
             return self.transition_job_state(job_id, "cancelled", stage="cancelled_before_run")
         elif job.status == "running":
-            return self.transition_job_state(job_id, "cancelling", stage="cancellation_requested")
+            # Cooperative cancellation transition
+            cancelling_job = self.transition_job_state(job_id, "cancelling", stage="cancellation_requested")
+            # If worker PID is known, terminate child process tree safely
+            if job.worker_pid:
+                self._terminate_pid_tree(job.worker_pid)
+                # When PID was actively terminated, also mark cancelled immediately
+                return self.transition_job_state(job_id, "cancelled", stage="cancelled_by_user")
+            return cancelling_job
+        elif job.status == "cancelling":
+            if job.worker_pid:
+                self._terminate_pid_tree(job.worker_pid)
+            return self.transition_job_state(job_id, "cancelled", stage="cancelled_by_user")
         return job
 
-    def retry_job(self, job_id: str) -> JobRecord:
-        """Retry a failed or interrupted job if retry count permits."""
+    def _terminate_pid_tree(self, pid: int) -> bool:
+        """Safely terminate a worker process tree (e.g. Python worker and child FFmpeg)."""
+        try:
+            if psutil is not None:
+                if psutil.pid_exists(pid):
+                    proc = psutil.Process(pid)
+                    children = proc.children(recursive=True)
+                    for child in children:
+                        try:
+                            child.terminate()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    proc.terminate()
+                    _, alive = psutil.wait_procs(children + [proc], timeout=1.5)
+                    for p in alive:
+                        try:
+                            p.kill()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            pass
+                    return True
+            else:
+                os.kill(pid, 15)
+                return True
+        except Exception as exc:
+            logger.warning("Could not terminate PID %s: %s", pid, exc)
+        return False
+
+    def retry_job(self, job_id: str, create_new_attempt: bool = False) -> JobRecord:
+        """Retry a failed, interrupted, or cancelled job."""
         job = self.get_job(job_id)
         if job.status not in {"failed", "interrupted", "cancelled"}:
             raise AppError(
@@ -235,7 +331,40 @@ class JobOrchestrator:
                 status_code=400,
             )
 
+        # Validate that associated media asset still exists if linked
+        if job.media_asset_id:
+            with sqlite_session(self.db_path) as conn:
+                asset_row = conn.execute(
+                    "SELECT id FROM media_assets WHERE id = ?",
+                    (job.media_asset_id,),
+                ).fetchone()
+                if not asset_row:
+                    raise AppError(
+                        code="MEDIA_ASSET_MISSING",
+                        message=f"Cannot retry job: source media '{job.media_asset_id}' is missing or was deleted.",
+                        status_code=404,
+                    )
+
         now = datetime.now(timezone.utc).isoformat()
+        if create_new_attempt:
+            # Create a new execution attempt preserving previous attempt history
+            new_job = self.create_job(
+                job_type=job.job_type,
+                project_id=job.project_id,
+                media_asset_id=job.media_asset_id,
+                parent_job_id=job.id,
+                priority=job.priority,
+                input_config=job.input_config,
+                max_attempts=job.max_attempts,
+            )
+            with sqlite_session(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE jobs SET retry_count = ? WHERE id = ?",
+                    (job.retry_count + 1, new_job.id),
+                )
+            return self.get_job(new_job.id)
+
+        # Default in-place retry (compatible with existing lifecycle tests)
         with sqlite_session(self.db_path) as conn:
             conn.execute(
                 """
@@ -266,6 +395,40 @@ class JobOrchestrator:
                     ),
                 )
         return self.get_job(job_id)
+
+    def delete_job(self, job_id: str) -> bool:
+        """Delete a single process record without deleting user media or outputs."""
+        job = self.get_job(job_id)
+        if job.status == "running":
+            raise AppError(
+                code="JOB_RUNNING",
+                message="Cannot delete a process while it is actively running. Stop or cancel it first.",
+                status_code=400,
+            )
+        # Clean temporary directory for this job if present
+        temp_dir = self.settings.storage_root / "temp" / f"job_{job_id}"
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+        with sqlite_session(self.db_path) as conn:
+            conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            conn.execute(
+                "DELETE FROM project_events WHERE payload_json LIKE ?",
+                (f"%{job_id}%",),
+            )
+        return True
+
+    def delete_job_history(self, status: Optional[str] = None) -> int:
+        """Delete terminal job records without deleting media or active jobs."""
+        query = "DELETE FROM jobs WHERE status IN ('completed', 'cancelled', 'failed', 'interrupted')"
+        params: list = []
+        if status and status in ("completed", "cancelled", "failed", "interrupted"):
+            query = "DELETE FROM jobs WHERE status = ?"
+            params = [status]
+
+        with sqlite_session(self.db_path) as conn:
+            cur = conn.execute(query, params)
+            return cur.rowcount
 
     def save_checkpoint(
         self,
@@ -489,6 +652,16 @@ class JobOrchestrator:
             except Exception:
                 cp_data = None
 
+        media_asset_id = row["media_asset_id"] if "media_asset_id" in keys else None
+        parent_job_id = row["parent_job_id"] if "parent_job_id" in keys else None
+        video_title = row["video_title"] if "video_title" in keys else None
+
+        input_cfg = json.loads(row["input_config_json"] or "{}")
+        if not media_asset_id:
+            media_asset_id = input_cfg.get("media_asset_id") or input_cfg.get("asset_id")
+        if not video_title:
+            video_title = input_cfg.get("video_title") or input_cfg.get("filename") or input_cfg.get("title")
+
         return JobRecord(
             id=row["id"],
             project_id=row["project_id"],
@@ -499,7 +672,7 @@ class JobOrchestrator:
             current_stage=row["current_stage"],
             worker_id=row["worker_id"],
             worker_pid=row["worker_pid"],
-            input_config=json.loads(row["input_config_json"] or "{}"),
+            input_config=input_cfg,
             result_metadata=json.loads(row["result_metadata_json"])
             if row["result_metadata_json"]
             else None,
@@ -513,4 +686,7 @@ class JobOrchestrator:
             cancelled_at=row["cancelled_at"],
             updated_at=row["updated_at"],
             checkpoint_data=cp_data,
+            media_asset_id=media_asset_id,
+            parent_job_id=parent_job_id,
+            video_title=video_title,
         )

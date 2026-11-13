@@ -790,4 +790,57 @@ This checklist tracks concrete verification criteria per milestone. Items may on
   - Frontend: 106/106 tests passed across 23 test files (100% pass).
   - Production build: `npm run build` succeeds with 0 TypeScript errors.
 
+---
+
+## Session 6B — Central Process Manager + Complete User Data Deletion & Storage Reclamation
+
+- [x] **Database Migration `0016_process_manager_and_storage_reclamation.sql`:**
+  - Adds `media_asset_id` and `parent_job_id` columns with indexes to `jobs` table.
+  - Successfully migrated into SQLite database without data loss.
+- [x] **Central Process Manager Dashboard (`ProcessesManagerView` / `WorkingQueueView.tsx`):**
+  - Navigation relabeled to **Processes** with backward compatibility for `/processes` and `/queue`.
+  - Global dashboard tracking all background operations (Upload, Validation, Analysis, Whisper, Frames, Scenes, Subject tracking, Highlights discovery, Short generation, Clip editing, Reframing, MP4 export, Cache cleanup, Clear data).
+  - Metric summary cards: Total Processes, Running, Queued, Completed, Failed, Cancelled with instant click-to-filter.
+  - Category tabs: All, Media, Analysis, Generation, Rendering, Storage.
+  - Source video filter dropdown and fast substring text search.
+  - Visual Queue Bar Distribution & Task Type breakdown.
+  - Process lifecycle action controls:
+    - Stop/Cancel: terminates child subprocess trees (`psutil`) and unlinks temporary file handles.
+    - Retry: creates new linked attempt preserving original job record with retry lineage (`parent_job_id`).
+    - Delete Record: deletes single finished process record without affecting video media.
+    - Clear Completed History: purges finished process records.
+  - Slide-over process drawer displaying progress percentage, stage, elapsed/remaining duration, metadata JSON, and formatted log stream.
+- [x] **Process Manager API Parity:**
+  - Full route parity across `/api/v1/processes` and `/api/v1/jobs`.
+  - Supports filtering by `media_asset_id`, `job_type`, `status`, and `search`.
+  - Recovers stale `running`/`cancelling` jobs upon backend server startup and marks them as `interrupted`.
+- [x] **Single Video Deletion Storage Reclamation:**
+  - `delete_media_asset` in `media.py` unlinks physical stored media, proxies, thumbnails, and analysis frame folders.
+  - Cancels associated active jobs to prevent orphan disk usage.
+  - Preserves external files outside `storage_root`.
+- [x] **Storage Cleanup Preview & Byte Reclaim Telemetry:**
+  - `GET /api/v1/storage/cleanup-preview` and `GET /api/v1/settings/storage/cleanup-preview`.
+  - Returns item counts (videos, clips, frames, temp files) and estimated reclaimable bytes.
+- [x] **Complete User Data Reclamation Execution:**
+  - `POST /api/v1/storage/clear-all-user-data` and `POST /api/v1/settings/storage/clear-all-user-data`.
+  - Requires strict confirmation `DELETE ALL USER DATA` or `DELETE`.
+  - Terminates all active child processes before unlinking.
+  - Sweeps and recreates all managed storage subdirectories (`media/`, `proxies/`, `thumbnails/`, `analysis/`, `characters/`, `timelines/`, `shorts/`, `exports/`, `temp/`).
+  - Preserves `schema_migrations` and `app_settings`.
+  - Truncates database tables in dependency-safe order and resets default project.
+  - Flushes and compacts SQLite physical DB file using double WAL checkpoints (`PRAGMA wal_checkpoint(TRUNCATE); VACUUM; PRAGMA wal_checkpoint(TRUNCATE);`).
+  - Reports exact pre/post physical byte measurements and space reclaimed.
+- [x] **Frontend Settings Storage Manager Integration (`SettingsManager.tsx`):**
+  - "Refresh Storage Usage" button updating real-time disk statistics.
+  - Storage Cleanup Preview breakdown showing exact counts of reclaimable videos, clips, frames, and temp files.
+  - Active jobs warning when background tasks are running.
+  - Confirmation modal requiring typing `DELETE ALL USER DATA` with post-cleanup reclaimed space display.
+- [x] **Video Edit Dashboard Process Integration (`VideoEditDashboard.tsx`):**
+  - "Processes for this Video" section embedded in Tab 8 (`Video Analysis Details`) showing scoped background operations with live progress bars, status badges, and action triggers.
+- [x] **Full Regression Test Parity:**
+  - Backend: 164/164 tests passed (including `test_process_manager_lifecycle.py` and `test_storage_reclamation_e2e.py`).
+  - Frontend: 115/115 tests passed across 24 test files (including `processesManager.test.tsx` and `storageReclamation.test.tsx`).
+  - Production build: `npm run build` succeeds cleanly with 0 TypeScript errors.
+
+
 

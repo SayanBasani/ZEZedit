@@ -331,6 +331,9 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 6B Completion Report: Central Process Manager & Storage Reclamation](docs/reports/session_6b/SESSION_6B_COMPLETION_REPORT.md)
+- [Central Process Manager Architecture Design](docs/architecture/PROCESS_MANAGER_DESIGN.md)
+- [User Data Storage Inventory & Retention Specification](docs/architecture/USER_DATA_STORAGE_INVENTORY.md)
 - [Session 6A Completion Report: Reusable Intelligence & Non-Repeating Generate More](docs/reports/session_6a/SESSION_6A_COMPLETION_REPORT.md)
 - [Product Restructure & Video-Centric Architecture Plan](docs/architecture/ZEZEDIT_PRODUCT_RESTRUCTURE_PLAN.md)
 - [Product Restructure Completion Report](docs/reports/product_restructure/PRODUCT_RESTRUCTURE_COMPLETION_REPORT.md)

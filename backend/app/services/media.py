@@ -2,6 +2,7 @@
 
 import json
 import logging
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -9,6 +10,7 @@ from typing import Any, Dict, List, Optional
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
 from app.models.entities import MediaAssetRecord
 from app.services.media_probe import probe_media_file
@@ -225,12 +227,73 @@ class MediaService:
 
         return self.get_media_asset(project_id, asset_id)
 
-    def delete_media_asset(self, project_id: str, asset_id: str) -> None:
-        """Unregister media asset record from project."""
-        self.get_media_asset(project_id, asset_id)
+    def delete_media_asset(
+        self,
+        project_id: str,
+        asset_id: str,
+        delete_source: bool = False,
+    ) -> None:
+        """Unregister media asset record and reclaim its managed storage files."""
+        asset = self.get_media_asset(project_id, asset_id)
         now = datetime.now(timezone.utc).isoformat()
+        layout = StorageLayout.from_root(self.settings.storage_root)
 
+        # 1. Cancel active jobs associated with this asset
+        try:
+            with sqlite_session(self.db_path) as conn:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = 'cancelled', current_stage = 'cancelled_by_media_deletion', updated_at = ?
+                    WHERE status IN ('running', 'queued') AND (media_asset_id = ? OR input_config_json LIKE ?)
+                    """,
+                    (now, asset_id, f"%{asset_id}%"),
+                )
+        except Exception as e:
+            logger.warning("Could not cancel jobs for asset %s: %s", asset_id, e)
+
+        # 2. Reclaim managed disk files (only if within storage_root!)
+        try:
+            # Managed source video (if not external original)
+            if not asset.is_external and asset.storage_path:
+                src_file = layout.media / asset.storage_path
+                if src_file.exists() and src_file.is_file():
+                    src_file.unlink(missing_ok=True)
+
+            # Proxies matching asset_id
+            for p in layout.proxies.glob(f"{asset_id}*"):
+                p.unlink(missing_ok=True)
+            # Thumbnails matching asset_id
+            for t in layout.thumbnails.glob(f"{asset_id}*"):
+                t.unlink(missing_ok=True)
+            # Analysis directory for asset
+            analysis_dir = layout.analysis / asset_id
+            if analysis_dir.exists():
+                shutil.rmtree(analysis_dir, ignore_errors=True)
+        except Exception as file_err:
+            logger.warning("Error deleting managed media files for %s: %s", asset_id, file_err)
+
+        # 3. Delete database records across related tables
         with sqlite_session(self.db_path) as conn:
+            for tbl in (
+                "candidate_clip_edits",
+                "media_generated_clips_history",
+                "media_highlight_candidates",
+                "candidate_generation_runs",
+                "audio_analysis",
+                "visual_observations",
+                "sampled_frames",
+                "video_scenes",
+                "speech_turns",
+                "transcript_segments",
+                "analysis_runs",
+                "shorts_candidates",
+            ):
+                try:
+                    conn.execute(f"DELETE FROM {tbl} WHERE media_asset_id = ?", (asset_id,))
+                except Exception:
+                    pass
+
             conn.execute("DELETE FROM media_assets WHERE project_id = ? AND id = ?", (project_id, asset_id))
             event_id = f"evt_{uuid.uuid4().hex[:12]}"
             conn.execute(
@@ -241,11 +304,16 @@ class MediaService:
                 (
                     event_id,
                     project_id,
-                    f"Media asset '{asset_id}' removed from project",
+                    f"Media asset '{asset_id}' removed and storage reclaimed",
                     json.dumps({"asset_id": asset_id}),
                     now,
                 ),
             )
+            # Run checkpoint to reclaim wal pages
+            try:
+                conn.execute("PRAGMA wal_checkpoint(PASSIVE);")
+            except Exception:
+                pass
 
     def mark_missing(self, project_id: str, asset_id: str) -> MediaAssetRecord:
         """Mark an external media file as missing without deleting project state."""

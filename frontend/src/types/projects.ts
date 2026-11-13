@@ -45,6 +45,11 @@ export interface MediaAssetItem {
   metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
+  media_asset_id?: string | null;
+  parent_job_id?: string | null;
+  video_title?: string | null;
+  elapsed_seconds?: number | null;
+  estimated_remaining_seconds?: number | null;
 }
 
 export interface MediaImportLocalPayload {
@@ -90,6 +95,11 @@ export interface JobItem {
   cancellation_requested_at: string | null;
   cancelled_at: string | null;
   updated_at: string;
+  media_asset_id?: string | null;
+  parent_job_id?: string | null;
+  video_title?: string | null;
+  elapsed_seconds?: number | null;
+  estimated_remaining_seconds?: number | null;
 }
 
 export interface JobListResponse {
