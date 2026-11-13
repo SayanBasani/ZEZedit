@@ -331,6 +331,8 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 7 Completion Report: Complete Product Integration & Real-World Validation](docs/reports/session_7/SESSION_7_COMPLETION_REPORT.md)
+- [End-to-End Product Flow Specification](docs/architecture/END_TO_END_PRODUCT_FLOW.md)
 - [Session 6C Completion Report: Real Short Video Rendering & Batch Export](docs/reports/session_6c/SESSION_6C_COMPLETION_REPORT.md)
 - [Video Rendering Architecture Design](docs/architecture/VIDEO_RENDERING_DESIGN.md)
 - [Rendering Pipeline Audit](docs/architecture/RENDERING_PIPELINE_AUDIT.md)
