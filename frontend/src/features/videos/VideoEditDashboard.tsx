@@ -33,6 +33,7 @@ import { Card } from '../../components/ui/Card';
 import { EmptyState, Skeleton } from '../../components/ui/States';
 import {
   cancelJob,
+  deleteExport,
   discoverHighlights,
   fetchAnalysisCacheInfo,
   fetchAnalysisRuns,
@@ -43,12 +44,16 @@ import {
   fetchJobs,
   fetchMediaAsset,
   fetchMediaHighlights,
+  fetchProjectExports,
   generateMoreHighlights,
+  getExportDownloadUrl,
+  getExportVideoUrl,
   getGlobalThumbnailUrl,
   getSceneThumbnailUrl,
   getStreamMediaUrl,
   retryJob,
   startMediaAnalysis,
+  submitBatchExport,
   submitExportRender,
 } from '../../services/apiClient';
 import {
@@ -63,6 +68,7 @@ import {
   DiscoverHighlightsOptions,
   NoveltyHistoryResponse,
 } from '../../types/highlights';
+import { ExportItem } from '../../types/exports';
 import { JobItem, MediaAssetItem } from '../../types/projects';
 import { CandidateClipEditorModal } from '../studio/CandidateClipEditorModal';
 
@@ -70,6 +76,7 @@ export type VideoDashboardTab =
   | 'home'
   | 'short_generator'
   | 'generated_shorts'
+  | 'rendered_videos'
   | 'scripts'
   | 'frames'
   | 'transcript'
@@ -172,9 +179,14 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   const [editorModalOpen, setEditorModalOpen] = useState(false);
   const [editingCandidate, setEditingCandidate] = useState<CandidateItem | null>(null);
 
-  // Export State
+  // Export & Generated Videos State
   const [exportingCandidateId, setExportingCandidateId] = useState<string | null>(null);
   const [exportSuccessToast, setExportSuccessToast] = useState<string | null>(null);
+  const [renderedVideos, setRenderedVideos] = useState<ExportItem[]>([]);
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
+  const [batchExporting, setBatchExporting] = useState<boolean>(false);
+  const [activePreviewVideo, setActivePreviewVideo] = useState<ExportItem | null>(null);
+  const renderedVideoPlayerRef = useRef<HTMLVideoElement | null>(null);
 
   // Reset all video-specific state immediately when assetId changes to prevent stale data bleed
   useEffect(() => {
@@ -206,22 +218,24 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   }, [assetId, projectId]);
 
-  // Load Intelligence Data (Runs, Scenes, Transcript, Highlights)
+  // Load Intelligence Data (Runs, Scenes, Transcript, Highlights, Rendered Videos)
   const loadIntelligenceData = useCallback(async () => {
     if (!assetId) return;
     const effPid = asset?.project_id || projectId || 'default';
     try {
-      const [runs, hls, genRuns, novHist] = await Promise.all([
+      const [runs, hls, genRuns, novHist, exportsRes] = await Promise.all([
         fetchAnalysisRuns(effPid, assetId).catch(() => []),
         fetchMediaHighlights(effPid, assetId).catch(() => []),
         fetchCandidateGenerationRuns(effPid, assetId).catch(() => []),
         fetchCandidateNoveltyHistory(effPid, assetId).catch(() => null),
+        (fetchProjectExports ? fetchProjectExports(effPid, undefined, assetId) : Promise.resolve({ items: [], count: 0 })).catch(() => ({ items: [], count: 0 })),
       ]);
 
       setAnalysisRuns(runs);
       setCandidates(hls);
       setGenerationRuns(genRuns);
       setNoveltyHistory(novHist);
+      setRenderedVideos(exportsRes.items || []);
 
       const activeRun = runs.find((r) => r.status === 'completed') || runs[0];
       if (activeRun) {
@@ -496,12 +510,77 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         candidate_id: cand.id,
         title: cand.suggested_title || cand.title,
       });
-      setExportSuccessToast(`Export job started for "${cand.title}"! Monitor in Working Queue.`);
+      setExportSuccessToast(`Export job started for "${cand.suggested_title || cand.title}"! Monitor in Processes.`);
       setTimeout(() => setExportSuccessToast(null), 5000);
+      await loadIntelligenceData();
     } catch (err: any) {
       alert(`Export error: ${err.message || 'Failed to submit render'}`);
     } finally {
       setExportingCandidateId(null);
+    }
+  };
+
+  // Batch Export Multiple Candidates
+  const handleBatchExport = async () => {
+    if (!asset || selectedCandidateIds.size === 0) return;
+    setBatchExporting(true);
+    const effPid = asset.project_id || projectId || 'default';
+    const cids = Array.from(selectedCandidateIds);
+    try {
+      const res = await submitBatchExport(effPid, {
+        candidate_ids: cids,
+      });
+      setExportSuccessToast(`Submitted batch export for ${res.total_submitted} clip(s)! Monitor progress in Processes.`);
+      setTimeout(() => setExportSuccessToast(null), 6000);
+      setSelectedCandidateIds(new Set());
+      await loadIntelligenceData();
+      setActiveTab('rendered_videos');
+    } catch (err: any) {
+      alert(`Batch export error: ${err.message || 'Failed to submit batch export'}`);
+    } finally {
+      setBatchExporting(false);
+    }
+  };
+
+  // Toggle single candidate selection for batch export
+  const toggleCandidateSelect = (candId: string) => {
+    setSelectedCandidateIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(candId)) {
+        next.delete(candId);
+      } else {
+        next.add(candId);
+      }
+      return next;
+    });
+  };
+
+  // Select all visible candidates
+  const selectAllCandidates = (visibleCands: CandidateItem[]) => {
+    setSelectedCandidateIds(new Set(visibleCands.map((c) => c.id)));
+  };
+
+  // Clear all selections
+  const clearCandidateSelection = () => {
+    setSelectedCandidateIds(new Set());
+  };
+
+  // Delete Rendered Video
+  const handleDeleteRenderedVideo = async (exportId: string) => {
+    if (!window.confirm('Delete this rendered MP4 video file from disk? Source video and candidate discovery data will remain preserved.')) {
+      return;
+    }
+    const effPid = asset?.project_id || projectId || 'default';
+    try {
+      await deleteExport(effPid, exportId);
+      setExportSuccessToast('Rendered video file deleted.');
+      setTimeout(() => setExportSuccessToast(null), 4000);
+      if (activePreviewVideo?.id === exportId) {
+        setActivePreviewVideo(null);
+      }
+      await loadIntelligenceData();
+    } catch (err: any) {
+      alert(`Delete error: ${err.message || 'Failed to delete export'}`);
     }
   };
 
@@ -689,12 +768,13 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* 8 Horizontal Tabs Navigation: Quiet 34px Rows with 2px Gaps */}
+        {/* 9 Horizontal Tabs Navigation: Quiet 34px Rows with 2px Gaps */}
         <nav className="flex items-center gap-1 overflow-x-auto pt-1 no-scrollbar border-t border-border">
           {[
             { id: 'home', label: 'Home' },
             { id: 'short_generator', label: 'Short Video Generator' },
             { id: 'generated_shorts', label: `Generated Shorts (${candidates.length})` },
+            { id: 'rendered_videos', label: `Generated Videos (${renderedVideos.filter((v) => v.status === 'completed').length})` },
             { id: 'scripts', label: `Generated Scripts (${synthesizedScripts.length})` },
             { id: 'frames', label: 'Analyzed Frames' },
             { id: 'transcript', label: 'Voice & Transcript Analysis' },
@@ -1375,14 +1455,14 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 3: GENERATED SHORTS (BATCH MANAGEMENT, CANDIDATE CARDS, PREVIEW, EDIT & EXPORT) */}
+        {/* TAB 3: DISCOVERED CANDIDATES (BATCH SELECTION, PREVIEW, EDIT & RENDER) */}
         {activeTab === 'generated_shorts' && (
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-text-primary">Discovered Short Video Candidates</h2>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  Natural cut boundaries, multimodal scores, and candidate clip editing.
+                  Natural cut boundaries, multimodal scores, candidate clip editing, and batch rendering.
                 </p>
               </div>
 
@@ -1416,6 +1496,55 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
               </div>
             </div>
 
+            {/* Batch Selection Action Bar (when candidates are present) */}
+            {candidates.length > 0 && (
+              <div className="p-3 rounded-xl bg-surface border border-border flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-text-primary">
+                    {selectedCandidateIds.size} of {candidates.length} candidate(s) selected
+                  </span>
+                  <div className="flex items-center gap-1.5 ml-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        selectAllCandidates(
+                          selectedBatchFilter === 'all'
+                            ? candidates
+                            : candidates.filter((c) => c.generation_run_id === selectedBatchFilter)
+                        )
+                      }
+                      className="text-xs text-text-secondary hover:text-text-primary px-2 py-0.5 rounded hover:bg-surface-hover transition"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-text-muted">·</span>
+                    <button
+                      type="button"
+                      onClick={clearCandidateSelection}
+                      disabled={selectedCandidateIds.size === 0}
+                      className="text-xs text-text-secondary hover:text-text-primary disabled:opacity-40 px-2 py-0.5 rounded hover:bg-surface-hover transition"
+                    >
+                      Clear Selection
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="text-xs px-4"
+                    disabled={selectedCandidateIds.size === 0 || batchExporting}
+                    isLoading={batchExporting}
+                    onClick={handleBatchExport}
+                    leftIcon={<Film className="w-3.5 h-3.5" />}
+                  >
+                    Render Selected ({selectedCandidateIds.size})
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {candidates.length === 0 ? (
               <EmptyState
                 icon={<Scissors className="w-10 h-10 text-text-muted" />}
@@ -1432,33 +1561,58 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                 ).map((cand) => {
                   const scorePercent = Math.round(cand.quality_score * 100);
                   const isExporting = exportingCandidateId === cand.id;
+                  const isSelected = selectedCandidateIds.has(cand.id);
+
+                  // Check if this candidate is currently rendering or already rendered
+                  const matchedExport = renderedVideos.find((v) => v.candidate_id === cand.id);
+                  const isRendered = matchedExport && matchedExport.status === 'completed';
+                  const isRendering = matchedExport && (matchedExport.status === 'rendering' || matchedExport.status === 'queued');
+
                   return (
                     <Card
                       key={cand.id}
-                      className="overflow-hidden rounded-2xl border-border bg-surface hover:border-border-focus transition flex flex-col justify-between"
+                      className={`overflow-hidden rounded-2xl border transition flex flex-col justify-between ${
+                        isSelected
+                          ? 'border-indigo-500 bg-surface shadow-xs ring-1 ring-indigo-500/30'
+                          : 'border-border bg-surface hover:border-border-focus'
+                      }`}
                     >
                       <div>
-                        {/* Candidate Thumbnail with play trigger */}
-                        <div
-                          className="relative aspect-video bg-canvas-subtle overflow-hidden cursor-pointer"
-                          onClick={() => {
-                            handleSeek(cand.start_time);
-                            setActiveTab('home');
-                          }}
-                        >
-                          <img
-                            src={getGlobalThumbnailUrl(asset.id)}
-                            alt=""
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
+                        {/* Candidate Thumbnail with selection and play trigger */}
+                        <div className="relative aspect-video bg-canvas-subtle overflow-hidden">
+                          {/* Selection Checkbox */}
+                          <div className="absolute top-2 right-2 z-10">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => toggleCandidateSelect(cand.id)}
+                              className="w-4 h-4 rounded border-border bg-black/60 text-indigo-600 focus:ring-0 cursor-pointer"
+                              title="Select for Batch Render"
+                            />
+                          </div>
+
+                          <div
+                            className="w-full h-full cursor-pointer"
+                            onClick={() => {
+                              handleSeek(cand.start_time);
+                              setActiveTab('home');
                             }}
-                          />
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-bold text-text-primary border border-white/10">
+                          >
+                            <img
+                              src={getGlobalThumbnailUrl(asset.id)}
+                              alt=""
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                (e.target as HTMLElement).style.display = 'none';
+                              }}
+                            />
+                          </div>
+
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-bold text-text-primary border border-white/10 pointer-events-none">
                             Score {scorePercent}/100
                           </div>
 
-                          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[10px] text-white">
+                          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[10px] text-white pointer-events-none">
                             {formatSeconds(cand.duration)}
                           </div>
                         </div>
@@ -1469,8 +1623,25 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                             <h3 className="text-xs font-bold text-text-primary line-clamp-1">
                               {cand.suggested_title || cand.title || 'Untitled Short'}
                             </h3>
-                            <Badge variant="default" className="text-[10px] shrink-0 font-mono">
-                              Discovered
+                            <Badge
+                              variant={
+                                isRendered
+                                  ? 'success'
+                                  : isRendering
+                                  ? 'purple'
+                                  : isSelected
+                                  ? 'purple'
+                                  : 'default'
+                              }
+                              className="text-[10px] shrink-0 font-mono"
+                            >
+                              {isRendered
+                                ? 'Rendered MP4'
+                                : isRendering
+                                ? 'Rendering...'
+                                : isSelected
+                                ? 'Selected'
+                                : 'Discovered'}
                             </Badge>
                           </div>
 
@@ -1509,7 +1680,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           onClick={() => handleExportCandidate(cand)}
                           leftIcon={<Download className="w-3.5 h-3.5" />}
                         >
-                          Export MP4
+                          {isRendered ? 'Re-render MP4' : 'Render MP4'}
                         </Button>
                       </div>
                     </Card>
@@ -1520,7 +1691,242 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 4: GENERATED SCRIPTS (CARDS & 1-CLICK REGENERATE VIDEO) */}
+        {/* TAB 4: GENERATED VIDEOS LIBRARY (PLAYABLE MP4s, CONTROLS, DOWNLOAD & DELETE) */}
+        {activeTab === 'rendered_videos' && (
+          <div className="max-w-6xl mx-auto space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-sm font-bold text-text-primary">Generated Short Videos Archive</h2>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Playable, verified H.264 MP4 videos rendered from this source video.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => void loadIntelligenceData()}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Refresh Videos
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="text-xs"
+                  onClick={() => setActiveTab('generated_shorts')}
+                  leftIcon={<Film className="w-3.5 h-3.5" />}
+                >
+                  Render More Clips
+                </Button>
+              </div>
+            </div>
+
+            {/* In-Browser Short Video Player Modal/Section when an active video is chosen */}
+            {activePreviewVideo && (
+              <div className="p-4 rounded-2xl bg-surface border border-border shadow-xl space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div>
+                    <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
+                      <Play className="w-3.5 h-3.5 text-indigo-400" />
+                      <span>{activePreviewVideo.title || activePreviewVideo.output_filename}</span>
+                    </h3>
+                    <p className="text-[11px] text-text-muted font-mono mt-0.5">
+                      {activePreviewVideo.target_aspect_ratio} · {activePreviewVideo.target_width}x{activePreviewVideo.target_height} · {formatSeconds(activePreviewVideo.duration_seconds)} · {formatBytes(activePreviewVideo.file_size_bytes)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href={getExportDownloadUrl(asset.project_id || projectId || 'default', activePreviewVideo.id)}
+                      download={activePreviewVideo.output_filename}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-hover border border-border text-xs font-medium text-text-primary transition"
+                    >
+                      <Download className="w-3.5 h-3.5 text-text-muted" />
+                      <span>Download MP4</span>
+                    </a>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setActivePreviewVideo(null)}
+                    >
+                      Close Player
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex justify-center bg-black/90 rounded-xl p-3 overflow-hidden">
+                  <div
+                    className="relative rounded-lg overflow-hidden border border-white/10 shadow-2xl max-h-[480px]"
+                    style={{
+                      aspectRatio: activePreviewVideo.target_aspect_ratio.replace(':', ' / '),
+                    }}
+                  >
+                    <video
+                      ref={renderedVideoPlayerRef}
+                      src={getExportVideoUrl(asset.project_id || projectId || 'default', activePreviewVideo.id)}
+                      controls
+                      autoPlay
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {renderedVideos.length === 0 ? (
+              <EmptyState
+                icon={<Film className="w-10 h-10 text-text-muted" />}
+                title="No Rendered Short Videos Yet"
+                description="Select candidates in Discovered Candidates and click 'Render MP4' or 'Render Selected' to generate actual MP4 files."
+                actionText="View Discovered Candidates"
+                onAction={() => setActiveTab('generated_shorts')}
+              />
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {renderedVideos.map((video) => {
+                  const isCompleted = video.status === 'completed';
+                  const isRendering = video.status === 'rendering' || video.status === 'queued';
+
+                  return (
+                    <Card
+                      key={video.id}
+                      className="overflow-hidden rounded-2xl border-border bg-surface hover:border-border-focus transition flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Video Thumbnail with Play overlay */}
+                        <div
+                          className="relative aspect-video bg-black cursor-pointer overflow-hidden group"
+                          onClick={() => {
+                            if (isCompleted) {
+                              setActivePreviewVideo(video);
+                            }
+                          }}
+                        >
+                          <img
+                            src={getGlobalThumbnailUrl(asset.id)}
+                            alt=""
+                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-200"
+                            onError={(e) => {
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+
+                          {isCompleted ? (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition">
+                              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 text-white group-hover:scale-110 transition">
+                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                              </div>
+                            </div>
+                          ) : isRendering ? (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-indigo-400 gap-2">
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                              <span className="text-[11px] font-medium font-mono text-white">Rendering MP4...</span>
+                            </div>
+                          ) : (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-red-400 gap-1 p-3 text-center">
+                              <AlertCircle className="w-5 h-5" />
+                              <span className="text-[10px] text-red-300 line-clamp-2">{video.error_message || 'Render failed'}</span>
+                            </div>
+                          )}
+
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-mono text-text-primary border border-white/10">
+                            {video.target_aspect_ratio}
+                          </div>
+
+                          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[10px] text-white">
+                            {formatSeconds(video.duration_seconds)}
+                          </div>
+                        </div>
+
+                        {/* Video Metadata */}
+                        <div className="p-4 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-xs font-bold text-text-primary line-clamp-1" title={video.title}>
+                              {video.title || video.output_filename}
+                            </h3>
+                            <Badge
+                              variant={
+                                isCompleted
+                                  ? 'success'
+                                  : isRendering
+                                  ? 'purple'
+                                  : 'danger'
+                              }
+                              className="text-[10px] shrink-0 font-mono"
+                            >
+                              {video.status}
+                            </Badge>
+                          </div>
+
+                          <div className="text-[11px] text-text-muted font-mono space-y-0.5">
+                            <div className="flex justify-between">
+                              <span>Dimensions:</span>
+                              <span className="text-text-secondary">{video.target_width}x{video.target_height}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Size:</span>
+                              <span className="text-text-secondary">{formatBytes(video.file_size_bytes)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Codec:</span>
+                              <span className="text-text-secondary">{video.video_codec} / {video.audio_codec}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Verified:</span>
+                              <span className={video.validation_status === 'valid' ? 'text-emerald-400' : 'text-amber-400'}>
+                                {video.validation_status}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Video Actions: Play, Download, Delete */}
+                      <div className="p-3 bg-surface-subtle border-t border-border flex items-center justify-between gap-2">
+                        {isCompleted && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 text-xs"
+                              onClick={() => setActivePreviewVideo(video)}
+                              leftIcon={<Play className="w-3.5 h-3.5 fill-current text-indigo-400" />}
+                            >
+                              Play
+                            </Button>
+                            <a
+                              href={getExportDownloadUrl(asset.project_id || projectId || 'default', video.id)}
+                              download={video.output_filename}
+                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border hover:bg-surface-hover text-xs font-medium text-text-primary transition"
+                            >
+                              <Download className="w-3.5 h-3.5 text-text-muted" />
+                              <span>Download</span>
+                            </a>
+                          </>
+                        )}
+
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-text-muted hover:text-red-400 px-2"
+                          onClick={() => handleDeleteRenderedVideo(video.id)}
+                          title="Delete MP4 File"
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 5: GENERATED SCRIPTS (CARDS & 1-CLICK REGENERATE VIDEO) */}
         {activeTab === 'scripts' && (
           <div className="max-w-4xl mx-auto space-y-6">
             <div className="flex items-center justify-between">

@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-13  
-**Active Milestone:** Session 6B Completed — Central Process Manager + Complete User Data Deletion & Storage Reclamation (164 Backend Tests Passed, 115 Frontend Tests Passed, 100% Pipeline Parity)
+**Active Milestone:** Session 6C Completed — Real Short Video Rendering, Clip Editing, Batch Export & Output Verification (169 Backend Tests Passed, 120 Frontend Tests Passed, 100% End-to-End Playable Renders Verified)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,23 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Real Video Rendering, Clip Editing & Batch Export (Session 6C)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S6C-01 | Architecture Audit & 15-Stage Pipeline Design | Architecture Docs | Implemented | `docs/architecture/RENDERING_PIPELINE_AUDIT.md`, `VIDEO_RENDERING_DESIGN.md` | Answered 15 architectural questions, 15-stage filter chain specification |
+| S6C-02 | Preset Catalog Extension for All Aspect Ratios | Export Models | Implemented | `backend/app/models/export.py` | Added `9:16`, `16:9`, `1:1`, `4:5`, `4:3`, `3:4` presets with strict dimensions |
+| S6C-03 | Candidate Clip Editing Resolution & Custom Framing | Export Service | Implemented | `backend/app/services/export_service.py` | Seamlessly reads `candidate_clip_edits`, applies edited timestamps and manual/center crop expressions |
+| S6C-04 | Process Manager Scoping for Render Jobs | Backend Services | Implemented | `backend/app/services/export_service.py` | Associates `media_asset_id` on job creation so jobs link to source video filename in Central Process Manager |
+| S6C-05 | Direct MP4 Download & HTTP 206 Partial Content Streaming | Backend API | Implemented | `backend/app/api/v1/exports.py` | Added `/projects/{pid}/exports/{export_id}/download` and `/video` byte-range streaming |
+| S6C-06 | Generated Short Videos Archive & In-Browser Player | Frontend Studio | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Dedicated Generated Videos tab with playable cards, HTML5 modal player, seek/controls, download, delete |
+| S6C-07 | Multi-Candidate Batch Selection & Sticky Batch Bar | Frontend Studio | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Checkboxes, Select All, Clear Selection, and "Render Selected (N)" batch execution |
+| S6C-08 | Post-Render Output Verification via OutputValidator | Export Pipeline | Implemented | `backend/app/services/export_service.py` | Mandates FFprobe stream inspection and FFmpeg null-sink decode verification before marking completed |
+| S6C-09 | Comprehensive Automated Test Suites | Testing | Implemented | `backend/tests/test_session6c_rendering_and_batch_export.py`, `frontend/src/test/session6c_rendering.test.tsx` | 5 new backend tests, 3 new frontend tests; 169 backend & 120 frontend tests pass 100% |
+| S6C-10 | Real Media Rendering & Browser Playback Verification | Verification | Implemented | `storage/exports/default/` | Rendered 9:16, 1:1, 16:9 MP4s and confirmed in-browser playback with Browser Subagent |
 
 ---
 

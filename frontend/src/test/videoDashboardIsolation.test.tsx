@@ -67,6 +67,9 @@ describe('Video Dashboard Isolation Verification', () => {
     vi.mocked(apiClient.fetchAnalysisScenes).mockResolvedValue([]);
     vi.mocked(apiClient.fetchAnalysisTranscript).mockResolvedValue(null as any);
     vi.mocked(apiClient.fetchAnalysisCacheInfo).mockResolvedValue(null as any);
+    if (apiClient.fetchProjectExports) {
+      vi.mocked(apiClient.fetchProjectExports).mockResolvedValue({ items: [], count: 0 } as any);
+    }
   });
 
   it('renders strictly isolated metadata and intelligence data for Video A', async () => {

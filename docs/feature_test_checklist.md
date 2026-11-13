@@ -4,6 +4,24 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 6C — Real Short Video Rendering, Clip Editing, Batch Export & Output Verification
+- [x] Architecture audit completed in `docs/architecture/RENDERING_PIPELINE_AUDIT.md` answering all 15 architectural questions.
+- [x] Rendering architecture design completed in `docs/architecture/VIDEO_RENDERING_DESIGN.md` detailing the 15-stage filter chain.
+- [x] Preset catalog extended with `9:16`, `16:9`, `1:1`, `4:5`, `4:3`, `3:4` in `backend/app/models/export.py`.
+- [x] `ExportService` seamlessly checks `candidate_clip_edits` for user trimming and custom framing offsets.
+- [x] Single video render and batch export jobs pass `media_asset_id` to `JobOrchestrator` for Central Process Manager tracking.
+- [x] Dedicated "Generated Videos" archive tab implemented in `VideoEditDashboard.tsx` with playable cards and technical badges.
+- [x] In-browser HTML5 video player modal with seek, pause, play, close, and download controls.
+- [x] Candidate multi-selection checkboxes and sticky batch render action bar implemented.
+- [x] Output verification enforced via `OutputValidator` (FFprobe validation & FFmpeg null-sink decode test).
+- [x] Real media rendered in 3 aspect ratios: 9:16 (1080x1920), 1:1 (1080x1080), 16:9 (1920x1080).
+- [x] Browser subagent verified in-browser video playback at `http://localhost:5173`.
+- [x] Automated pytest suite passes 169/169 tests (including 5 Session 6C tests).
+- [x] Automated vitest suite passes 120/120 tests (including 3 Session 6C tests).
+- [x] Frontend production build compiles with zero TypeScript errors (`tsc && vite build`).
+
+---
+
 ## Milestone 1 — Architecture Redesign & Safe Project Foundation
 - [x] `D:\ZezEdit` exists as an independent workspace.
 - [x] Git repository initialized strictly inside `D:\ZezEdit` (verified no unintended modifications outside `D:\ZezEdit`).

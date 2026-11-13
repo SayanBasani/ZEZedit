@@ -90,15 +90,43 @@ class ExportService:
             if not cand:
                 raise NotFoundError(f"Shorts candidate '{request.candidate_id}' not found in project '{project_id}'.")
 
-            # Validate interval
-            start_t = float(cand["start_time"])
-            end_t = float(cand["end_time"])
+            # Check for candidate clip edits (trims, aspect ratio override, framing adjustments)
+            clip_edit_row = conn.execute(
+                """
+                SELECT * FROM candidate_clip_edits
+                WHERE candidate_id = ?
+                """,
+                (request.candidate_id,),
+            ).fetchone()
+
+            # Resolve effective interval
+            if clip_edit_row and clip_edit_row["edited_start_time"] is not None and clip_edit_row["edited_end_time"] is not None:
+                start_t = float(clip_edit_row["edited_start_time"])
+                end_t = float(clip_edit_row["edited_end_time"])
+            else:
+                start_t = float(cand["start_time"])
+                end_t = float(cand["end_time"])
+
             duration = round(end_t - start_t, 3)
             if duration < 1.0:
                 raise ValidationError(f"Invalid candidate duration: {duration}s. Minimum export duration is 1.0s.")
 
-            # Resolve preset
-            preset = STANDARD_EXPORT_PRESETS.get(request.preset_id)
+            # Resolve preset (from request or clip_edit aspect_ratio)
+            effective_preset_id = request.preset_id
+            if clip_edit_row and clip_edit_row["aspect_ratio"]:
+                aspect = clip_edit_row["aspect_ratio"]
+                ratio_map = {
+                    "9:16": "shorts_reels_9_16",
+                    "16:9": "landscape_16_9",
+                    "1:1": "square_1_1",
+                    "4:5": "portrait_4_5",
+                    "4:3": "standard_4_3",
+                    "3:4": "tall_3_4",
+                }
+                if aspect in ratio_map and (not request.preset_id or request.preset_id == "shorts_reels_9_16"):
+                    effective_preset_id = ratio_map[aspect]
+
+            preset = STANDARD_EXPORT_PRESETS.get(effective_preset_id)
             if not preset:
                 preset = STANDARD_EXPORT_PRESETS["shorts_reels_9_16"]
 
@@ -114,7 +142,7 @@ class ExportService:
                 "candidate_id": request.candidate_id,
                 "media_asset_id": cand["media_asset_id"],
                 "preset_id": preset.preset_id,
-                "reframing_plan_id": request.reframing_plan_id,
+                "reframing_plan_id": request.reframing_plan_id or (clip_edit_row["reframing_plan_id"] if clip_edit_row else None),
                 "framing_revision_id": request.framing_revision_id,
                 "title": title,
                 "output_filename": output_filename,
@@ -122,6 +150,8 @@ class ExportService:
                 "audio_config": request.audio_config.model_dump() if request.audio_config else AudioConfig().model_dump(),
                 "crf": request.crf or preset.crf,
                 "is_preview": request.is_preview,
+                "clip_start_time": start_t,
+                "clip_end_time": end_t,
             }
 
             job = self.jobs.create_job(
@@ -129,6 +159,7 @@ class ExportService:
                 project_id=project_id,
                 priority=120 if request.is_preview else 100,
                 input_config=input_cfg,
+                media_asset_id=cand["media_asset_id"],
             )
 
             # Insert initial export record
@@ -185,14 +216,18 @@ class ExportService:
         self,
         project_id: str,
         candidate_id: Optional[str] = None,
+        media_asset_id: Optional[str] = None,
         limit: int = 50,
     ) -> List[ExportRecord]:
-        """List exports for a project with optional candidate filtering."""
+        """List exports for a project with optional candidate or media asset filtering."""
         query = "SELECT * FROM exports WHERE project_id = ?"
         params: list = [project_id]
         if candidate_id:
             query += " AND candidate_id = ?"
             params.append(candidate_id)
+        if media_asset_id:
+            query += " AND media_asset_id = ?"
+            params.append(media_asset_id)
         query += " ORDER BY created_at DESC LIMIT ?"
         params.append(limit)
 
@@ -298,8 +333,22 @@ class ExportService:
             if not cand:
                 raise NotFoundError(f"Candidate '{candidate_id}' not found.")
 
-            clip_start = float(cand["start_time"])
-            clip_end = float(cand["end_time"])
+            # Check if explicit interval configured in job, or check clip edits
+            clip_edit_row = conn.execute(
+                "SELECT * FROM candidate_clip_edits WHERE candidate_id = ?",
+                (candidate_id,),
+            ).fetchone()
+
+            if cfg.get("clip_start_time") is not None and cfg.get("clip_end_time") is not None:
+                clip_start = float(cfg["clip_start_time"])
+                clip_end = float(cfg["clip_end_time"])
+            elif clip_edit_row and clip_edit_row["edited_start_time"] is not None and clip_edit_row["edited_end_time"] is not None:
+                clip_start = float(clip_edit_row["edited_start_time"])
+                clip_end = float(clip_edit_row["edited_end_time"])
+            else:
+                clip_start = float(cand["start_time"])
+                clip_end = float(cand["end_time"])
+
             duration = max(0.5, round(clip_end - clip_start, 3))
 
             # Stage 3: Resolve original media
@@ -337,6 +386,7 @@ class ExportService:
                 end_time=clip_end,
                 source_w=source_w,
                 source_h=source_h,
+                clip_edit=dict(clip_edit_row) if clip_edit_row else None,
             )
 
             # Stage 6: Validate source interval
@@ -491,10 +541,14 @@ class ExportService:
                 _ACTIVE_RENDER_PROCESSES.pop(job_id, None)
 
             if proc.returncode != 0:
-                # Check if cancellation was requested
+                # Check if cancellation was requested or already cancelled
                 job_check = self.jobs.get_job(job_id)
-                if job_check.status == "cancelling":
-                    self.jobs.transition_job_state(job_id, "cancelled", stage="cancelled")
+                if job_check.status in {"cancelling", "cancelled"}:
+                    if job_check.status == "cancelling":
+                        try:
+                            self.jobs.transition_job_state(job_id, "cancelled", stage="cancelled")
+                        except Exception:
+                            pass
                     return {"status": "cancelled"}
                 err_msg = "\n".join(output_lines[-20:]) if output_lines else "FFmpeg process failed"
                 raise ProcessingError(f"Render failed (code {proc.returncode}): {err_msg}")
@@ -598,9 +652,14 @@ class ExportService:
                     "UPDATE exports SET status = 'failed', error_message = ?, completed_at = datetime('now') WHERE id = ?",
                     (str(exc), export_id),
                 )
-            self.jobs.transition_job_state(
-                job_id, "failed", error_message=str(exc), stage="failed"
-            )
+            try:
+                job_cur = self.jobs.get_job(job_id)
+                if job_cur.status not in {"completed", "failed", "cancelled"}:
+                    self.jobs.transition_job_state(
+                        job_id, "failed", error_message=str(exc), stage="failed"
+                    )
+            except Exception as j_exc:
+                logger.warning("Could not transition job %s to failed: %s", job_id, j_exc)
             raise
         finally:
             # Clean up scratch files
@@ -640,8 +699,9 @@ class ExportService:
         end_time: float,
         source_w: int,
         source_h: int,
+        clip_edit: Optional[Dict[str, Any]] = None,
     ) -> List[CropKeyframe]:
-        """Load keyframes from specified revision or plan, or compute fallback centered keyframes."""
+        """Load keyframes from specified revision or plan, or compute fallback centered/manual keyframes."""
         keyframes: List[CropKeyframe] = []
 
         # If specific revision ID requested
@@ -673,12 +733,29 @@ class ExportService:
             if keyframes:
                 return keyframes
 
-        # Otherwise, generate fallback keyframes centered for the requested aspect ratio
+        # If manual framing mode was configured in clip_edit
         from app.services.framing_engine import FramingEngine
         engine = FramingEngine(target_aspect_ratio=target_aspect)
         cw, ch = engine.calculate_crop_dimensions(source_w, source_h)
-        cx = (max(0, (source_w - cw) // 2) // 2) * 2
-        cy = (max(0, (source_h - ch) // 2) // 2) * 2
+
+        if clip_edit and clip_edit.get("framing_mode") == "manual":
+            zoom = max(0.5, min(3.0, float(clip_edit.get("manual_crop_zoom") or 1.0)))
+            if zoom != 1.0:
+                cw = int(cw / zoom)
+                ch = int(ch / zoom)
+                cw = min(source_w, max(64, (cw // 2) * 2))
+                ch = min(source_h, max(64, (ch // 2) * 2))
+
+            crop_x_pct = float(clip_edit.get("manual_crop_x_pct", 50.0)) / 100.0
+            crop_y_pct = float(clip_edit.get("manual_crop_y_pct", 50.0)) / 100.0
+            cx = int(round(crop_x_pct * max(0, source_w - cw)))
+            cy = int(round(crop_y_pct * max(0, source_h - ch)))
+            cx = (max(0, min(source_w - cw, cx)) // 2) * 2
+            cy = (max(0, min(source_h - ch, cy)) // 2) * 2
+        else:
+            cx = (max(0, (source_w - cw) // 2) // 2) * 2
+            cy = (max(0, (source_h - ch) // 2) // 2) * 2
+
         steps = max(3, int((end_time - start_time) * 4))
         dt = (end_time - start_time) / steps
         for i in range(steps + 1):

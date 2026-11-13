@@ -203,3 +203,14 @@ All features MUST comply with these baseline constraints:
       - Executes double WAL truncation and SQLite vacuum, returning exact pre/post byte measurements.
     - UI integration in Settings > Storage with live storage metrics, preview breakdown, active job warnings, and confirmation modal.
     - Comprehensive Automated Regression Parity: 164/164 backend tests and 115/115 frontend tests passing.
+- **Session 6C (Completed):** Real Short Video Rendering, Clip Editing, Batch Export & Output Verification:
+  - 15-stage modular FFmpeg video rendering pipeline transforming short video candidates into playable, verified H.264/AAC MP4 files.
+  - Full candidate lifecycle: Preview, Select, Edit, Render Single, Batch Select, Batch Render.
+  - Candidate clip editing integration: `ExportService` seamlessly respects `CandidateClipEditorModal` timestamp trims (`edited_start_time`, `edited_end_time`) and manual crop parameters (`manual_crop_x_pct`, `manual_crop_y_pct`, `manual_crop_zoom`).
+  - Extended aspect-ratio preset catalog with `9:16` (1080x1920), `16:9` (1920x1080), `1:1` (1080x1080), `4:5` (1080x1350), `4:3` (1440x1080), and `3:4` (1080x1440).
+  - Background rendering linked to `JobOrchestrator` with `media_asset_id` association, displaying jobs with source video filename in Central Process Manager.
+  - Dedicated "Generated Videos" archive tab in `VideoEditDashboard.tsx` with playable video cards, technical metadata badges (resolution, aspect ratio, duration, size, codec, verification status), direct MP4 download link, and deletion.
+  - In-browser HTML5 video player modal featuring seek bar, play/pause controls, elapsed/total time, download action, and partial content (HTTP 206) streaming.
+  - Mandatory post-render output verification via `OutputValidator` requiring FFprobe stream checks and FFmpeg null-sink decode verification before marking exports completed.
+  - Multi-aspect real video verification: rendered vertical `9:16`, square `1:1`, and landscape `16:9` MP4s, verified with FFprobe and live in-browser playback via Browser Subagent.
+  - Comprehensive Automated Regression Parity: 169/169 backend tests passing (100%) and 120/120 frontend tests passing (100%).

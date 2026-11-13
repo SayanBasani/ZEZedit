@@ -49,6 +49,8 @@ const ASPECT_RATIO_OPTIONS: Array<{ value: AspectRatioOption; label: string; rat
   { value: '1:1', label: '1:1 (Square)', ratioW: 1, ratioH: 1 },
   { value: '16:9', label: '16:9 (Landscape)', ratioW: 16, ratioH: 9 },
   { value: '4:5', label: '4:5 (Social Feed)', ratioW: 4, ratioH: 5 },
+  { value: '4:3', label: '4:3 (Standard TV)', ratioW: 4, ratioH: 3 },
+  { value: '3:4', label: '3:4 (Portrait Tablet)', ratioW: 3, ratioH: 4 },
 ];
 
 function formatTimecode(seconds: number): string {

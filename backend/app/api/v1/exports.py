@@ -179,11 +179,17 @@ def create_export_preview(
 def list_exports(
     project_id: str,
     candidate_id: Optional[str] = Query(None),
+    media_asset_id: Optional[str] = Query(None),
     limit: int = Query(50, ge=1, le=100),
     service: ExportService = Depends(get_export_service),
 ):
-    """List exports for a project."""
-    exports = service.list_exports(project_id=project_id, candidate_id=candidate_id, limit=limit)
+    """List exports for a project, optionally filtered by candidate or media asset."""
+    exports = service.list_exports(
+        project_id=project_id,
+        candidate_id=candidate_id,
+        media_asset_id=media_asset_id,
+        limit=limit,
+    )
     return {"items": [e.__dict__ for e in exports], "count": len(exports)}
 
 
@@ -298,4 +304,35 @@ def stream_export_video(
             "Accept-Ranges": "bytes",
             "Content-Length": str(content_length),
         },
+    )
+
+
+# -----------------------------------------------------------------------------
+# Direct Download Endpoint
+# -----------------------------------------------------------------------------
+
+@router.get("/{export_id}/download")
+def download_export_video(
+    project_id: str,
+    export_id: str,
+    service: ExportService = Depends(get_export_service),
+):
+    """Download the rendered export MP4 file as an attachment."""
+    try:
+        exp = service.get_export(project_id=project_id, export_id=export_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    if not exp.output_path:
+        raise HTTPException(status_code=404, detail="Export video has not been rendered yet.")
+
+    video_path = Path(exp.output_path)
+    if not video_path.exists():
+        raise HTTPException(status_code=404, detail=f"Export video file missing from disk: {video_path.name}")
+
+    filename = exp.output_filename or video_path.name
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=filename,
     )

@@ -331,6 +331,9 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 6C Completion Report: Real Short Video Rendering & Batch Export](docs/reports/session_6c/SESSION_6C_COMPLETION_REPORT.md)
+- [Video Rendering Architecture Design](docs/architecture/VIDEO_RENDERING_DESIGN.md)
+- [Rendering Pipeline Audit](docs/architecture/RENDERING_PIPELINE_AUDIT.md)
 - [Session 6B Completion Report: Central Process Manager & Storage Reclamation](docs/reports/session_6b/SESSION_6B_COMPLETION_REPORT.md)
 - [Central Process Manager Architecture Design](docs/architecture/PROCESS_MANAGER_DESIGN.md)
 - [User Data Storage Inventory & Retention Specification](docs/architecture/USER_DATA_STORAGE_INVENTORY.md)

@@ -1089,9 +1089,13 @@ export function submitExportPreview(
 
 export function fetchProjectExports(
   projectId: string,
-  candidateId?: string
+  candidateId?: string,
+  mediaAssetId?: string
 ): Promise<{ items: ExportItem[]; count: number }> {
-  const qs = candidateId ? `?candidate_id=${candidateId}` : '';
+  const params = new URLSearchParams();
+  if (candidateId) params.set('candidate_id', candidateId);
+  if (mediaAssetId) params.set('media_asset_id', mediaAssetId);
+  const qs = params.toString() ? `?${params.toString()}` : '';
   return request<{ items: ExportItem[]; count: number }>(`/projects/${projectId}/exports${qs}`);
 }
 
@@ -1121,6 +1125,10 @@ export function deleteExport(
 
 export function getExportVideoUrl(projectId: string, exportId: string): string {
   return `${API_BASE}/projects/${projectId}/exports/${exportId}/video`;
+}
+
+export function getExportDownloadUrl(projectId: string, exportId: string): string {
+  return `${API_BASE}/projects/${projectId}/exports/${exportId}/download`;
 }
 
 // ==================== TIMELINE & AI VIDEO EDITOR ====================
