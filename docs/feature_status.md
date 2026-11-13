@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
-**Last Updated:** 2026-11-12  
-**Active Milestone:** Session 5 Completed — Interactive Clip Preview, Editing, Smart Reframing & Subject Tracking (102 Frontend Tests Passed, 100% Pipeline Parity)
+**Last Updated:** 2026-11-13  
+**Active Milestone:** Session 6A Completed — AI-First Video Analysis, Simple Short Generation, Advanced Settings & Non-Repeating Generate More (152 Backend Tests Passed, 106 Frontend Tests Passed, 100% Pipeline Parity)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -368,6 +368,14 @@ Status legend:
 | PR-05 | 8 Dedicated Video Inspection & Generation Tabs | Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | 1. Home (Player + Specs), 2. Short Generator (18 directions, presets, tracking), 3. Generated Shorts (Cards, Edit Modal, Export), 4. Generated Scripts (Cards, Regenerate Video), 5. Analyzed Frames, 6. Voice & Transcript, 7. Scene Analysis, 8. Video Details |
 | PR-06 | Clear All Application Data Confirmation Modal | Settings UI | Implemented | `frontend/src/features/settings/SettingsManager.tsx` | High-impact warning card and dialog requiring typing `DELETE` to execute total wipeout |
 | PR-07 | Video-Centric Frontend Automated Tests | Testing / QA | Implemented | `frontend/src/test/productRestructure.test.tsx` | 2/2 tests verifying ShortVideoGeneratorLibrary and VideoEditDashboard tabs (104 frontend tests pass) |
+| S6A-01 | Reusable Video Intelligence Engine & Sub-Second Cache Validation | Intelligence Core | Implemented | `backend/app/services/highlight_discovery.py` | Full video analysis executed once; all subsequent short generations reuse stored audio, scenes, transcripts, and frames in ~0.12s |
+| S6A-02 | Simplified 4-Option Default Generator UI & Graphite Unslopped Layout | UI / Dashboard | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Clean, calm default form: Option 1 AI Recommended clip count, Option 2 Best Overall / Varied, Option 3 9:16 Vertical, Option 4 AI Selects Best Duration |
+| S6A-03 | Collapsible Advanced Settings & Per-Video Persistence | Studio Controls | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Collapsed by default; 7 active supported creative directions, 11 disabled "Coming Soon", tracking modes, scene focus, novelty policy, localStorage config persistence |
+| S6A-04 | Multi-Layer Persistent Novelty & Temporal Overlap Engine | Novelty Core | Implemented | `backend/app/services/highlight_discovery.py` | Exact interval matching (<2.5s tolerance), strict temporal IoU / asymmetric overlap guards, transcript token similarity checks |
+| S6A-05 | Aspect-Ratio Independent Rejection & Honest Exhaustion Handling | Highlights Core | Implemented | `backend/app/services/highlight_discovery.py` | Changing aspect ratios tests against all recorded moments; detects exhaustion honestly with `is_novelty_exhausted` and warning banner |
+| S6A-06 | Database Migration `0015_reusable_intelligence_and_generate_more.sql` | DB / Migrations | Implemented | `backend/migrations/0015_reusable_intelligence_and_generate_more.sql` | Added `generation_type`, `reused_analysis_run_id`, `duration_preference`, and `is_novelty_exhausted` to `candidate_generation_runs` |
+| S6A-07 | Real Video Verification on 73.3MB Media File | Testing / QA | Implemented | `backend/scripts/verify_session6a_real_video.py` | Verified on `Ek Mota Hathi Ghumne Chala.mp4` (0.127s discovery time, 0 duplicates generated, novelty exhaustion recorded) |
+| S6A-08 | Comprehensive Automated Test Suites | Testing / QA | Implemented | `backend/tests/test_session6a_reusable_intelligence_and_generate_more.py` | 6/6 dedicated session tests passing (152/152 backend tests, 106/106 frontend tests passing) |
 
 | ID | Feature / Capability | Module | Status | Planned Milestone |
 |---|---|---|---|---|

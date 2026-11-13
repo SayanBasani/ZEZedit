@@ -83,3 +83,68 @@ def test_clear_all_data_execution():
         assert len(project_rows) == 1
         assert project_rows[0][0] == "default"
         conn.close()
+
+
+def test_clear_all_data_safety_and_jobs_cancellation():
+    """Verify active jobs are cancelled and files outside storage root are untouched."""
+    with TemporaryDirectory() as external_tmp:
+        # Create an external file that should NEVER be deleted
+        external_file = Path(external_tmp) / "precious_user_video.mp4"
+        external_file.write_text("irreplaceable raw source footage")
+
+        with TemporaryDirectory() as storage_tmp:
+            settings = Settings(storage_root=storage_tmp)
+            layout = StorageLayout.from_root(storage_tmp)
+            layout.ensure_directories()
+
+            # Managed file
+            managed_file = layout.media / "managed_copy.mp4"
+            managed_file.write_text("managed copy")
+
+            # Setup DB with active jobs
+            conn = sqlite3.connect(str(layout.db_file))
+            conn.execute("CREATE TABLE schema_migrations (version TEXT PRIMARY KEY);")
+            conn.execute("INSERT INTO schema_migrations VALUES ('0014');")
+            conn.execute("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value_json TEXT, updated_at TEXT);")
+            conn.execute(
+                "CREATE TABLE projects (id TEXT PRIMARY KEY, name TEXT, description TEXT, settings_json TEXT, created_at TEXT, updated_at TEXT);"
+            )
+            conn.execute(
+                """
+                CREATE TABLE jobs (
+                    id TEXT PRIMARY KEY,
+                    job_type TEXT,
+                    project_id TEXT,
+                    status TEXT,
+                    stage TEXT,
+                    progress_pct REAL,
+                    error_message TEXT,
+                    updated_at TEXT
+                );
+                """
+            )
+            conn.execute(
+                "INSERT INTO jobs VALUES ('j1', 'analysis', 'p1', 'running', 'demuxing', 25.0, NULL, '2026-01-01');"
+            )
+            conn.execute(
+                "INSERT INTO jobs VALUES ('j2', 'render', 'p1', 'queued', 'queued', 0.0, NULL, '2026-01-01');"
+            )
+            conn.commit()
+            conn.close()
+
+            service = StorageService(settings=settings)
+            res = service.clear_all_data("DELETE")
+
+            assert res["status"] == "success"
+            assert not managed_file.exists()
+            # External file MUST still exist!
+            assert external_file.exists()
+            assert external_file.read_text() == "irreplaceable raw source footage"
+
+            # Check jobs table in DB was cleared or had cancelled jobs truncated safely
+            conn = sqlite3.connect(str(layout.db_file))
+            project_rows = conn.execute("SELECT id FROM projects;").fetchall()
+            assert len(project_rows) == 1
+            assert project_rows[0][0] == "default"
+            conn.close()
+

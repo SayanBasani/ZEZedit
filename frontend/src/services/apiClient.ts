@@ -441,6 +441,16 @@ export function deleteMediaAssetGlobal(assetId: string, deleteSource = false): P
   });
 }
 
+export function updateMediaAssetGlobal(
+  assetId: string,
+  updates: Partial<MediaAssetItem>
+): Promise<MediaAssetItem> {
+  return request<MediaAssetItem>(`/media/${assetId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
 export function getStreamMediaUrl(assetId: string): string {
   return `${API_BASE}/media/${assetId}/stream`;
 }

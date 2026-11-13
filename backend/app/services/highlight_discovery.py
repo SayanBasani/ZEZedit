@@ -174,13 +174,32 @@ class HighlightDiscoveryEngine:
         aspect_ratio: str = "9:16",
         min_duration: float = 12.0,
         max_duration: float = 60.0,
-        target_clip_count: int = 10,
+        target_clip_count: Optional[int] = None,
         use_ai_explanations: bool = True,
         is_generate_more: bool = False,
+        selected_scene_ids: Optional[List[str]] = None,
+        excluded_scene_ids: Optional[List[str]] = None,
+        duration_preference: str = "ai_best_duration",
+        novelty_mode: str = "strict",
+        generation_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Main highlight discovery workflow with persistent novelty and natural boundaries."""
         if creative_direction not in SUPPORTED_CREATIVE_DIRECTIONS:
             creative_direction = "best_overall"
+
+        # Apply duration bounds based on duration_preference
+        if duration_preference == "short":
+            min_duration = 15.0
+            max_duration = 30.0
+        elif duration_preference == "medium":
+            min_duration = 30.0
+            max_duration = 60.0
+        elif duration_preference == "long":
+            min_duration = 60.0
+            max_duration = 90.0
+        elif duration_preference in ("ai_best_duration", "ai_best"):
+            min_duration = 15.0
+            max_duration = 65.0
 
         generation_run_id = f"cgr_{uuid.uuid4().hex[:12]}"
         now = _now_utc()
@@ -249,6 +268,14 @@ class HighlightDiscoveryEngine:
                     (analysis_run_id,),
                 ).fetchall()
             ]
+
+            # Filter scenes based on user selection / exclusion
+            if selected_scene_ids:
+                selected_set = set(selected_scene_ids)
+                scenes = [s for s in scenes if s["id"] in selected_set]
+            if excluded_scene_ids:
+                excluded_set = set(excluded_scene_ids)
+                scenes = [s for s in scenes if s["id"] not in excluded_set]
             observations = [
                 dict(r)
                 for r in conn.execute(
@@ -274,14 +301,30 @@ class HighlightDiscoveryEngine:
             ).fetchall()
             history_clips = [dict(r) for r in history_rows]
 
+        # Resolve target clip count (AI Recommended if not explicitly passed)
+        if target_clip_count is None or target_clip_count <= 0:
+            base_clips = max(1, int(media_duration / 60.0))
+            scene_factor = max(1, len(scenes) // 4)
+            recommended = min(10, max(2, (base_clips + scene_factor) // 2))
+            if len(history_clips) > 0:
+                recommended = max(1, min(4, recommended - (len(history_clips) // 3)))
+            target_clip_count = recommended
+            logger.info("AI Recommended clip count for %s: %d", media_asset_id, target_clip_count)
+
+        if not generation_type:
+            generation_type = "generate_more" if (is_generate_more or len(history_clips) > 0) else "initial"
+
         logger.info(
-            "Loaded analysis for asset %s: %d segments, %d turns, %d scenes, %d observations, %d history clips",
+            "Loaded analysis for asset %s: %d segments, %d turns, %d scenes, %d observations, %d history clips (mode=%s, gen_type=%s, target=%d)",
             media_asset_id,
             len(segments),
             len(turns),
             len(scenes),
             len(observations),
             len(history_clips),
+            novelty_mode,
+            generation_type,
+            target_clip_count,
         )
 
         # Parse word-level timing from segments
@@ -315,6 +358,15 @@ class HighlightDiscoveryEngine:
             max_duration=max_duration,
             creative_direction=creative_direction,
         )
+
+        # If specific scenes were selected, prioritize candidates overlapping selected scenes
+        if selected_scene_ids and scenes:
+            filtered_cands = [
+                c for c in raw_candidates
+                if any(s["start_time"] < c["end_time"] and s["end_time"] > c["start_time"] for s in scenes)
+            ]
+            if filtered_cands:
+                raw_candidates = filtered_cands
 
         total_discovered = len(raw_candidates)
 
@@ -366,19 +418,47 @@ class HighlightDiscoveryEngine:
             except Exception:
                 pass
 
-        # 6. Persistent Novelty & Non-Repetition Filter
+        # 6. Multi-Layer Persistent Novelty & Non-Repetition Filter
         novelty_passed: List[GeneratedCandidate] = []
         novelty_exclusions_count = 0
 
+        def _tokenize(text: str) -> set[str]:
+            if not text:
+                return set()
+            return {w.lower().strip(".,!?;:\"'()[]") for w in text.split() if len(w) > 2}
+
         for cand in valid_candidates:
             is_novel = True
+            cand_tokens = _tokenize(cand.description + " " + cand.suggested_title)
+
             for hist in history_clips:
-                iou, overlap_ratio = self._compute_temporal_overlap(
-                    cand.start_time, cand.end_time, hist["start_time"], hist["end_time"]
-                )
-                if iou >= 0.50 or overlap_ratio >= 0.60:
+                # 1. Exact or near-exact boundary match (< 2.5s tolerance at both ends)
+                if abs(cand.start_time - hist["start_time"]) < 2.5 and abs(cand.end_time - hist["end_time"]) < 2.5:
                     is_novel = False
                     break
+
+                # 2. Temporal overlap (tIoU and asymmetric overlap ratios)
+                iou, cand_overlap_ratio = self._compute_temporal_overlap(
+                    cand.start_time, cand.end_time, hist["start_time"], hist["end_time"]
+                )
+                intersection = max(0.0, min(cand.end_time, hist["end_time"]) - max(cand.start_time, hist["start_time"]))
+                hist_dur = max(0.001, hist["end_time"] - hist["start_time"])
+                hist_overlap_ratio = intersection / hist_dur
+
+                iou_limit = 0.65 if novelty_mode == "relaxed" else 0.45
+                ratio_limit = 0.70 if novelty_mode == "relaxed" else 0.55
+
+                if iou >= iou_limit or cand_overlap_ratio >= ratio_limit or hist_overlap_ratio >= ratio_limit:
+                    is_novel = False
+                    break
+
+                # 3. Content similarity (if words overlap substantially and temporal overlap > 30%)
+                hist_tokens = _tokenize(hist.get("title", ""))
+                if cand_tokens and hist_tokens and len(cand_tokens) > 3 and len(hist_tokens) > 3:
+                    jaccard = len(cand_tokens & hist_tokens) / len(cand_tokens | hist_tokens)
+                    if jaccard > 0.75 and cand_overlap_ratio > 0.30:
+                        is_novel = False
+                        break
 
             if is_novel:
                 novelty_passed.append(cand)
@@ -418,11 +498,14 @@ class HighlightDiscoveryEngine:
         )
 
         warnings_list: List[str] = []
+        is_novelty_exhausted = 0
         if total_selected < target_clip_count:
             if novelty_exclusions_count > 0:
+                is_novelty_exhausted = 1
                 warnings_list.append(
                     f"Returned {total_selected} candidates (requested {target_clip_count}). "
-                    f"{novelty_exclusions_count} candidates excluded by novelty ledger to avoid repeating previously generated moments."
+                    f"{novelty_exclusions_count} candidates were excluded by the persistent novelty ledger to avoid repeating previously generated moments. "
+                    f"You can switch creative direction or relax the novelty threshold to extract more moments."
                 )
             else:
                 warnings_list.append(
@@ -448,6 +531,10 @@ class HighlightDiscoveryEngine:
             candidates_rejected=total_rejected,
             novelty_exclusions=novelty_exclusions_count,
             warnings=warnings_list,
+            generation_type=generation_type,
+            reused_analysis_run_id=analysis_run_id,
+            duration_preference=duration_preference,
+            is_novelty_exhausted=is_novelty_exhausted,
         )
 
         if job_id:
@@ -1022,6 +1109,10 @@ class HighlightDiscoveryEngine:
         candidates_rejected: int,
         novelty_exclusions: int,
         warnings: List[str],
+        generation_type: str = "initial",
+        reused_analysis_run_id: Optional[str] = None,
+        duration_preference: str = "ai_best_duration",
+        is_novelty_exhausted: int = 0,
     ) -> List[Dict[str, Any]]:
         """Persists generation run, candidates, and novelty history in a single SQLite transaction."""
         now = _now_utc()
@@ -1037,13 +1128,15 @@ class HighlightDiscoveryEngine:
                     min_duration, max_duration, status,
                     candidates_discovered, candidates_selected, candidates_rejected,
                     novelty_exclusions, error_message, warnings_json,
-                    started_at, completed_at, created_at, updated_at
+                    started_at, completed_at, created_at, updated_at,
+                    generation_type, reused_analysis_run_id, duration_preference, is_novelty_exhausted
                 ) VALUES (
                     ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, 'completed',
                     ?, ?, ?,
                     ?, NULL, ?,
+                    ?, ?, ?, ?,
                     ?, ?, ?, ?
                 )
                 """,
@@ -1054,6 +1147,7 @@ class HighlightDiscoveryEngine:
                     candidates_discovered, candidates_selected, candidates_rejected,
                     novelty_exclusions, json.dumps(warnings),
                     now, now, now, now,
+                    generation_type, reused_analysis_run_id, duration_preference, is_novelty_exhausted,
                 ),
             )
 

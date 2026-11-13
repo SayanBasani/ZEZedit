@@ -217,8 +217,34 @@ class StorageService:
         deleted_files_count = 0
         freed_bytes = 0
         cleared_categories: List[str] = []
+        failed_deletions: List[Dict[str, str]] = []
 
-        # 1. Sweep all managed storage subdirectories
+        root_resolved = self.layout.root.resolve()
+
+        # 0. Cancel any active or queued jobs first so background threads cannot write to disk or DB
+        if self.layout.db_file.exists():
+            try:
+                with sqlite_session(self.layout.db_file) as conn:
+                    cursor = conn.cursor()
+                    has_jobs_tbl = cursor.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name='jobs'"
+                    ).fetchone()
+                    if has_jobs_tbl:
+                        cursor.execute(
+                            """
+                            UPDATE jobs
+                            SET status = 'cancelled',
+                                stage = 'cancelled_by_system_reset',
+                                error_message = 'Operation cancelled due to Clear All Data system reset',
+                                updated_at = ?
+                            WHERE status IN ('running', 'queued')
+                            """,
+                            (datetime.now(timezone.utc).isoformat(),),
+                        )
+            except Exception as job_err:
+                logger.warning("Could not pre-cancel active jobs prior to cleanup: %s", job_err)
+
+        # 1. Sweep all managed storage subdirectories strictly bounded within root
         managed_dirs = [
             ("media", self.layout.media),
             ("proxies", self.layout.proxies),
@@ -231,27 +257,54 @@ class StorageService:
         ]
 
         for cat_name, folder_path in managed_dirs:
+            # Verify folder_path is strictly within storage root
+            try:
+                resolved_folder = folder_path.resolve()
+                if not resolved_folder.is_relative_to(root_resolved):
+                    logger.error("Security violation: folder '%s' resolves outside storage root: %s", cat_name, resolved_folder)
+                    continue
+            except Exception as path_err:
+                logger.error("Could not resolve folder path for %s: %s", cat_name, path_err)
+                continue
+
             if folder_path.exists():
                 cat_count = 0
                 cat_bytes = 0
                 for item in list(folder_path.iterdir()):
                     try:
-                        if item.is_file() and not item.is_symlink():
+                        # Symlink or junction protection: unlink link without traversing
+                        if item.is_symlink() or os.path.islink(str(item)):
+                            item.unlink(missing_ok=True)
+                            cat_count += 1
+                            continue
+
+                        # Ensure target item resolves inside storage root
+                        item_resolved = item.resolve()
+                        if not item_resolved.is_relative_to(root_resolved):
+                            logger.error("Security boundary skipped: item '%s' resolves outside storage root: %s", item, item_resolved)
+                            continue
+
+                        if item.is_file():
                             sz = item.stat().st_size
                             item.unlink(missing_ok=True)
                             cat_count += 1
                             cat_bytes += sz
                         elif item.is_dir():
-                            for sub_f in item.rglob("*"):
-                                if sub_f.is_file() and not sub_f.is_symlink():
-                                    sz = sub_f.stat().st_size
+                            for sub_f in list(item.rglob("*")):
+                                if sub_f.is_symlink() or os.path.islink(str(sub_f)):
                                     sub_f.unlink(missing_ok=True)
                                     cat_count += 1
-                                    cat_bytes += sz
+                                elif sub_f.is_file():
+                                    if sub_f.resolve().is_relative_to(root_resolved):
+                                        sz = sub_f.stat().st_size
+                                        sub_f.unlink(missing_ok=True)
+                                        cat_count += 1
+                                        cat_bytes += sz
                             shutil.rmtree(item, ignore_errors=True)
                     except OSError as err:
                         logger.warning("Error clearing '%s' in %s: %s", item, cat_name, err)
-                
+                        failed_deletions.append({"path": str(item), "category": cat_name, "error": str(err)})
+
                 # Re-ensure folder exists
                 folder_path.mkdir(parents=True, exist_ok=True)
                 cleared_categories.append(cat_name)
@@ -293,10 +346,11 @@ class StorageService:
                 conn.execute("VACUUM;")
 
         logger.info(
-            "Clear all data executed: %d files deleted (%d bytes), %d tables truncated",
+            "Clear all data executed: %d files deleted (%d bytes), %d tables truncated, %d failures",
             deleted_files_count,
             freed_bytes,
             len(truncated_tables),
+            len(failed_deletions),
         )
 
         return {
@@ -306,6 +360,7 @@ class StorageService:
             "freed_bytes": freed_bytes,
             "cleared_categories": cleared_categories,
             "truncated_tables": truncated_tables,
+            "failed_deletions": failed_deletions,
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 

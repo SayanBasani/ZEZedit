@@ -491,6 +491,7 @@ export const App: React.FC = () => {
                 setSelectedMediaAsset(asset);
                 setStudioAssetId(asset.id);
                 setActiveTab('video-dashboard');
+                window.history.pushState(null, '', `/videos/${asset.id}`);
               }}
             />
           )}
@@ -501,6 +502,7 @@ export const App: React.FC = () => {
                 setSelectedMediaAsset(asset);
                 setStudioAssetId(asset.id);
                 setActiveTab('video-dashboard');
+                window.history.pushState(null, '', `/videos/${asset.id}`);
               }}
             />
           )}
@@ -510,7 +512,10 @@ export const App: React.FC = () => {
               <VideoEditDashboard
                 assetId={studioAssetId || selectedMediaAsset?.id || projectMedia[0]?.id || ''}
                 projectId={selectedMediaAsset?.project_id || 'default'}
-                onBack={() => setActiveTab('videos')}
+                onBack={() => {
+                  setActiveTab('videos');
+                  window.history.pushState(null, '', '/videos');
+                }}
               />
             ) : (
               <ShortVideoGeneratorLibrary
@@ -518,6 +523,7 @@ export const App: React.FC = () => {
                   setSelectedMediaAsset(asset);
                   setStudioAssetId(asset.id);
                   setActiveTab('video-dashboard');
+                  window.history.pushState(null, '', `/videos/${asset.id}`);
                 }}
               />
             )

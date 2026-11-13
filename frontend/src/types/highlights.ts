@@ -95,6 +95,10 @@ export interface CandidateGenerationRunItem {
   candidates_rejected: number;
   novelty_exclusions: number;
   warnings: string[];
+  generation_type?: 'initial' | 'generate_more';
+  reused_analysis_run_id?: string | null;
+  duration_preference?: string;
+  is_novelty_exhausted?: boolean;
   error_message?: string | null;
   created_at: string;
   completed_at?: string | null;
@@ -137,8 +141,13 @@ export interface DiscoverHighlightsOptions {
   min_duration?: number;
   max_duration?: number;
   target_clip_count?: number;
+  duration_preference?: 'ai_best_duration' | 'short' | 'medium' | 'long' | 'custom';
+  novelty_mode?: 'strict' | 'relaxed';
+  generation_type?: 'initial' | 'generate_more';
   use_ai_explanations?: boolean;
   run_synchronously?: boolean;
+  selected_scene_ids?: string[];
+  excluded_scene_ids?: string[];
 }
 
 export interface UpdateCandidatePayload {
@@ -150,7 +159,7 @@ export interface UpdateCandidatePayload {
 }
 
 export type FramingMode = 'center' | 'manual' | 'smart_tracking';
-export type AspectRatioOption = '9:16' | '1:1' | '16:9' | '4:5';
+export type AspectRatioOption = '9:16' | '1:1' | '16:9' | '4:5' | '4:3' | '3:4';
 
 export interface CandidateClipEdit {
   id: string;

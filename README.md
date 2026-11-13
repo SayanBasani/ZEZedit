@@ -1,40 +1,36 @@
-## 4. Exact Windows PowerShell backend startup commands
+# ZezEdit 2.0 — Local-First AI Video Editor
 
-Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
+ZezEdit 2.0 is a modular, CPU-first, local-first AI-assisted video editor for Windows 11.
 
+---
+
+## Quick Start: Windows PowerShell Commands
+
+### Backend Commands (FastAPI + Uvicorn)
+Start FastAPI server at `http://127.0.0.1:8000`:
 ```powershell
 cd D:\ZezEdit\backend
 .\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Run backend automated test suite (Pytest):
-
 ```powershell
 cd D:\ZezEdit\backend
 .\.venv\Scripts\python -m pytest -v
 ```
 
----
-
-## 5. Exact Windows PowerShell frontend startup commands
-
-Development server (`http://localhost:5173`, proxying `/api` to `http://127.0.0.1:8000`):
-
+### Frontend Commands (React + Vite + Tailwind)
+Start frontend development server at `http://localhost:5173`:
 ```powershell
 cd D:\ZezEdit\frontend
 npm run dev
 ```
 
 Run frontend unit tests (Vitest via npm, never pnpm):
-
 ```powershell
 cd D:\ZezEdit\frontend
 npm test -- --run
 ```
-
-# ZezEdit 2.0 — Local-First AI Video Editor
-
-ZezEdit 2.0 is a modular, CPU-first, local-first AI-assisted video editor for Windows 11.
 
 ---
 
@@ -335,6 +331,7 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 6A Completion Report: Reusable Intelligence & Non-Repeating Generate More](docs/reports/session_6a/SESSION_6A_COMPLETION_REPORT.md)
 - [Product Restructure & Video-Centric Architecture Plan](docs/architecture/ZEZEDIT_PRODUCT_RESTRUCTURE_PLAN.md)
 - [Product Restructure Completion Report](docs/reports/product_restructure/PRODUCT_RESTRUCTURE_COMPLETION_REPORT.md)
 - [Session 0 Architecture Audit & Roadmap](docs/architecture/SESSION_0_AUDIT_REPORT.md)

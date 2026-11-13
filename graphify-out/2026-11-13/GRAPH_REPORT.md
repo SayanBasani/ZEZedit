@@ -1,47 +1,47 @@
-# Graph Report - ZezEdit  (2026-11-12)
+# Graph Report - ZezEdit  (2026-11-13)
 
 ## Corpus Check
-- 192 files · ~280,518 words
+- 198 files · ~294,626 words
 - Verdict: corpus is large enough that graph structure adds value.
 - Unclassified: 7 file(s) not represented in the graph (top: .xml 3, .example 1, (none) 1)
 
 ## Summary
-- 3067 nodes · 8225 edges · 163 communities (120 shown, 43 thin omitted)
-- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 926 edges (avg confidence: 0.9)
+- 3118 nodes · 8419 edges · 161 communities (121 shown, 40 thin omitted)
+- Extraction: 89% EXTRACTED · 11% INFERRED · 0% AMBIGUOUS · INFERRED: 910 edges (avg confidence: 0.9)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `5b590253`
+- Built from commit: `6e0f80fe`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
 - apiClient.ts
 - App.tsx
-- get_settings
+- v1/media.py
 - AppError
-- test_milestone24_timeline_operations_coverage.py
+- StorageLayout
 - BackupService
-- highlights.py
-- AppError
+- sqlite_session
+- MediaService
 - Button
-- test_milestone24_timeline_operations_coverage.py
+- .update_clip_props
 - highlights.ts
 - JobOrchestrator
 - HighlightDiscoveryEngine
 - clip_edits.py
 - NotFoundError
-- subprocess
+- test_milestone5_analysis.py
 - ProjectService
 - core.py
 - v1/timeline.py
-- v1/health.py
-- shutil
+- Settings
+- docs_center.py
 - CharacterService
 - subprocess
 - TimelineCommandService
 - ExportStudio.tsx
-- CropKeyframe
+- test_milestone4_media.py
 - FramingEngine
 - MediaAssetItem
 - ExportService
@@ -52,21 +52,20 @@
 - CharacterStudio.tsx
 - NotFoundError
 - ZezEdit 2.0 — Milestone 12 Completion Report: Pre-Deletion Baseline Reconstruction & Feature Parity Specification
-- get
-- ExportStudio.tsx
+- get_temporal_context_at
+- TestClient
+- subprocess
 - ProviderHealth
-- StorageLayout
+- test_milestone24_storage_and_jobs_coverage.py
 - OllamaVisionAnalyzer
-- SettingsManager.tsx
-- v1/jobs.py
+- export_service.py
+- v1/health.py
 - test_milestone9_timeline.py
 - CharacterCandidate
 - CaptionConfig
-- StorageService
-- Any
 - ZezEdit 2.0 — Local-First AI Video Editor
 - characters.py
-- README.md
+- core.py
 - ZezEdit 2.0 — Feature Status Tracker
 - VideoAnalysisPipeline
 - ZezEdit 2.0 — Media Storage & Processing Pipeline
@@ -79,7 +78,7 @@
 - reframing_renderer.py
 - .analyze_and_create_plan
 - Domain F: Smart Reframing & Subject Tracking (`ZEZ-041` – `ZEZ-055`)
-- ZezEdit 2.0 — Comprehensive Technical Audit & Evidence-Based Verification Report
+- projects.ts
 - test_candidate_human_review_workflow
 - Tokens
 - ZezEdit 2.0 — Architecture: Character Extraction Studio & Character Library
@@ -91,12 +90,12 @@
 - 6. Multiple Shorts Batch Export Engine
 - Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`)
 - ZezEdit 2.0 — Milestone 13 Completion Report: ZezEdit 1.0 Exact Feature, Workflow, UI & Architecture Restoration Plan
-- core.py
-- .__init__
+- SettingsService
+- OutputValidator
 - VideoAnalysisPipeline
 - entities.py
-- OutputValidator
-- ZezEdit 2.0 — Shared Timeline Data Model & API Architecture
+- run_migrations
+- TimelineRenderer
 - ZezEdit 2.0 — Comprehensive Technical Audit & Evidence-Based Verification Report
 - 3. Detailed Milestone Breakdown
 - Domain B: Media Management & Proxies (`ZEZ-011` – `ZEZ-020`)
@@ -108,21 +107,22 @@
 - export_service.py
 - character.py
 - export.py
-- run_migrations
+- test_session5_clip_editing.py
 - ZezEdit 2.0 — Database Design & Migration Strategy
 - ZezEdit 2.0 — Authoritative Job Orchestration Design
 - ZezEdit 2.0 — Architecture & Technology Decision Records (ADRs)
 - compilerOptions
+- v1/jobs.py
 - ZezEdit 2.0 — Security & Data Safety Architecture
 - 3. Sub-Workspace Breakdown
 - Effects
-- .__init__
+- ExportStudio.tsx
 - ZezEdit 2.0 — Security & Data Safety Architecture
 - F. Test Evidence Summary
 - 3. Detailed Specification by Domain
-- create_backup_endpoint
+- settings.py
 - JobOrchestrator
-- .execute_cache_cleanup
+- StorageService
 - base.py
 - character_env
 - timeline_env
@@ -132,131 +132,129 @@
 - kind
 - playhead_sec
 - app/__init__.py
-- ZezEdit 2.0 — Architecture & Technology Decision Records (ADRs)
+- MediaPipelineService
 - ZezEdit 2.0 — System Architecture
+- CropKeyframe
+- get
+- test_direct_upload_verification.py
+- .db_file
+- .check_asset_integrity
+- CaptionConfig
 - ZezEdit 2.0 — Master Requirements Specification
-- get_temporal_context_at
-- start_highlight_discovery
-- F. Test Evidence Summary
-- G. Recommended Next Five Corrective Milestones
-- get_candidate_generation_run
-- .get_database_diagnostics
-- storage_jobs_env
-- test_job_priority_queue_dispatch_order
-- test_jobs_rest_api_list_and_stats
+- test_format_ass_timestamp_precision
 
 ## God Nodes (most connected - your core abstractions)
-1. `sqlite_session()` - 186 edges
-2. `request()` - 122 edges
-3. `Settings` - 115 edges
-4. `NotFoundError` - 83 edges
-5. `StorageLayout` - 81 edges
+1. `sqlite_session()` - 188 edges
+2. `request()` - 125 edges
+3. `Settings` - 121 edges
+4. `StorageLayout` - 83 edges
+5. `NotFoundError` - 83 edges
 6. `JobOrchestrator` - 79 edges
 7. `get_settings()` - 74 edges
-8. `AppError` - 70 edges
+8. `AppError` - 73 edges
 9. `TimelineCommandService` - 63 edges
-10. `TimelineService` - 58 edges
+10. `create_app()` - 60 edges
 
 ## Surprising Connections (you probably didn't know these)
 - `H. Frontend Restoration` --references--> `getSceneThumbnailUrl()`  [INFERRED]
   docs/reports/milestone_15_analysis_restoration_report.md → frontend/src/services/apiClient.ts
+- ``ZEZ-020`: Media Organization, Tags & Search` --references--> `MediaAssetItem`  [INFERRED]
+  docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md → frontend/src/types/projects.ts
 - `1. Core Mandate: One Single Job System` --references--> `JobOrchestrator`  [INFERRED]
   docs/architecture/JOB_ORCHESTRATION.md → backend/app/services/jobs.py
 - `Components` --references--> `JobOrchestrator`  [INFERRED]
   docs/architecture/MEDIA_PIPELINE.md → backend/app/services/jobs.py
 - `Domain G: Shorts Generation & FFmpeg Rendering` --references--> `JobOrchestrator`  [INFERRED]
   docs/reconstruction/FEATURE_PARITY_MATRIX.md → backend/app/services/jobs.py
-- ``ZEZ-067`: Duplicate Render Prevention` --references--> `JobOrchestrator`  [INFERRED]
-  docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md → backend/app/services/jobs.py
 
 ## Import Cycles
 - None detected.
 
-## Communities (163 total, 43 thin omitted)
+## Communities (161 total, 40 thin omitted)
 
 ### Community 0 - "apiClient.ts"
 Cohesion: 0.05
-Nodes (92): CharacterStudio(), TimelineEditor(), addTimelineTextOverlay(), addTimelineTrack(), ApiClientError, approveAIPlan(), checkAssetIntegrity(), confirmCharacterCandidate() (+84 more)
+Nodes (99): CharacterStudio(), ProjectsView(), TimelineEditor(), addTimelineTextOverlay(), addTimelineTrack(), ApiClientError, approveAIPlan(), archiveProject() (+91 more)
 
 ### Community 1 - "App.tsx"
-Cohesion: 0.06
-Nodes (48): D. Critical Defects & Technical Debt Registry, Milestone 11: Full Repository Audit, Evidence-Based Verification & Technical Debt Checklist, 5. UX Problems Identified and Corrected, App(), NavSection, SidebarNavButton(), SidebarNavButtonProps, defaultToastValue (+40 more)
+Cohesion: 0.05
+Nodes (55): D. Critical Defects & Technical Debt Registry, Milestone 11: Full Repository Audit, Evidence-Based Verification & Technical Debt Checklist, 5. UX Problems Identified and Corrected, App(), NavSection, SidebarNavButton(), SidebarNavButtonProps, defaultToastValue (+47 more)
 
-### Community 2 - "get_settings"
-Cohesion: 0.11
-Nodes (19): get_analysis_pipeline(), get_db_path(), get_backup_service(), get_clip_editing_service(), get_export_service(), get_db_path(), get_discovery_engine(), get_job_orchestrator() (+11 more)
+### Community 2 - "v1/media.py"
+Cohesion: 0.10
+Nodes (16): generate_proxy_endpoint(), get_media_global(), import_local_file(), inspect_relink(), list_all_media(), list_media(), regenerate_thumbnail(), relink_media() (+8 more)
 
 ### Community 3 - "AppError"
 Cohesion: 0.07
-Nodes (13): AppError, ProcessingError, sample_analysis_frames(), SampledFrame, MediaProbeResult, MediaStreamInfo, parse_fraction(), probe_media_file() (+5 more)
+Nodes (10): get_clip_editing_service(), get_db_path(), get_discovery_engine(), get_settings(), AppError, ProcessingError, sample_analysis_frames(), SampledFrame (+2 more)
 
-### Community 4 - "test_milestone24_timeline_operations_coverage.py"
-Cohesion: 0.09
-Nodes (13): add_track(), update_track(), CreateTrackRequest, MoveClipRequest, UpdateTimelineSettingsRequest, UpdateTrackRequest, test_timeline_duplicate_clip_naming_and_props(), test_timeline_move_clip_cross_track() (+5 more)
+### Community 4 - "StorageLayout"
+Cohesion: 0.05
+Nodes (16): get_backup_service(), configure_logging(), StorageLayout, create_app(), lifespan(), test_character_api_routes(), test_silent_video_analysis_pipeline(), test_standard_video_analysis_and_caching() (+8 more)
 
 ### Community 5 - "BackupService"
-Cohesion: 0.16
-Nodes (4): create_backup(), restore_backup(), BackupService, test_sqlite_online_backup_generation()
+Cohesion: 0.08
+Nodes (12): create_backup(), restore_backup(), create_backup_endpoint(), get_db_integrity_endpoint(), get_recovery_status_endpoint(), get_storage_breakdown_endpoint(), list_backups_endpoint(), preview_cleanup_endpoint() (+4 more)
 
-### Community 6 - "highlights.py"
+### Community 6 - "sqlite_session"
+Cohesion: 0.06
+Nodes (27): approve_candidate(), bulk_review_candidates(), BulkReviewRequest, CandidateGenerationRunResponse, DiscoverHighlightsRequest, generate_more_highlights(), get_candidate_alternatives(), get_candidate_details() (+19 more)
+
+### Community 7 - "MediaService"
 Cohesion: 0.10
-Nodes (14): approve_candidate(), bulk_review_candidates(), BulkReviewRequest, get_candidate_alternatives(), get_candidate_details(), get_project_highlights_overview(), HighlightsOverviewResponse, list_media_candidates() (+6 more)
-
-### Community 7 - "AppError"
-Cohesion: 0.05
-Nodes (36): check_project_media_integrity(), delete_media(), generate_proxy_endpoint(), get_asset_integrity(), get_media(), get_media_global(), get_media_proxy_global(), get_media_stats() (+28 more)
+Nodes (7): check_project_media_integrity(), mark_media_missing(), register_media(), MediaAssetRecord, MediaService, test_media_assets_and_relinking(), test_media_pipeline_proxy_lifecycle_and_delete()
 
 ### Community 8 - "Button"
-Cohesion: 0.14
-Nodes (38): Milestone 3 — Frontend Application Shell, Dashboard & Design System, Badge(), BadgeProps, Button(), ButtonProps, Card(), CardProps, ConfirmDialog() (+30 more)
-
-### Community 9 - "test_milestone24_timeline_operations_coverage.py"
 Cohesion: 0.12
-Nodes (8): TrimClipRequest, UpdateClipPropsRequest, test_timeline_consecutive_undo_redo_stack(), test_timeline_duration_auto_calculation(), test_timeline_new_command_clears_redo_history(), test_timeline_track_deletion_and_clip_cascade(), test_timeline_trim_clip_bounds_and_duration(), test_timeline_update_clip_props_volume_and_speed()
+Nodes (43): Milestone 3 — Frontend Application Shell, Dashboard & Design System, Badge(), BadgeProps, Button(), ButtonProps, Card(), CardProps, ConfirmDialog() (+35 more)
+
+### Community 9 - ".update_clip_props"
+Cohesion: 0.31
+Nodes (4): UpdateClipPropsRequest, test_timeline_consecutive_undo_redo_stack(), test_timeline_new_command_clears_redo_history(), test_timeline_update_clip_props_volume_and_speed()
 
 ### Community 10 - "highlights.ts"
 Cohesion: 0.10
 Nodes (28): BatchExportModal(), BatchExportModalProps, ASPECT_RATIO_OPTIONS, CandidateClipEditorModal(), CandidateClipEditorModalProps, formatTimecode(), fetchCandidateEdit(), resetCandidateEdit() (+20 more)
 
 ### Community 11 - "JobOrchestrator"
-Cohesion: 0.06
-Nodes (54): ResourceInspector(), DashboardViewProps, DocumentationView(), MediaLibraryViewProps, ProjectsManagerProps, AIProviderManager(), formatDuration(), StatusFilter (+46 more)
+Cohesion: 0.08
+Nodes (44): ResourceInspector(), DocumentationView(), AIProviderManager(), formatDuration(), StatusFilter, WorkingQueueView(), cancelJob(), fetchAIProviders() (+36 more)
 
 ### Community 12 - "HighlightDiscoveryEngine"
-Cohesion: 0.08
+Cohesion: 0.09
 Nodes (13): format_timestamp(), GeneratedCandidate, HighlightDiscoveryEngine, _now_utc(), QualityGateResult, ScoreBreakdown, main(), test_highlight_discovery_engine() (+5 more)
 
 ### Community 13 - "clip_edits.py"
-Cohesion: 0.14
+Cohesion: 0.13
 Nodes (7): CandidateEditSaveRequest, get_candidate_edit(), reset_candidate_edit(), save_candidate_edit(), track_candidate_subjects(), TrackCandidateRequest, ClipEditingService
 
 ### Community 14 - "NotFoundError"
-Cohesion: 0.19
-Nodes (15): AIConversation, AIEditingPlan, AIMessage, AIPlanOperation, AudioProps, ClipType, CommandType, ContentProps (+7 more)
+Cohesion: 0.11
+Nodes (27): add_track(), update_timeline_settings(), AIConversation, AIMessage, AudioProps, ClipType, CommandType, ContentProps (+19 more)
 
-### Community 15 - "subprocess"
-Cohesion: 0.07
-Nodes (29): AudioMetadata, detect_audio_silence(), extract_audio_16k_mono(), extract_audio_chunk(), inspect_audio_stream(), detect_scenes_ffmpeg(), generate_scene_thumbnails(), NormalizedSegment (+21 more)
+### Community 15 - "test_milestone5_analysis.py"
+Cohesion: 0.08
+Nodes (21): AudioMetadata, detect_audio_silence(), extract_audio_16k_mono(), extract_audio_chunk(), inspect_audio_stream(), detect_scenes_ffmpeg(), generate_scene_thumbnails(), NormalizedSegment (+13 more)
 
 ### Community 16 - "ProjectService"
-Cohesion: 0.08
-Nodes (21): archive_project(), create_project(), delete_project(), get_project(), get_project_events(), list_projects(), restore_project(), update_project() (+13 more)
+Cohesion: 0.10
+Nodes (14): archive_project(), create_project(), delete_project(), get_project(), get_project_events(), list_projects(), restore_project(), update_project() (+6 more)
 
 ### Community 17 - "core.py"
 Cohesion: 0.05
 Nodes (25): args, chrome, positionals, args, chrome, file, frame, frames (+17 more)
 
 ### Community 18 - "v1/timeline.py"
-Cohesion: 0.07
-Nodes (14): add_text_overlay(), approve_plan(), get_command_service(), get_timeline_service(), insert_clip(), move_clip(), reject_plan(), render_timeline() (+6 more)
+Cohesion: 0.09
+Nodes (11): add_text_overlay(), get_ai_editor_service(), get_command_service(), get_timeline_renderer(), get_timeline_service(), insert_clip(), move_clip(), split_clip() (+3 more)
 
-### Community 19 - "v1/health.py"
-Cohesion: 0.08
-Nodes (17): _check_storage_writable(), get_health(), get_system_diagnostics(), get_system_info(), get_system_resources(), get_capabilities_endpoint(), BinaryStatus, probe_media_binary() (+9 more)
+### Community 19 - "Settings"
+Cohesion: 0.05
+Nodes (18): get_export_service(), get_project_service(), get_reframing_service(), Settings, StorageService, client_with_clean_storage(), m15_env(), app_and_client() (+10 more)
 
-### Community 20 - "shutil"
-Cohesion: 0.12
-Nodes (10): BoundaryViolationError, RootDeletionForbiddenError, UnsafeStorageRootError, is_path_confined(), resolve_contained_path(), safe_delete_directory(), validate_storage_root_path(), generate_proxy() (+2 more)
+### Community 20 - "docs_center.py"
+Cohesion: 0.21
+Nodes (4): get_doc_article(), list_doc_articles(), list_doc_categories(), DocCategoryDTO
 
 ### Community 21 - "CharacterService"
 Cohesion: 0.05
@@ -267,36 +265,36 @@ Cohesion: 0.06
 Nodes (37): dependencies, lucide-react@^0.468.0, react@^18.3.1, react-dom@^18.3.1, devDependencies, autoprefixer@^10.4.20, jsdom@^31.0.0, postcss@^8.4.49 (+29 more)
 
 ### Community 23 - "TimelineCommandService"
-Cohesion: 0.10
-Nodes (10): delete_clip(), duplicate_clip(), get_history(), redo(), undo(), ValidationError, SplitClipRequest, TimelineCommandService (+2 more)
+Cohesion: 0.07
+Nodes (12): approve_plan(), create_timeline(), delete_clip(), duplicate_clip(), get_history(), redo(), restore_plan(), undo() (+4 more)
 
 ### Community 24 - "ExportStudio.tsx"
-Cohesion: 0.11
-Nodes (3): get_ai_conversation(), get_ai_editor_service(), AIEditorService
+Cohesion: 0.08
+Nodes (9): get_ai_conversation(), get_plan(), list_plans(), reject_plan(), send_ai_message(), AIEditingPlan, AIPlanOperation, AIEditorService (+1 more)
 
-### Community 25 - "CropKeyframe"
-Cohesion: 0.09
-Nodes (7): CropKeyframe, calculate_aspect_ratio(), build_crop_filter_expression(), ReframingRenderer, _simplify_keyframes(), test_preview_and_renderer_expression_parity(), test_real_ffmpeg_reframing_render()
+### Community 25 - "test_milestone4_media.py"
+Cohesion: 0.10
+Nodes (11): calculate_aspect_ratio(), MediaProbeResult, MediaStreamInfo, parse_fraction(), probe_media_file(), generate_proxy(), generate_thumbnail(), test_media_http_api_endpoints() (+3 more)
 
 ### Community 26 - "FramingEngine"
-Cohesion: 0.11
-Nodes (6): FramingEngine, test_portrait_crop_geometry_and_bounds(), test_trajectory_smoothing_and_scene_cut_isolation(), `ZEZ-044`: Boundary Safety Containment (13M.12), `ZEZ-055`: Authoritative Preview-to-Render Mathematical Parity (13M.12/13M.13), 4. Features Already Restored in ZezEdit 2.0
+Cohesion: 0.14
+Nodes (5): FramingEngine, test_portrait_crop_geometry_and_bounds(), test_trajectory_smoothing_and_scene_cut_isolation(), `ZEZ-044`: Boundary Safety Containment (13M.12), 4. Features Already Restored in ZezEdit 2.0
 
 ### Community 27 - "MediaAssetItem"
-Cohesion: 0.07
-Nodes (43): 7. Video Workspace Implementation, AnalysisWorkspaceProps, CharacterStudioProps, ExportStudioProps, HighlightsWorkspace(), HighlightsWorkspaceProps, PostImportModalProps, ReframingReviewModal() (+35 more)
+Cohesion: 0.10
+Nodes (33): 7. Video Workspace Implementation, HighlightsWorkspace(), ReframingReviewModal(), ReframingWorkspace(), analyzeReframing(), approveCandidate(), bulkReviewCandidates(), fetchCandidateAlternatives() (+25 more)
 
 ### Community 28 - "ExportService"
 Cohesion: 0.08
-Nodes (50): 4. Post-Import Action Flow, AnalysisWorkspace(), AspectRatioOption, CREATIVE_DIRECTION_LABELS, CreativeDirectionOption, SingleVideoStudio(), STAGE_LABELS, VideoWorkspace() (+42 more)
+Nodes (60): EmptyState(), AnalysisWorkspace(), AspectRatioOption, CREATIVE_DIRECTION_LABELS, CreativeDirectionOption, SingleVideoStudio(), STAGE_LABELS, ASPECT_RATIOS (+52 more)
 
 ### Community 29 - "get_health"
 Cohesion: 0.07
 Nodes (29): 10. Queue Chart Implementation, 11. Resource Inspector Implementation, 12. AI Provider Manager Implementation, 13. Documentation Center Implementation, 14. Exact Frontend Files Changed & Added, 15. Exact Backend Files Changed & Added, 17. Database Migrations and Tables, 18. Actual AI Providers and Models Tested (+21 more)
 
 ### Community 30 - "analysis.py"
-Cohesion: 0.13
-Nodes (17): AnalysisRunResponse, AudioAnalysisItem, create_or_update_transcript_correction(), _now_utc(), SampledFrameItem, SpeechTurnItem, StartAnalysisRequest, TranscriptCorrectionCreate (+9 more)
+Cohesion: 0.06
+Nodes (32): AnalysisRunResponse, AudioAnalysisItem, create_or_update_transcript_correction(), delete_transcript_correction(), _format_run_response(), get_analysis_run(), get_audio_analysis(), get_context() (+24 more)
 
 ### Community 31 - "test_workflow_state_evaluation_lifecycle"
 Cohesion: 0.17
@@ -308,63 +306,59 @@ Nodes (25): 10. Restoration Roadmap, 11. Test and Verification Evidence, 12. Fil
 
 ### Community 33 - "CharacterStudio.tsx"
 Cohesion: 0.07
-Nodes (29): 10. Batch Export Modal UI & Aspect Ratio Presets, 11. Per-Video State Persistence & Non-Destructive Autosave, 12. Connected Video-to-Shorts Production Workspace, 13. Highlight Review & Boundary Enforcement, 14. Smart Reframing & 9:16 Crop Trajectory Integration, 15. Multi-Track Timeline & Custom Clip Editing, 16. Next Video Selection Workflow & Save-Before-Switch Protection, 17. Hardware Resource Telemetry & CPU Confinement (+21 more)
+Nodes (30): 10. Batch Export Modal UI & Aspect Ratio Presets, 11. Per-Video State Persistence & Non-Destructive Autosave, 12. Connected Video-to-Shorts Production Workspace, 13. Highlight Review & Boundary Enforcement, 14. Smart Reframing & 9:16 Crop Trajectory Integration, 15. Multi-Track Timeline & Custom Clip Editing, 16. Next Video Selection Workflow & Save-Before-Switch Protection, 17. Hardware Resource Telemetry & CPU Confinement (+22 more)
 
 ### Community 34 - "NotFoundError"
-Cohesion: 0.09
-Nodes (10): create_timeline(), delete_track(), get_active_timeline(), get_timeline(), update_timeline_settings(), NotFoundError, CreateTimelineRequest, TimelineRecord (+2 more)
+Cohesion: 0.10
+Nodes (6): delete_track(), get_active_timeline(), get_timeline(), NotFoundError, TimelineRecord, test_timeline_track_deletion_and_clip_cascade()
 
 ### Community 35 - "ZezEdit 2.0 — Milestone 12 Completion Report: Pre-Deletion Baseline Reconstruction & Feature Parity Specification"
-Cohesion: 0.08
-Nodes (23): A. Historical ZezEdit 1.0 Behavior, Algorithm & Outputs, C. Restored Analysis Pipeline, D. Audio and Transcription, Database Migration: `0010_transcript_corrections_and_audio.sql`, E. Scene Detection, Execution Stages, F. Visual Understanding (+15 more)
+Cohesion: 0.05
+Nodes (36): get_transcript(), Milestone 10: Character Extraction Studio, Character Library & End-to-End Reliability Checklist, Milestone 12: Pre-Deletion Baseline Reconstruction & Feature Parity Checklist, Milestone 13: ZezEdit 1.0 Exact Feature Parity Specification Checklist, Milestone 15: Video Analysis, AI Understanding & Temporal Context Restoration Checklist, Milestone 1 — Architecture Redesign & Safe Project Foundation, Milestone 2 — Core Backend, Database & Persistent Project Management, Milestone 4 — Media Ingestion, Import & Media Library (+28 more)
 
-### Community 36 - "get"
-Cohesion: 0.08
-Nodes (15): delete_transcript_correction(), _format_run_response(), get_analysis_run(), get_audio_analysis(), get_frame_image(), get_sampled_frames(), get_scene_thumbnail(), get_scenes() (+7 more)
+### Community 36 - "get_temporal_context_at"
+Cohesion: 0.40
+Nodes (3): get_temporal_context_at(), TemporalContext, test_temporal_aggregator_query()
 
-### Community 37 - "ExportStudio.tsx"
-Cohesion: 0.17
-Nodes (19): DEFAULT_AUDIO_CONFIG, DEFAULT_CAPTION_CONFIG, ExportStudio(), cancelExportRender(), deleteExport(), fetchExportPresets(), fetchJob(), fetchProjectExports() (+11 more)
+### Community 37 - "TestClient"
+Cohesion: 0.21
+Nodes (5): client(), test_ai_providers_list_and_test_probe(), test_documentation_center_endpoints(), test_queue_stats_and_job_logs(), test_system_resources_endpoint()
+
+### Community 38 - "subprocess"
+Cohesion: 0.09
+Nodes (10): ReframingRenderer, create_test_video(), create_test_wav(), test_audio_extractor_bounded_chunk(), test_media_integrity_and_relinking(), export_env(), reframing_env(), test_real_ffmpeg_reframing_render() (+2 more)
 
 ### Community 39 - "ProviderHealth"
 Cohesion: 0.16
 Nodes (8): ProviderHealth, SpeechToTextProvider, StructuredPlanResult, TextLLMProvider, VisionLanguageProvider, 4. Backend Module Boundaries (`backend/app/`), 5. AI Provider Abstraction Boundaries, ADR-05: Dynamic Authoritative AI Provider Abstraction
 
-### Community 40 - "StorageLayout"
-Cohesion: 0.04
-Nodes (35): MigrationError, configure_logging(), StorageLayout, _backup_before_upgrade(), _file_sha256(), MigrationResult, _parse_version_and_name(), run_migrations() (+27 more)
+### Community 40 - "test_milestone24_storage_and_jobs_coverage.py"
+Cohesion: 0.09
+Nodes (17): BoundaryViolationError, RootDeletionForbiddenError, UnsafeStorageRootError, is_path_confined(), resolve_contained_path(), safe_delete_directory(), validate_storage_root_path(), test_health_and_system_info_endpoints() (+9 more)
 
 ### Community 41 - "OllamaVisionAnalyzer"
-Cohesion: 0.17
-Nodes (4): _encode_image_b64(), OllamaVisionAnalyzer, VisualObservation, test_visual_understanding_fallback()
+Cohesion: 0.06
+Nodes (28): _encode_image_b64(), OllamaVisionAnalyzer, VisualObservation, test_visual_understanding_fallback(), 1. Backend Pytest Suite, 1. Character Extraction Studio & Character Library (Milestone 10), 2. Frontend Vitest Suite, 2. Smart Reframing & Subject Tracking (Milestone 7) (+20 more)
 
-### Community 42 - "SettingsManager.tsx"
-Cohesion: 0.19
-Nodes (18): formatBytes(), SettingsManager(), SettingsTab, createBackup(), executeCacheCleanup(), fetchAppSettings(), fetchBackups(), fetchDbIntegrity() (+10 more)
+### Community 42 - "export_service.py"
+Cohesion: 0.06
+Nodes (13): ExportPreset, hex_to_ass_color(), test_export_delete_endpoint(), test_export_render_submission_and_query(), test_export_request_validation_models(), test_export_rest_api_list_presets(), test_export_video_streaming_404_on_missing_file(), test_hex_to_ass_color_conversion_variations() (+5 more)
 
-### Community 43 - "v1/jobs.py"
-Cohesion: 0.19
-Nodes (10): cancel_job(), create_job(), get_job(), get_job_logs(), get_queue_stats(), list_jobs(), retry_job(), JobCreateRequest (+2 more)
+### Community 43 - "v1/health.py"
+Cohesion: 0.09
+Nodes (14): _check_storage_writable(), get_health(), get_system_diagnostics(), get_system_info(), get_system_resources(), OllamaProvider, DatabaseHealth, DependencyCheck (+6 more)
 
 ### Community 44 - "test_milestone9_timeline.py"
-Cohesion: 0.10
-Nodes (12): get_timeline_renderer(), AddTextOverlayRequest, InsertClipRequest, TimelineRenderRequest, _format_ass_time(), TimelineRenderer, test_timeline_text_overlay_creation_and_auto_track(), test_ai_plan_version_history_and_restore() (+4 more)
+Cohesion: 0.11
+Nodes (12): ValidationError, AddTextOverlayRequest, InsertClipRequest, SplitClipRequest, TimelineClip, test_timeline_duration_auto_calculation(), test_timeline_split_clip_boundary_constraints(), test_timeline_text_overlay_creation_and_auto_track() (+4 more)
 
 ### Community 45 - "CharacterCandidate"
 Cohesion: 0.09
 Nodes (21): 10. Files Created and Modified, 11. Recommended Next Five Milestones, 12. Verification Screenshot Gallery, 1. Executive Summary, 2. Unslop Installation and Verification, 3. Graphify Installation and Verification, 4. Graphify Initial Build and Query Examples, 6. User Journey Verification (+13 more)
 
 ### Community 46 - "CaptionConfig"
-Cohesion: 0.13
-Nodes (6): CaptionEngine, format_ass_timestamp(), test_caption_engine_ass_file_generation_and_styling(), test_caption_engine_empty_segments(), test_format_ass_timestamp_precision(), test_caption_engine_ass_generation()
-
-### Community 47 - "StorageService"
-Cohesion: 0.16
-Nodes (3): StorageService, test_storage_breakdown_categories_accuracy(), test_settings_storage_and_secret_redaction()
-
-### Community 48 - "Any"
-Cohesion: 0.24
-Nodes (5): get_db_integrity_endpoint(), get_recovery_status_endpoint(), get_storage_breakdown_endpoint(), inspect_storage_endpoint(), list_backups_endpoint()
+Cohesion: 0.19
+Nodes (3): CaptionEngine, format_ass_timestamp(), test_caption_engine_ass_generation()
 
 ### Community 49 - "ZezEdit 2.0 — Local-First AI Video Editor"
 Cohesion: 0.10
@@ -374,9 +368,9 @@ Nodes (19): compilerOptions, allowImportingTsExtensions, isolatedModules, jsx, l
 Cohesion: 0.11
 Nodes (19): 1. Prerequisites, 2. Installation commands, 3. Environment and setup steps, 4. Exact Windows PowerShell backend startup commands, 5. Exact Windows PowerShell frontend startup commands, 6. ZezEdit 1.0 Parity Specification & Restoration (Milestones 12 & 13), AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking (Milestone 6), Architecture & Documentation (+11 more)
 
-### Community 51 - "README.md"
-Cohesion: 0.18
-Nodes (5): 1. Overview, 2. Context & State Flow, A. State Hierarchy, B. Shared Media URL & Thumbnail Resolution, ZezEdit 2.0 — Video Workspace Architecture
+### Community 51 - "core.py"
+Cohesion: 0.13
+Nodes (25): test_ai_provider(), AIProviderCapability, AIProviderDTO, AIProviderTestRequest, AIProviderTestResponse, AIProviderUpdateRequest, AppSettingsUpdateRequest, DocArticleDetailResponse (+17 more)
 
 ### Community 52 - "ZezEdit 2.0 — Feature Status Tracker"
 Cohesion: 0.11
@@ -384,7 +378,7 @@ Nodes (18): ShortsCandidateRecord, AI Highlight Discovery, Contextual Clip Selec
 
 ### Community 53 - "VideoAnalysisPipeline"
 Cohesion: 0.08
-Nodes (14): cancel_analysis(), get_analysis_cache(), get_analysis_telemetry(), retry_analysis(), _run_analysis_task(), start_analysis(), compute_source_signature(), _now_utc() (+6 more)
+Nodes (10): cancel_analysis(), get_analysis_cache(), get_analysis_pipeline(), get_analysis_telemetry(), _now_utc(), VideoAnalysisPipeline, TranscriptionResult, WhisperTranscriber (+2 more)
 
 ### Community 54 - "ZezEdit 2.0 — Media Storage & Processing Pipeline"
 Cohesion: 0.11
@@ -400,7 +394,7 @@ Nodes (5): _error_payload(), register_exception_handlers(), handle_app_error(), 
 
 ### Community 57 - "ZezEdit — Pre-Deletion Baseline Reconstruction (November 11, 2026)"
 Cohesion: 0.14
-Nodes (6): DetectedSubject, SubjectTrack, _compute_iou(), SubjectTracker, test_framing_strategies_single_two_person_and_group(), 2. Smart Reframing & Subject Tracking (Milestone 7)
+Nodes (5): DetectedSubject, SubjectTrack, _compute_iou(), SubjectTracker, test_framing_strategies_single_two_person_and_group()
 
 ### Community 58 - "ReframingService"
 Cohesion: 0.10
@@ -426,25 +420,25 @@ Nodes (4): create_reframing_plan(), CreateReframingPlanRequest, ReframingPlanRec
 Cohesion: 0.12
 Nodes (16): type, exclusiveMinimum, type, type, properties, aspect_ratio, fps, project_id (+8 more)
 
-### Community 64 - "ZezEdit 2.0 — Comprehensive Technical Audit & Evidence-Based Verification Report"
-Cohesion: 0.18
-Nodes (10): 1. Character Extraction Studio & Character Library (Milestone 10), 3. Video Analysis & Multimodal Understanding (Milestone 5), 4. AI Highlight Discovery & Shorts Candidate Ranking (Milestone 6), 5. Rendering Engine & Shorts Export Pipeline (Milestone 8), 6. AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9), A. Executive Summary, B. Ten-Milestone Verification Table, C. Feature-Level Deep Dive Audit (+2 more)
+### Community 64 - "projects.ts"
+Cohesion: 0.09
+Nodes (27): AnalysisWorkspaceProps, CharacterStudioProps, DashboardViewProps, ExportStudioProps, HighlightsWorkspaceProps, MediaLibraryViewProps, PostImportModalProps, ProjectsManagerProps (+19 more)
 
 ### Community 65 - "test_candidate_human_review_workflow"
-Cohesion: 0.14
-Nodes (14): Domain F: Smart Reframing & Subject Tracking (`ZEZ-041` – `ZEZ-055`), `ZEZ-041`: OpenCV Haar Cascade Subject Detection (13M.12), `ZEZ-042`: Dual-Axis Exponential Moving Average Smoothing (13M.12), `ZEZ-043`: Strict Velocity Clamping (13M.12), `ZEZ-045`: Conversational Two-Person Joint Framing (13M.12), `ZEZ-046`: Scene-Cut Boundary Clamping & Instant Reset (13M.12), `ZEZ-047`: Full-Width Fallback Scaling Layout (13M.12), `ZEZ-048`: Structured Tracking Telemetry & Diagnostics JSON (13M.12) (+6 more)
+Cohesion: 0.15
+Nodes (13): Domain F: Smart Reframing & Subject Tracking (`ZEZ-041` – `ZEZ-055`), `ZEZ-041`: OpenCV Haar Cascade Subject Detection (13M.12), `ZEZ-042`: Dual-Axis Exponential Moving Average Smoothing (13M.12), `ZEZ-043`: Strict Velocity Clamping (13M.12), `ZEZ-045`: Conversational Two-Person Joint Framing (13M.12), `ZEZ-046`: Scene-Cut Boundary Clamping & Instant Reset (13M.12), `ZEZ-047`: Full-Width Fallback Scaling Layout (13M.12), `ZEZ-049`: UI Tracking Status Pill (13M.12) (+5 more)
 
 ### Community 66 - "Tokens"
 Cohesion: 0.14
 Nodes (14): Accent, App layout, Buttons, Dark, Depth, Icons, Light, Motion (+6 more)
 
 ### Community 67 - "ZezEdit 2.0 — Architecture: Character Extraction Studio & Character Library"
-Cohesion: 0.29
-Nodes (6): 1. Overview & Principles, 2. Database Schema (Migration `0009_character_studio.sql`), 3. Human Review Operations, 4. Documented JSON Export Schema, Fundamental Constraints & Transparency Principles, ZezEdit 2.0 — Architecture: Character Extraction Studio & Character Library
+Cohesion: 0.10
+Nodes (14): 1. Overview & Principles, 2. Database Schema (Migration `0009_character_studio.sql`), 3. Human Review Operations, 4. Documented JSON Export Schema, Fundamental Constraints & Transparency Principles, ZezEdit 2.0 — Architecture: Character Extraction Studio & Character Library, ADR-01: Single Local Monolith (FastAPI + React) vs Microservices, ADR-02: CPU-First Local Processing & Streaming I/O (+6 more)
 
 ### Community 68 - "Domain G: Shorts Generation & FFmpeg Rendering Engine (`ZEZ-056` – `ZEZ-068`)"
-Cohesion: 0.14
-Nodes (12): Domain J: System Infrastructure, Diagnostics & Reliability (`ZEZ-091` – `ZEZ-100`), `ZEZ-091`: Forward-Only Versioned SQLite Migrations, `ZEZ-092`: Pre-Migration Automatic Database Snapshot, `ZEZ-093`: Path Traversal & Anti-Root Recursive Deletion Guard, `ZEZ-094`: Single Authoritative Job Orchestrator & State Machine, `ZEZ-095`: Unclean Shutdown Recovery of Interrupted Jobs, `ZEZ-096`: Comprehensive Health & Diagnostics Probe (`/api/v1/health`), `ZEZ-097`: Graphify Knowledge Graph Auto-Maintenance (+4 more)
+Cohesion: 0.18
+Nodes (11): Domain J: System Infrastructure, Diagnostics & Reliability (`ZEZ-091` – `ZEZ-100`), `ZEZ-091`: Forward-Only Versioned SQLite Migrations, `ZEZ-092`: Pre-Migration Automatic Database Snapshot, `ZEZ-093`: Path Traversal & Anti-Root Recursive Deletion Guard, `ZEZ-094`: Single Authoritative Job Orchestrator & State Machine, `ZEZ-095`: Unclean Shutdown Recovery of Interrupted Jobs, `ZEZ-096`: Comprehensive Health & Diagnostics Probe (`/api/v1/health`), `ZEZ-097`: Graphify Knowledge Graph Auto-Maintenance (+3 more)
 
 ### Community 69 - "pytest"
 Cohesion: 0.14
@@ -455,8 +449,8 @@ Cohesion: 0.14
 Nodes (13): 10. Test and Acceptance Criteria, 11. Current Verified Restoration Coverage, 12. Recommended Next Implementation Milestone, 1. ZezEdit 1.0 Feature Inventory, 2. Historical Evidence References, 3. Exact Parity Requirements Identified, 5. Missing Functionality (Parity Gap), 6. Features That Cannot Be Recovered With Available Evidence (+5 more)
 
 ### Community 71 - "WorkflowStateMachine"
-Cohesion: 0.14
-Nodes (7): cancel_export(), VideoWorkflowStateResponse, WorkflowStateMachine, Milestone 18: Unified Video-to-Shorts Production Pipeline Checklist, 1. Executive Summary, 23. Graphify Knowledge Graph & Topological Codebase Health, 4. Authoritative Workflow Lifecycle State Machine
+Cohesion: 0.16
+Nodes (6): VideoWorkflowStateResponse, WorkflowStateMachine, Milestone 18: Unified Video-to-Shorts Production Pipeline Checklist, 1. Executive Summary, 23. Graphify Knowledge Graph & Topological Codebase Health, 4. Authoritative Workflow Lifecycle State Machine
 
 ### Community 72 - "README.md"
 Cohesion: 0.15
@@ -474,13 +468,13 @@ Nodes (12): 1. Parity Metrics & Scorecard Summary, 2. Complete 100-Requirement P
 Cohesion: 0.15
 Nodes (13): Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`), `ZEZ-069`: Multi-Track Timeline NLE Canvas, `ZEZ-070`: Non-Destructive Clip Trimming & Splitting, `ZEZ-071`: Ripple Delete & Gap Closing, `ZEZ-072`: Synchronized Playhead & Real-Time Timeline Scrubbing, `ZEZ-073`: Persistent Timeline Undo & Redo History, `ZEZ-074`: Multi-Track Timeline FFmpeg Rendering Integration, `ZEZ-075`: Conversational AI Video Editing Assistant (`ChatEditorService`) (+5 more)
 
-### Community 76 - "core.py"
-Cohesion: 0.07
-Nodes (27): get_settings_service(), list_ai_providers(), test_ai_provider(), update_ai_provider(), get_doc_article(), list_doc_articles(), list_doc_categories(), get_settings_endpoint() (+19 more)
+### Community 76 - "SettingsService"
+Cohesion: 0.13
+Nodes (8): get_settings_service(), list_ai_providers(), update_ai_provider(), get_settings_endpoint(), update_settings_endpoint(), AppSettingsDTO, SettingsService, test_settings_storage_and_secret_redaction()
 
-### Community 78 - ".__init__"
-Cohesion: 0.17
-Nodes (11): Milestone 10: Character Extraction Studio, Character Library & End-to-End Reliability Checklist, Milestone 12: Pre-Deletion Baseline Reconstruction & Feature Parity Checklist, Milestone 13: ZezEdit 1.0 Exact Feature Parity Specification Checklist, Milestone 1 — Architecture Redesign & Safe Project Foundation, Milestone 2 — Core Backend, Database & Persistent Project Management, Milestone 4 — Media Ingestion, Import & Media Library, Milestone 5: Video Analysis Engine, Transcription & Visual Understanding Verification, Milestone 6: AI Highlight Discovery, Contextual Clip Selection & Shorts Candidate Ranking Verification (+3 more)
+### Community 78 - "OutputValidator"
+Cohesion: 0.15
+Nodes (7): ValidationDetails, OutputValidator, test_output_validator_success_and_tampered_metadata(), test_output_validator_gate(), AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9), Milestone 9: AI Video Editor, Multi-Track Timeline & Non-Destructive Editing Checklist, AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9)
 
 ### Community 79 - "VideoAnalysisPipeline"
 Cohesion: 0.18
@@ -490,13 +484,13 @@ Nodes (11): Components, Copy, Icons, Landing pages and heroes, Motion, Signs of 
 Cohesion: 0.18
 Nodes (9): AnalysisRunRecord, CandidateClipEditRecord, ProjectEventRecord, SampledFrameRecord, SpeechTurnRecord, TranscriptSegmentRecord, VideoSceneRecord, VisualObservationRecord (+1 more)
 
-### Community 81 - "OutputValidator"
-Cohesion: 0.18
-Nodes (6): OutputValidator, test_output_validator_success_and_tampered_metadata(), test_output_validator_gate(), AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9), Milestone 9: AI Video Editor, Multi-Track Timeline & Non-Destructive Editing Checklist, AI Video Editor, Multi-Track Timeline & Non-Destructive Editing (Milestone 9)
+### Community 81 - "run_migrations"
+Cohesion: 0.10
+Nodes (11): MigrationError, _backup_before_upgrade(), _file_sha256(), MigrationResult, _parse_version_and_name(), run_migrations(), compute_source_signature(), character_env() (+3 more)
 
-### Community 82 - "ZezEdit 2.0 — Shared Timeline Data Model & API Architecture"
-Cohesion: 0.18
-Nodes (10): 1. Core Architectural Rule: One Shared Document Model, 1. `timelines` Table, 2. Canonical Data Models, 2. `timeline_tracks` Table, 3. Persistent Reversible Command System (Undo / Redo), 3. `timeline_clips` Table, 4. AI Video Editor Assistant Architecture, 5. Timeline Rendering Integration (FFmpeg Filtergraph) (+2 more)
+### Community 82 - "TimelineRenderer"
+Cohesion: 0.09
+Nodes (14): render_timeline(), TimelineRenderRequest, _format_ass_time(), TimelineRenderer, 1. Core Architectural Rule: One Shared Document Model, 1. `timelines` Table, 2. Canonical Data Models, 2. `timeline_tracks` Table (+6 more)
 
 ### Community 83 - "ZezEdit 2.0 — Comprehensive Technical Audit & Evidence-Based Verification Report"
 Cohesion: 0.18
@@ -531,8 +525,8 @@ Cohesion: 0.20
 Nodes (9): 1. API Versioning & Base Prefix, 2. Resource Naming & HTTP Method Conventions, 3. Standard Request & Response Conventions, 4. Implemented vs Planned Endpoint Inventory, Centralized Error Response Contract, Implemented in Milestones 1–6, Planned Endpoints (Milestones 10–12), Success Envelopes (+1 more)
 
 ### Community 91 - "export_service.py"
-Cohesion: 0.04
-Nodes (30): BatchExportItem, BatchExportRequest, BatchExportResponse, create_batch_export_jobs(), create_export_preview(), create_export_render_job(), delete_export(), get_export_details() (+22 more)
+Cohesion: 0.05
+Nodes (21): BatchExportItem, BatchExportRequest, BatchExportResponse, cancel_export(), create_batch_export_jobs(), create_export_preview(), create_export_render_job(), delete_export() (+13 more)
 
 ### Community 93 - "character.py"
 Cohesion: 0.22
@@ -542,9 +536,9 @@ Nodes (8): 1. Engine & Pragmas, 2. Versioned Migration Strategy (Historical Less
 Cohesion: 0.22
 Nodes (8): 1. Core Mandate: One Single Job System, 2. Job States & Lifecycle Transitions, 3. Canonical Job Types & Concurrency Policy, 4. Worker Ownership & Child Process PID Registry, 5. Restart Recovery Rules, 6. Retry Rules & Per-Job Logs, 7. Alternatives Considered & Limitations, ZezEdit 2.0 — Authoritative Job Orchestration Design
 
-### Community 95 - "run_migrations"
-Cohesion: 0.04
-Nodes (20): Settings, character_env(), m15_env(), app_and_client(), export_env(), test_export_delete_endpoint(), test_export_video_streaming_404_on_missing_file(), media_env() (+12 more)
+### Community 95 - "test_session5_clip_editing.py"
+Cohesion: 0.15
+Nodes (5): test_api_clip_edit_routes(), test_db_setup(), test_get_or_create_edit_creates_default(), test_reset_to_original_preserves_pristine_candidate(), test_save_edit_and_validation()
 
 ### Community 96 - "ZezEdit 2.0 — Database Design & Migration Strategy"
 Cohesion: 0.22
@@ -558,17 +552,25 @@ Nodes (7): Dithering, Duotone, Effects, Glyphs, Halftone dots, Implementation, P
 Cohesion: 0.29
 Nodes (7): Decide what the visual is, Generate it, Objects for moments, Prompt recipe, Put it on the page, Styles that work, Visuals
 
+### Community 101 - "v1/jobs.py"
+Cohesion: 0.16
+Nodes (10): cancel_job(), create_job(), get_job(), get_job_checkpoint(), get_job_logs(), get_job_orchestrator(), get_queue_stats(), list_jobs() (+2 more)
+
 ### Community 102 - "ZezEdit 2.0 — Security & Data Safety Architecture"
 Cohesion: 0.29
 Nodes (6): 1. Threat Model & Context, 3. Source Media Immutability & Missing vs Deleted Distinction, 4. Export Overwrite & Confirmation Rules, 5. AI Video Editor Security Boundary, 6. Backup & Restore Strategy, ZezEdit 2.0 — Security & Data Safety Architecture
 
 ### Community 103 - "3. Sub-Workspace Breakdown"
-Cohesion: 0.20
-Nodes (10): 1. Overview Tab, 2. Analysis Tab, 3. Sub-Workspace Breakdown, 3. Transcript & Audio Tab, 4. Scenes Tab, 5. AI Highlights Tab, 6. Smart Reframing Tab, 7. Shorts & Export Tab (+2 more)
+Cohesion: 0.12
+Nodes (16): 1. Overview, 1. Overview Tab, 2. Analysis Tab, 2. Context & State Flow, 3. Sub-Workspace Breakdown, 3. Transcript & Audio Tab, 4. Post-Import Action Flow, 4. Scenes Tab (+8 more)
 
 ### Community 104 - "Effects"
 Cohesion: 0.29
 Nodes (6): 1. Product Vision & Mission Statement, 2. Requirement Taxonomy & Numbering, 3. Detailed Specification by Domain, 4. Summary Parity Ledger, Core Architecture Axioms, ZezEdit 1.0 — Exact Product Parity Specification
+
+### Community 105 - "ExportStudio.tsx"
+Cohesion: 0.19
+Nodes (17): DEFAULT_AUDIO_CONFIG, DEFAULT_CAPTION_CONFIG, ExportStudio(), cancelExportRender(), deleteExport(), fetchExportPresets(), fetchJob(), fetchProjectExports() (+9 more)
 
 ### Community 106 - "ZezEdit 2.0 — Security & Data Safety Architecture"
 Cohesion: 0.40
@@ -582,13 +584,17 @@ Nodes (4): required, $schema, title, type
 Cohesion: 0.40
 Nodes (5): required, type, tracks, items, type
 
-### Community 109 - "create_backup_endpoint"
-Cohesion: 0.18
-Nodes (7): BackupCreateRequest, BackupRestoreRequest, CleanupExecuteRequest, create_backup_endpoint(), execute_cleanup_endpoint(), preview_cleanup_endpoint(), restore_backup_endpoint()
+### Community 109 - "settings.py"
+Cohesion: 0.15
+Nodes (11): CleanupExecuteRequest, clear_all_data_endpoint(), ClearAllDataRequest, execute_cleanup_endpoint(), get_backup_service(), get_capabilities_endpoint(), get_settings_service(), get_storage_service() (+3 more)
 
 ### Community 110 - "JobOrchestrator"
-Cohesion: 0.09
-Nodes (14): get_job_checkpoint(), JobRecord, JobOrchestrator, test_job_retry_lifecycle_and_event_timeline(), test_queue_stats_aggregation(), test_job_checkpointing_and_recovery(), test_resource_aware_scheduler_and_priority(), test_job_cancellation_immediate_when_queued() (+6 more)
+Cohesion: 0.07
+Nodes (16): JobRecord, JobOrchestrator, test_job_retry_lifecycle_and_event_timeline(), test_queue_stats_aggregation(), test_job_checkpointing_and_recovery(), test_resource_aware_scheduler_and_priority(), test_job_cancellation_immediate_when_queued(), test_job_completion_and_result_metadata() (+8 more)
+
+### Community 112 - "StorageService"
+Cohesion: 0.14
+Nodes (4): inspect_storage_endpoint(), test_storage_breakdown_categories_accuracy(), test_temp_cache_cleanup_execute_with_valid_token(), test_temp_cache_cleanup_preview_no_file_deletion()
 
 ### Community 114 - "base.py"
 Cohesion: 0.67
@@ -622,57 +628,53 @@ Nodes (3): width, minimum, type
 Cohesion: 0.67
 Nodes (3): zoom_px_per_sec, minimum, type
 
-### Community 132 - "ZezEdit 2.0 — Architecture & Technology Decision Records (ADRs)"
-Cohesion: 0.22
-Nodes (8): ADR-01: Single Local Monolith (FastAPI + React) vs Microservices, ADR-02: CPU-First Local Processing & Streaming I/O, ADR-03: SQLite WAL + Forward-Only SQL Migrations, ADR-04: Centralized Error Handling & Structured Logging, ADR-06: Decoupled Evidence-Based Character Extraction (No 3D Studio), ADR-07: Testing Strategy (Multi-Layer Gate), ADR-08: Shared Contract Directory (`shared/contracts/`), ZezEdit 2.0 — Architecture & Technology Decision Records (ADRs)
+### Community 132 - "MediaPipelineService"
+Cohesion: 0.16
+Nodes (5): delete_media(), delete_media_global(), get_media_stats(), MediaStorageStatsResponse, MediaPipelineService
 
 ### Community 135 - "ZezEdit 2.0 — System Architecture"
 Cohesion: 0.25
 Nodes (7): 1. Overview & Guiding Principles, 2. High-Level System Architecture, 3. Frontend Module Boundaries (`frontend/src/`), 6. Windows 11 Startup & Shutdown Lifecycle, Graceful Shutdown Sequence, Startup Sequence, ZezEdit 2.0 — System Architecture
 
-### Community 139 - "ZezEdit 2.0 — Master Requirements Specification"
+### Community 139 - "CropKeyframe"
+Cohesion: 0.16
+Nodes (5): CropKeyframe, build_crop_filter_expression(), _simplify_keyframes(), test_preview_and_renderer_expression_parity(), `ZEZ-055`: Authoritative Preview-to-Render Mathematical Parity (13M.12/13M.13)
+
+### Community 153 - "get"
+Cohesion: 0.18
+Nodes (6): get_media(), get_media_proxy_global(), get_media_thumbnail_global(), get_proxy_file(), get_thumbnail_file(), stream_media_global()
+
+### Community 155 - ".db_file"
+Cohesion: 0.25
+Nodes (5): get_media_service(), get_media_workflow_state(), get_pipeline_service(), import_local_file_global(), upload_media_file_global()
+
+### Community 157 - "CaptionConfig"
+Cohesion: 0.29
+Nodes (3): CaptionConfig, test_caption_engine_ass_file_generation_and_styling(), test_caption_engine_empty_segments()
+
+### Community 158 - "ZezEdit 2.0 — Master Requirements Specification"
 Cohesion: 0.33
 Nodes (5): 1. Mission & Product Vision, 2. Hardware & Resource Constraints (Mandatory), 4. Mandatory Data Protection & Reliability Rules, 5. Planned Milestone Sequence, ZezEdit 2.0 — Master Requirements Specification
 
-### Community 153 - "get_temporal_context_at"
-Cohesion: 0.29
-Nodes (4): get_context(), get_temporal_context_at(), TemporalContext, test_temporal_aggregator_query()
-
-### Community 154 - "start_highlight_discovery"
-Cohesion: 0.43
-Nodes (4): DiscoverHighlightsRequest, generate_more_highlights(), _run_discovery_background(), start_highlight_discovery()
-
-### Community 155 - "F. Test Evidence Summary"
-Cohesion: 0.29
-Nodes (7): 1. Backend Pytest Suite, 2. Frontend Vitest Suite, 3. TypeScript Type Checking, 4. Frontend Production Build, 5. SQLite Database Integrity, 6. Live Browser Verification, F. Test Evidence Summary
-
-### Community 156 - "G. Recommended Next Five Corrective Milestones"
-Cohesion: 0.33
-Nodes (6): G. Recommended Next Five Corrective Milestones, Priority 1: Milestone 12 — Real Vision & Face Detection Engine (Fix DEF-02 & DEF-03), Priority 2: Milestone 13 — Conversational LLM Editor Integration (Fix DEF-04), Priority 3: Milestone 14 — Timeline Multi-Track Advanced Editing & Ripple Operations, Priority 4: Milestone 15 — Performance Optimization & Hardware Acceleration, Priority 5: Milestone 16 — Production Desktop Packaging & Offline Installer
-
-### Community 157 - "get_candidate_generation_run"
-Cohesion: 0.40
-Nodes (3): CandidateGenerationRunResponse, get_candidate_generation_run(), list_candidate_generation_runs()
-
 ## Knowledge Gaps
 - **1 isolated node(s):** `zezedit-backend`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1388 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **43 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 1415 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **40 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `JobOrchestrator` connect `JobOrchestrator` to `get_settings`, `AppError`, `AppError`, `HighlightDiscoveryEngine`, `ProjectService`, `v1/health.py`, `start_highlight_discovery`, `storage_jobs_env`, `.__init__`, `ProviderHealth`, `StorageLayout`, `v1/jobs.py`, `test_milestone9_timeline.py`, `VideoAnalysisPipeline`, `ZezEdit 2.0 — Media Storage & Processing Pipeline`, `ZezEdit 2.0 — Comprehensive Technical Audit & Evidence-Based Verification Report`, `Domain G: Shorts Generation & FFmpeg Rendering Engine (`ZEZ-056` – `ZEZ-068`)`, `pytest`, `Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`)`, `entities.py`, `export_service.py`, `export.py`, `.__init__`?**
-  _High betweenness centrality (0.235) - this node is a cross-community bridge._
+- **Why does `JobOrchestrator` connect `JobOrchestrator` to `v1/media.py`, `AppError`, `StorageLayout`, `MediaPipelineService`, `sqlite_session`, `MediaService`, `ProjectService`, `Settings`, `test_milestone4_media.py`, `.db_file`, `subprocess`, `ProviderHealth`, `test_milestone24_storage_and_jobs_coverage.py`, `OllamaVisionAnalyzer`, `export_service.py`, `v1/health.py`, `VideoAnalysisPipeline`, `ZezEdit 2.0 — Media Storage & Processing Pipeline`, `Domain G: Shorts Generation & FFmpeg Rendering Engine (`ZEZ-056` – `ZEZ-068`)`, `pytest`, `Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`)`, `entities.py`, `run_migrations`, `TimelineRenderer`, `export_service.py`, `export.py`, `v1/jobs.py`?**
+  _High betweenness centrality (0.221) - this node is a cross-community bridge._
 - **Are the 29 inferred relationships involving `Settings` (e.g. with `get_settings_service()` and `list_ai_providers()`) actually correct?**
   _`Settings` has 29 INFERRED edges - model-reasoned connections that need verification._
 - **What connects `zezedit-backend` to the rest of the system?**
   _1 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `apiClient.ts` be split into smaller, more focused modules?**
-  _Cohesion score 0.051089108910891086 - nodes in this community are weakly interconnected._
-- **Why does ``ZEZ-063`: Graceful Render Job Cancellation` connect `pytest` to `JobOrchestrator`, `JobOrchestrator`?**
-  _High betweenness centrality (0.161) - this node is a cross-community bridge._
-- **Are the 11 inferred relationships involving `NotFoundError` (e.g. with `cancel_export()` and `create_export_preview()`) actually correct?**
-  _`NotFoundError` has 11 INFERRED edges - model-reasoned connections that need verification._
+  _Cohesion score 0.0472307169554876 - nodes in this community are weakly interconnected._
+- **Why does ``ZEZ-063`: Graceful Render Job Cancellation` connect `pytest` to `projects.ts`, `JobOrchestrator`?**
+  _High betweenness centrality (0.158) - this node is a cross-community bridge._
+- **Are the 33 inferred relationships involving `StorageLayout` (e.g. with `get_settings_service()` and `get_backup_service()`) actually correct?**
+  _`StorageLayout` has 33 INFERRED edges - model-reasoned connections that need verification._
 - **Should `App.tsx` be split into smaller, more focused modules?**
-  _Cohesion score 0.05605499735589635 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.04812206572769953 - nodes in this community are weakly interconnected._

@@ -158,3 +158,28 @@ All features MUST comply with these baseline constraints:
     7. `Scene Analysis`: Detected scene transitions with inclusion/exclusion checkboxes for short generation.
     8. `Video Analysis Details`: Deep pipeline component status and cache telemetry.
   - Single-button "Clear All Application Data" in Settings (`Storage & Data` tab) with explicit `DELETE` confirmation modal and backend API `POST /api/v1/storage/clear-all-data` cleanly sweeping all managed storage and resetting database tables.
+- **Session 6A (Completed):** AI-First Video Analysis, Simple Short Generation, Advanced Settings & Non-Repeating Generate More:
+  - Deep source analysis stored once and reused for all subsequent short generation requests without redundant processing (~0.12s discovery execution vs multi-minute re-analysis).
+  - Video Intelligence Status Banner on the Video Edit Dashboard with cache status indicator and manual "Re-Analyze Source Video" override.
+  - Simplified Short Video Generator UI: clean, calm default form featuring 4 core options:
+    1. Quantity: AI Recommended clip count default with quick preset pills (1, 3, 5, 10, 15, Custom).
+    2. Creative Direction: 2 clean cards (Best Overall vs Discover Varied / Viral-Style Moments).
+    3. Target Aspect Ratio: 9:16 Vertical default with standard presets (1:1, 16:9, 4:5, 4:3, 3:4).
+    4. Duration: AI Selects Best Duration default with preset ranges (Short 15–30s, Medium 30–60s, Long 60–90s, Custom).
+  - Collapsible Advanced Settings (collapsed by default):
+    - 18 creative directions: 7 active supported profiles, 11 badged "Coming Soon" with disabled state.
+    - Subject tracking modes (Auto Speaker, Single Subject, Two-Person, Saliency Fallback).
+    - Scene focus modes (All Scenes, Action Heavy, Dialogue Only).
+    - Novelty policy controls (Strict vs Relaxed).
+    - Per-video configuration persistence in `localStorage` with "Save Video Preferences" and "Reset to Defaults".
+  - Persistent Non-Repetition ("Generate More Shorts"):
+    - Multi-layer novelty filter: exact timestamp matching (<2.5s tolerance), temporal IoU / asymmetric overlap guards, transcript token similarity.
+    - Aspect-ratio independent rejection: changing aspect ratio tests candidates against all historical clips.
+    - Honest novelty exhaustion: returns 0 duplicates and sets `is_novelty_exhausted = True` when all moments are exhausted.
+  - Generated Shorts Management:
+    - Clear distinction between Discovered Candidate and Rendered MP4.
+    - Batch filter dropdown and "Generate More Shorts" button in Tab 3 header.
+  - Real Video Verification on 73.3MB media file (`Ek Mota Hathi Ghumne Chala.mp4`):
+    - Reused analysis `run_b0ebbcb45a17` in 0.127s.
+    - Batch A produced 2 new candidates; Batch B "Generate More" evaluated 366 candidates and generated 0 duplicates with honest exhaustion detection.
+  - Comprehensive Automated Regression Parity: 152/152 backend tests and 106/106 frontend tests passing.

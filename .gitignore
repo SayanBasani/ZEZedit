@@ -34,6 +34,7 @@ storage/
 *.sqlite
 *.sqlite3
 *.log
+graphify-out/cache/
 
 # OS / Editor
 .DS_Store

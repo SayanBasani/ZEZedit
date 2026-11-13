@@ -155,9 +155,8 @@ describe('ReframingWorkspace Component', () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Portrait Viewport \(9:16\)/i)).toBeInTheDocument();
+      expect(screen.getByText('Revisions (1)')).toBeInTheDocument();
     });
-
-    expect(screen.getByText('Revisions (1)')).toBeInTheDocument();
   });
 
   it('allows manual crop horizontal adjustment and keyframe setting', async () => {

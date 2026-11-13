@@ -45,11 +45,16 @@ class DiscoverHighlightsRequest(BaseModel):
     analysis_run_id: Optional[str] = None
     creative_direction: str = Field(default="best_overall")
     aspect_ratio: str = Field(default="9:16")
-    min_duration: float = Field(default=12.0, ge=5.0, le=120.0)
-    max_duration: float = Field(default=60.0, ge=10.0, le=300.0)
-    target_clip_count: int = Field(default=10, ge=1, le=50)
+    min_duration: Optional[float] = Field(default=None)
+    max_duration: Optional[float] = Field(default=None)
+    target_clip_count: Optional[int] = Field(default=None)
+    duration_preference: str = Field(default="ai_best_duration")
+    novelty_mode: str = Field(default="strict")
+    generation_type: Optional[str] = None
     use_ai_explanations: bool = Field(default=True)
     run_synchronously: bool = Field(default=False)
+    selected_scene_ids: Optional[List[str]] = None
+    excluded_scene_ids: Optional[List[str]] = None
 
 
 class UpdateCandidateRequest(BaseModel):
@@ -124,6 +129,10 @@ class CandidateGenerationRunResponse(BaseModel):
     novelty_exclusions: int
     error_message: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
+    generation_type: Optional[str] = "initial"
+    reused_analysis_run_id: Optional[str] = None
+    duration_preference: Optional[str] = "ai_best_duration"
+    is_novelty_exhausted: Optional[bool] = False
     created_at: str
     completed_at: Optional[str] = None
 
@@ -204,10 +213,15 @@ def _run_discovery_background(
             job_id=job_id,
             creative_direction=payload.creative_direction,
             aspect_ratio=payload.aspect_ratio,
-            min_duration=payload.min_duration,
-            max_duration=payload.max_duration,
+            min_duration=payload.min_duration or 12.0,
+            max_duration=payload.max_duration or 60.0,
             target_clip_count=payload.target_clip_count,
+            duration_preference=payload.duration_preference,
+            novelty_mode=payload.novelty_mode,
+            generation_type=payload.generation_type,
             use_ai_explanations=payload.use_ai_explanations,
+            selected_scene_ids=payload.selected_scene_ids,
+            excluded_scene_ids=payload.excluded_scene_ids,
         )
         job_orchestrator.complete_job(job_id=job_id, result_summary={"status": "completed"})
     except Exception as exc:
@@ -242,10 +256,15 @@ def start_highlight_discovery(
             analysis_run_id=payload.analysis_run_id,
             creative_direction=payload.creative_direction,
             aspect_ratio=payload.aspect_ratio,
-            min_duration=payload.min_duration,
-            max_duration=payload.max_duration,
+            min_duration=payload.min_duration or 12.0,
+            max_duration=payload.max_duration or 60.0,
             target_clip_count=payload.target_clip_count,
+            duration_preference=payload.duration_preference,
+            novelty_mode=payload.novelty_mode,
+            generation_type=payload.generation_type,
             use_ai_explanations=payload.use_ai_explanations,
+            selected_scene_ids=payload.selected_scene_ids,
+            excluded_scene_ids=payload.excluded_scene_ids,
         )
         gen_run_id = results[0].get("generation_run_id") if results else None
         with sqlite_session(db_path) as conn:
@@ -280,6 +299,9 @@ def start_highlight_discovery(
                 "creative_direction": payload.creative_direction,
                 "aspect_ratio": payload.aspect_ratio,
                 "target_clip_count": payload.target_clip_count,
+                "duration_preference": payload.duration_preference,
+                "novelty_mode": payload.novelty_mode,
+                "generation_type": payload.generation_type,
                 "min_duration": payload.min_duration,
                 "max_duration": payload.max_duration,
                 "analysis_run_id": payload.analysis_run_id,
@@ -371,6 +393,8 @@ def generate_more_highlights(
     db_path: Path = Depends(get_db_path),
 ):
     """Explicitly generate another batch of non-repeating candidates using the persistent novelty ledger."""
+    if not payload.generation_type:
+        payload.generation_type = "generate_more"
     return start_highlight_discovery(
         project_id=project_id,
         media_asset_id=media_asset_id,

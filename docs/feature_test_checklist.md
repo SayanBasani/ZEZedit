@@ -746,3 +746,48 @@ This checklist tracks concrete verification criteria per milestone. Items may on
   - TypeScript compilation: 0 errors (`npx tsc --noEmit`).
   - Production build: `npm run build` succeeds cleanly in 7.2s.
 
+---
+
+## Session 6A — AI-First Video Analysis, Simple Short Generation, Advanced Settings & Non-Repeating Generate More
+
+- [x] **Database Migration `0015_reusable_intelligence_and_generate_more.sql`:**
+  - Adds `generation_type`, `reused_analysis_run_id`, `duration_preference`, and `is_novelty_exhausted` to `candidate_generation_runs`.
+  - Upgrades forward schema cleanly without data loss.
+- [x] **Reusable Video Intelligence Pipeline:**
+  - One deep analysis run produces audio analysis, whisper transcript, scene cuts, sampled frames, visual observations.
+  - Subsequent highlight generation calls reuse stored intelligence in sub-second time (~0.12s) without re-running FFmpeg or Whisper.
+  - Video Intelligence Status Banner in `VideoEditDashboard.tsx` displaying cache status, run ID, and "Re-Analyze Source Video" trigger.
+- [x] **Simplified Default Short Video Generator UI:**
+  - Adheres strictly to `@unslop` Graphite Neutrals (`#141415`, `#19191b`, `#232325`, `#ededed`).
+  - 4 calm default options:
+    - Option 1: AI Recommended clip count default with quick pills (1, 3, 5, 10, 15, Custom).
+    - Option 2: 2 clean cards (Best Overall vs Discover Varied / Viral-Style Moments).
+    - Option 3: Target aspect ratio selector (9:16 Vertical default, 1:1, 16:9, 4:5, 4:3, 3:4).
+    - Option 4: Duration preference (AI Selects Best Duration default, Short, Medium, Long, Custom).
+- [x] **Expandable Advanced Settings:**
+  - Collapsed by default; expands smoothly on click.
+  - 18 creative directions: 7 active supported profiles (Best Overall, Viral, Dramatic, Action, Emotional, Dialogue, Funny), 11 clearly badged "Coming Soon" with disabled state.
+  - Subject tracking mode: Auto Speaker, Single Subject, Two-Person, Saliency Fallback.
+  - Scene focus mode: All Scenes, Action Heavy, Dialogue Only.
+  - Novelty policy: Strict (reject any >45% overlap) vs Relaxed (>65% overlap).
+  - Per-video configuration persistence in `localStorage` with "Save Video Preferences" and "Reset to Defaults".
+- [x] **Persistent Non-Repetition ("Generate More Shorts"):**
+  - Reuses stored analysis run.
+  - Multi-layer novelty filter: exact timestamp matching (<2.5s tolerance), temporal IoU / asymmetric overlap guards, transcript token similarity.
+  - Aspect-ratio independent rejection: changing aspect ratio compares against all recorded clips.
+  - Honest novelty exhaustion detection: returns 0 duplicates and sets `is_novelty_exhausted = True` when all moments are exhausted.
+- [x] **Generated Shorts Management:**
+  - Discovered Candidate vs Rendered MP4 distinction.
+  - Batch filter dropdown in Tab 3 header.
+  - "Generate More Shorts" header button.
+- [x] **Real Video Verification on `Ek Mota Hathi Ghumne Chala.mp4` (73.3MB):**
+  - Completed analysis run `run_b0ebbcb45a17` reused in 0.127s.
+  - Batch A generated 2 new non-overlapping candidates.
+  - Batch B "Generate More" evaluated 366 candidates against 15 recorded clips in ledger.
+  - 0 duplicates generated; exhaustion detected honestly.
+- [x] **Full Regression Test Parity:**
+  - Backend: 152/152 tests passed (including `test_session6a_reusable_intelligence_and_generate_more.py`).
+  - Frontend: 106/106 tests passed across 23 test files (100% pass).
+  - Production build: `npm run build` succeeds with 0 TypeScript errors.
+
+

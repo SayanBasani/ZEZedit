@@ -4,6 +4,9 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   Crop,
   Database,
   Download,
@@ -12,15 +15,15 @@ import {
   Film,
   Loader2,
   Mic,
-  MoveHorizontal,
   Pause,
   Play,
+  RefreshCw,
+  RotateCcw,
+  Save,
   Scissors,
   Search,
   Sliders,
   Sparkles,
-  User,
-  Users,
   Volume2,
   VolumeX,
 } from 'lucide-react';
@@ -39,6 +42,7 @@ import {
   fetchJobs,
   fetchMediaAsset,
   fetchMediaHighlights,
+  generateMoreHighlights,
   getGlobalThumbnailUrl,
   getSceneThumbnailUrl,
   getStreamMediaUrl,
@@ -54,6 +58,7 @@ import {
   AspectRatioOption,
   CandidateGenerationRunItem,
   CandidateItem,
+  DiscoverHighlightsOptions,
   NoveltyHistoryResponse,
 } from '../../types/highlights';
 import { JobItem, MediaAssetItem } from '../../types/projects';
@@ -76,24 +81,24 @@ export interface VideoEditDashboardProps {
 }
 
 const CREATIVE_DIRECTIONS = [
-  { id: 'best_overall', label: 'Best Overall', desc: 'Balanced hook, narrative completeness & high visual interest' },
-  { id: 'viral_punchy', label: 'Viral & Punchy', desc: 'High hook weight, fast pacing, aggressive attention capture' },
-  { id: 'dramatic', label: 'Dramatic', desc: 'Emphasizes intense pauses, emotional peaks, and dramatic tension' },
-  { id: 'action_motion', label: 'Action & Motion', desc: 'Prioritizes high visual dynamism, fast movement & spectacle' },
-  { id: 'emotional_sad', label: 'Emotional & Sad', desc: 'Deep poignant moments, touching dialogue & melancholic score' },
-  { id: 'engaging_dialogue', label: 'Engaging Dialogue', desc: 'Speech clarity, punchy conversational exchanges & stories' },
-  { id: 'humorous', label: 'Humorous & Comedy', desc: 'Laughter peaks, comical timing, punchlines & reactions' },
-  { id: 'educational', label: 'Educational', desc: 'Informative explanations, step-by-step clarity & takeaways' },
-  { id: 'suspense', label: 'Suspense & Thriller', desc: 'Mounting tension, mystery cues, and suspenseful climaxes' },
-  { id: 'narrative_arc', label: 'Narrative Arc', desc: 'Complete mini-stories: Setup, conflict, climax & resolution' },
-  { id: 'high_energy', label: 'High Energy', desc: 'Rapid edits, enthusiastic delivery & continuous stimulation' },
-  { id: 'cinematic', label: 'Cinematic', desc: 'Wide compositions, beautiful lighting, and artistic framing' },
-  { id: 'storytelling', label: 'Storytelling', desc: 'Personal anecdotes, emotional journeys & narrative depth' },
-  { id: 'reaction_focus', label: 'Reaction Focus', desc: 'Expressive face close-ups and genuine reaction moments' },
-  { id: 'interview_highlight', label: 'Interview Highlight', desc: 'Memorable quotes, profound answers & expert perspectives' },
-  { id: 'teaser_trailer', label: 'Teaser & Trailer', desc: 'Intriguing clips designed to make viewers want the full video' },
-  { id: 'motivational', label: 'Motivational', desc: 'Uplifting messages, triumph over adversity & encouragement' },
-  { id: 'aesthetic_montage', label: 'Aesthetic Montage', desc: 'Visually pleasing scenes scored with ambient rhythm' },
+  { id: 'best_overall', label: 'Best Overall', desc: 'Balanced hook, narrative completeness & high visual interest', supported: true },
+  { id: 'viral_punchy', label: 'Viral & Punchy', desc: 'High hook weight, fast pacing, aggressive attention capture', supported: true },
+  { id: 'dramatic', label: 'Dramatic', desc: 'Emphasizes intense pauses, emotional peaks, and dramatic tension', supported: true },
+  { id: 'action_motion', label: 'Action & Motion', desc: 'Prioritizes high visual dynamism, fast movement & spectacle', supported: true },
+  { id: 'emotional_sad', label: 'Emotional & Sad', desc: 'Deep poignant moments, touching dialogue & melancholic score', supported: true },
+  { id: 'engaging_dialogue', label: 'Engaging Dialogue', desc: 'Speech clarity, punchy conversational exchanges & stories', supported: true },
+  { id: 'humorous', label: 'Humorous & Comedy', desc: 'Laughter peaks, comical timing, punchlines & reactions', supported: true },
+  { id: 'educational', label: 'Educational', desc: 'Informative explanations, step-by-step clarity & takeaways', supported: false },
+  { id: 'suspense', label: 'Suspense & Thriller', desc: 'Mounting tension, mystery cues, and suspenseful climaxes', supported: false },
+  { id: 'narrative_arc', label: 'Narrative Arc', desc: 'Complete mini-stories: Setup, conflict, climax & resolution', supported: false },
+  { id: 'high_energy', label: 'High Energy', desc: 'Rapid edits, enthusiastic delivery & continuous stimulation', supported: false },
+  { id: 'cinematic', label: 'Cinematic', desc: 'Wide compositions, beautiful lighting, and artistic framing', supported: false },
+  { id: 'storytelling', label: 'Storytelling', desc: 'Personal anecdotes, emotional journeys & narrative depth', supported: false },
+  { id: 'reaction_focus', label: 'Reaction Focus', desc: 'Expressive face close-ups and genuine reaction moments', supported: false },
+  { id: 'interview_highlight', label: 'Interview Highlight', desc: 'Memorable quotes, profound answers & expert perspectives', supported: false },
+  { id: 'teaser_trailer', label: 'Teaser & Trailer', desc: 'Intriguing clips designed to make viewers want the full video', supported: false },
+  { id: 'motivational', label: 'Motivational', desc: 'Uplifting messages, triumph over adversity & encouragement', supported: false },
+  { id: 'aesthetic_montage', label: 'Aesthetic Montage', desc: 'Visually pleasing scenes scored with ambient rhythm', supported: false },
 ];
 
 const ASPECT_RATIOS: Array<{ id: AspectRatioOption; label: string; ratio: string }> = [
@@ -101,6 +106,8 @@ const ASPECT_RATIOS: Array<{ id: AspectRatioOption; label: string; ratio: string
   { id: '1:1', label: '1:1 Square', ratio: '1 / 1' },
   { id: '16:9', label: '16:9 Landscape', ratio: '16 / 9' },
   { id: '4:5', label: '4:5 Social Feed', ratio: '4 / 5' },
+  { id: '4:3', label: '4:3 Classic', ratio: '4 / 3' },
+  { id: '3:4', label: '3:4 Portrait', ratio: '3 / 4' },
 ];
 
 export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
@@ -134,14 +141,21 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   const [noveltyHistory, setNoveltyHistory] = useState<NoveltyHistoryResponse | null>(null);
 
   // Short Generator Form State
-  const [clipCountPreset, setClipCountPreset] = useState<'ai' | '3' | '5' | '10' | '15' | '20' | 'custom'>('5');
-  const [customClipCount, setCustomClipCount] = useState<number>(7);
+  const [clipCountPreset, setClipCountPreset] = useState<'ai' | '1' | '3' | '5' | '10' | '15' | 'custom'>('ai');
+  const [customClipCount, setCustomClipCount] = useState<number>(5);
   const [selectedDirection, setSelectedDirection] = useState<string>('best_overall');
   const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatioOption>('9:16');
-  const [trackingMode, setTrackingMode] = useState<'face' | 'upper_body' | 'object' | 'multi'>('face');
+  const [durationPreference, setDurationPreference] = useState<'ai_best_duration' | 'short' | 'medium' | 'long' | 'custom'>('ai_best_duration');
+  const [trackingMode, setTrackingMode] = useState<'smart' | 'center' | 'face' | 'upper_body' | 'object' | 'multi'>('smart');
+  const [noveltyMode, setNoveltyMode] = useState<'strict' | 'relaxed'>('strict');
+  const [sceneFocusMode, setSceneFocusMode] = useState<'all' | 'selected'>('all');
   const [minDurationSec, setMinDurationSec] = useState<number>(15);
   const [maxDurationSec, setMaxDurationSec] = useState<number>(60);
   const [generatingShorts, setGeneratingShorts] = useState<boolean>(false);
+  const [advancedExpanded, setAdvancedExpanded] = useState<boolean>(false);
+  const [generationStage, setGenerationStage] = useState<string | null>(null);
+  const [selectedBatchFilter, setSelectedBatchFilter] = useState<string>('all');
+  const [configToast, setConfigToast] = useState<string | null>(null);
 
   // Video Player Ref & State
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -158,6 +172,22 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   // Export State
   const [exportingCandidateId, setExportingCandidateId] = useState<string | null>(null);
   const [exportSuccessToast, setExportSuccessToast] = useState<string | null>(null);
+
+  // Reset all video-specific state immediately when assetId changes to prevent stale data bleed
+  useEffect(() => {
+    setAsset(null);
+    setAnalysisRuns([]);
+    setCandidates([]);
+    setGenerationRuns([]);
+    setNoveltyHistory(null);
+    setScenes([]);
+    setSelectedSceneIds(new Set());
+    setTranscript(null);
+    setCacheInfo(null);
+    setActiveJob(null);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, [assetId]);
 
   // Load Asset Details
   const loadAssetDetails = useCallback(async () => {
@@ -251,6 +281,30 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
   // Calculate Progress Percent and Details
   const progressDetails = useMemo(() => {
+    if (generationStage === 'analyzing_source') {
+      return {
+        isActive: true,
+        stage: 'Deep AI Video Analysis in Progress...',
+        percent: 45,
+        etaText: 'Extracting speech segments, visual keyframes & scene boundaries',
+      };
+    }
+    if (generationStage === 'generating_more') {
+      return {
+        isActive: true,
+        stage: 'Reusing Saved Analysis • Searching Unused Moments...',
+        percent: 75,
+        etaText: 'Checking novelty ledger against previously generated clips',
+      };
+    }
+    if (generatingShorts) {
+      return {
+        isActive: true,
+        stage: 'Discovering Candidate Moments & Boundaries...',
+        percent: 60,
+        etaText: 'Evaluating multimodal scores and natural speech pauses',
+      };
+    }
     if (!activeJob) {
       const latestRun = analysisRuns[0];
       if (latestRun?.status === 'running') {
@@ -272,7 +326,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       percent,
       etaText: `Job ${activeJob.id.slice(0, 8)} • Stage: ${stage}`,
     };
-  }, [activeJob, analysisRuns]);
+  }, [activeJob, analysisRuns, generationStage, generatingShorts]);
 
   // Video Player Controls
   const togglePlay = () => {
@@ -290,11 +344,79 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     setCurrentTime(timeSec);
   };
 
-  const handleStartAnalysis = async () => {
+  // Persistent Config & Analysis Helpers
+  const completedAnalysisRun = useMemo(() => {
+    return analysisRuns.find((r) => r.status === 'completed') || null;
+  }, [analysisRuns]);
+  const isVideoAnalyzed = Boolean(completedAnalysisRun);
+
+  // Load saved config for this video from localStorage
+  useEffect(() => {
+    if (!assetId) return;
+    try {
+      const saved = localStorage.getItem(`zezedit_config_${assetId}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.clipCountPreset) setClipCountPreset(parsed.clipCountPreset);
+        if (parsed.customClipCount) setCustomClipCount(parsed.customClipCount);
+        if (parsed.selectedDirection) setSelectedDirection(parsed.selectedDirection);
+        if (parsed.selectedAspectRatio) setSelectedAspectRatio(parsed.selectedAspectRatio);
+        if (parsed.durationPreference) setDurationPreference(parsed.durationPreference);
+        if (parsed.trackingMode) setTrackingMode(parsed.trackingMode);
+        if (parsed.noveltyMode) setNoveltyMode(parsed.noveltyMode);
+        if (parsed.minDurationSec) setMinDurationSec(parsed.minDurationSec);
+        if (parsed.maxDurationSec) setMaxDurationSec(parsed.maxDurationSec);
+      }
+    } catch {
+      // ignore
+    }
+  }, [assetId]);
+
+  const handleSaveVideoConfig = () => {
+    try {
+      const cfg = {
+        clipCountPreset,
+        customClipCount,
+        selectedDirection,
+        selectedAspectRatio,
+        durationPreference,
+        trackingMode,
+        noveltyMode,
+        minDurationSec,
+        maxDurationSec,
+      };
+      localStorage.setItem(`zezedit_config_${assetId}`, JSON.stringify(cfg));
+      setConfigToast('Configuration saved for this video.');
+      setTimeout(() => setConfigToast(null), 3000);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleResetDefaults = () => {
+    setClipCountPreset('ai');
+    setCustomClipCount(5);
+    setSelectedDirection('best_overall');
+    setSelectedAspectRatio('9:16');
+    setDurationPreference('ai_best_duration');
+    setTrackingMode('smart');
+    setNoveltyMode('strict');
+    setSceneFocusMode('all');
+    setMinDurationSec(15);
+    setMaxDurationSec(60);
+    try {
+      localStorage.removeItem(`zezedit_config_${assetId}`);
+    } catch {}
+    setConfigToast('Reset to standard AI defaults.');
+    setTimeout(() => setConfigToast(null), 3000);
+  };
+
+  const handleStartAnalysis = async (forceReanalysis = false) => {
     if (!asset) return;
     setAnalysisLoading(true);
+    const effPid = asset.project_id || projectId || 'default';
     try {
-      await startMediaAnalysis(asset.project_id || projectId, asset.id, 'balanced');
+      await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, forceReanalysis);
       await loadIntelligenceData();
     } catch (err: any) {
       alert(`Failed to start analysis: ${err.message || 'Unknown error'}`);
@@ -303,8 +425,8 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   };
 
-  // Generate Shorts Execution
-  const handleGenerateShorts = async () => {
+  // Generate Shorts Execution (Handles First-time Analysis & Generate vs Reusing Analysis for Generate More)
+  const handleGenerateShorts = async (options?: { isGenerateMore?: boolean; forceReanalysis?: boolean }) => {
     if (!asset) return;
     setGeneratingShorts(true);
     const count =
@@ -316,13 +438,40 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
     const effPid = asset.project_id || projectId || 'default';
     try {
-      await discoverHighlights(effPid, asset.id, {
-        target_clip_count: count || 5,
+      let currentRunId = completedAnalysisRun?.id;
+
+      // 1. If not analyzed or forcing reanalysis, run source analysis first
+      if (!isVideoAnalyzed || options?.forceReanalysis) {
+        setGenerationStage('analyzing_source');
+        const analysisRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, options?.forceReanalysis || false);
+        currentRunId = analysisRun.id;
+        await loadIntelligenceData();
+      }
+
+      setGenerationStage(options?.isGenerateMore ? 'generating_more' : 'discovering_candidates');
+
+      const selectedScenesList =
+        sceneFocusMode === 'selected' && selectedSceneIds.size > 0 && selectedSceneIds.size < scenes.length
+          ? Array.from(selectedSceneIds)
+          : undefined;
+
+      const opts: DiscoverHighlightsOptions = {
+        analysis_run_id: currentRunId,
+        target_clip_count: count,
         aspect_ratio: selectedAspectRatio,
         creative_direction: selectedDirection,
-        min_duration: minDurationSec,
-        max_duration: maxDurationSec,
-      });
+        duration_preference: durationPreference,
+        novelty_mode: noveltyMode,
+        min_duration: durationPreference === 'custom' ? minDurationSec : undefined,
+        max_duration: durationPreference === 'custom' ? maxDurationSec : undefined,
+        selected_scene_ids: selectedScenesList,
+      };
+
+      if (options?.isGenerateMore) {
+        await generateMoreHighlights(effPid, asset.id, opts);
+      } else {
+        await discoverHighlights(effPid, asset.id, opts);
+      }
 
       await loadIntelligenceData();
       setActiveTab('generated_shorts');
@@ -330,6 +479,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       alert(`Failed to generate shorts: ${err.message || 'Unknown error'}`);
     } finally {
       setGeneratingShorts(false);
+      setGenerationStage(null);
     }
   };
 
@@ -486,7 +636,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             <Button
               variant="outline"
               size="sm"
-              onClick={handleStartAnalysis}
+              onClick={() => handleStartAnalysis(false)}
               isLoading={analysisLoading}
               leftIcon={<Sparkles className="w-3.5 h-3.5 text-text-muted" />}
             >
@@ -689,21 +839,104 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 2: SHORT VIDEO GENERATOR (QUANTITY, 18 DIRECTIONS, RATIOS, TRACKING, GENERATE BUTTON) */}
+        {/* TAB 2: SHORT VIDEO GENERATOR (CLEAN DEFAULT FORM & EXPANDABLE ADVANCED SETTINGS) */}
         {activeTab === 'short_generator' && (
-          <div className="max-w-5xl mx-auto space-y-6">
+          <div className="max-w-4xl mx-auto space-y-5">
+            {/* Status Toast */}
+            {configToast && (
+              <div className="p-3 rounded-xl bg-surface border border-border text-xs text-text-primary flex items-center justify-between shadow-xs animate-in fade-in">
+                <span className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  {configToast}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setConfigToast(null)}
+                  className="text-text-muted hover:text-text-primary"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* Video Intelligence Status Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-surface">
+              <div className="flex items-start sm:items-center gap-3">
+                <span
+                  className={`w-3 h-3 rounded-full mt-0.5 sm:mt-0 shrink-0 ${
+                    isVideoAnalyzed ? 'bg-emerald-500 shadow-xs' : 'bg-amber-500 animate-pulse'
+                  }`}
+                />
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-text-primary">
+                      {isVideoAnalyzed ? 'Reusable Video Intelligence Ready' : 'Source Video Not Analyzed'}
+                    </span>
+                    {isVideoAnalyzed && (
+                      <Badge variant="success" className="text-[10px] font-mono py-0">
+                        Analysis Cached
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-text-secondary mt-0.5">
+                    {isVideoAnalyzed
+                      ? `Run ${completedAnalysisRun?.id.slice(0, 10)} • ${scenes.length} scenes • ${transcript?.segments?.length || 0} transcript segments • Reused for all generation requests.`
+                      : 'Deep video analysis runs once and is saved permanently. Subsequent short generations reuse this intelligence.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                {isVideoAnalyzed ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-xs h-7 px-2.5 text-text-secondary hover:text-text-primary"
+                      onClick={() => setActiveTab('details')}
+                      leftIcon={<Eye className="w-3.5 h-3.5 text-text-muted" />}
+                    >
+                      View Intelligence
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-xs h-7 px-2.5"
+                      isLoading={analysisLoading}
+                      onClick={() => handleStartAnalysis(true)}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5 text-text-muted" />}
+                    >
+                      Re-analyze
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs h-7 px-2.5"
+                    isLoading={analysisLoading}
+                    onClick={() => handleStartAnalysis(false)}
+                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-text-muted" />}
+                  >
+                    Analyze Source Video Only
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Main Generator Configuration Form */}
             <Card className="p-6 space-y-6">
               <div>
                 <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  Short Video Generator Configuration
+                  <Sparkles className="w-4 h-4 text-text-secondary" />
+                  Short Video Generator
                 </h2>
                 <p className="text-xs text-text-secondary mt-1">
-                  Configure output parameters, target audience context, aspect ratio, and tracking for AI clip discovery.
+                  Configure output parameters. By default, AI selects the optimal clip count, duration, and moments from your saved video intelligence.
                 </p>
               </div>
 
-              {/* 1. Quantity Selection */}
+              {/* Option 1: Number of short video clips */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-text-primary block">
                   1. How Many Short Video Clips Do You Want?
@@ -711,26 +944,30 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                 <div className="flex flex-wrap items-center gap-2">
                   {[
                     { id: 'ai', label: 'AI Recommended' },
+                    { id: '1', label: '1 Clip' },
                     { id: '3', label: '3 Clips' },
                     { id: '5', label: '5 Clips' },
                     { id: '10', label: '10 Clips' },
                     { id: '15', label: '15 Clips' },
-                    { id: '20', label: '20 Clips' },
                     { id: 'custom', label: 'Custom' },
-                  ].map((preset) => (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => setClipCountPreset(preset.id as any)}
-                      className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
-                        clipCountPreset === preset.id
-                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                          : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-indigo-500/40'
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
+                  ].map((preset) => {
+                    const isSelected = clipCountPreset === preset.id;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => setClipCountPreset(preset.id as any)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                          isSelected
+                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                            : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-border-focus'
+                        }`}
+                      >
+                        {preset.id === 'ai' && <Sparkles className="w-3 h-3 inline mr-1 text-text-muted" />}
+                        {preset.label}
+                      </button>
+                    );
+                  })}
 
                   {clipCountPreset === 'custom' && (
                     <input
@@ -739,179 +976,463 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                       max={50}
                       value={customClipCount}
                       onChange={(e) => setCustomClipCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                      className="w-20 bg-canvas border border-border rounded-xl px-3 py-1.5 text-xs text-text-primary font-mono outline-none focus:border-indigo-500"
+                      className="w-20 bg-canvas border border-border rounded-xl px-3 py-1.5 text-xs text-text-primary font-mono outline-none focus:border-border-focus"
                     />
                   )}
                 </div>
+                <p className="text-[11px] text-text-muted">
+                  AI Recommended evaluates video length, scene count, and prior novelty history to choose the optimal number of high-quality clips.
+                </p>
               </div>
 
-              {/* 2. 18 Creative Directions / Topics / Context */}
+              {/* Option 2: Creative Direction */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-text-primary block">
-                  2. Creative Direction &amp; Context Focus (18 Modes)
+                  2. Creative Direction &amp; Context Focus
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-                  {CREATIVE_DIRECTIONS.map((dir) => (
-                    <button
-                      key={dir.id}
-                      type="button"
-                      onClick={() => setSelectedDirection(dir.id)}
-                      className={`p-3 rounded-xl text-left border transition-all ${
-                        selectedDirection === dir.id
-                          ? 'bg-indigo-500/10 border-indigo-500 text-text-primary shadow-sm'
-                          : 'bg-surface border-border text-text-secondary hover:border-text-muted/50 hover:bg-surface-hover'
-                      }`}
-                    >
-                      <span className={`text-xs font-semibold block ${selectedDirection === dir.id ? 'text-indigo-400' : 'text-text-primary'}`}>
-                        {dir.label}
-                      </span>
-                      <span className="text-[10px] text-text-muted mt-0.5 line-clamp-2">
-                        {dir.desc}
-                      </span>
-                    </button>
-                  ))}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    {
+                      id: 'best_overall',
+                      title: 'Best Overall',
+                      desc: 'Balanced scoring across speech clarity, visual dynamism, and narrative completeness.',
+                    },
+                    {
+                      id: 'viral_punchy',
+                      title: 'Discover Varied / Viral-Style Moments',
+                      desc: 'Aggressive hook weighting, rapid visual pacing, and diverse scene categories.',
+                    },
+                  ].map((dir) => {
+                    const isSelected = selectedDirection === dir.id;
+                    return (
+                      <button
+                        key={dir.id}
+                        type="button"
+                        onClick={() => setSelectedDirection(dir.id)}
+                        className={`p-3.5 rounded-xl text-left border transition-all ${
+                          isSelected
+                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                            : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-text-primary">{dir.title}</span>
+                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-text-primary" />}
+                        </div>
+                        <p className="text-[11px] text-text-muted mt-1 leading-relaxed">{dir.desc}</p>
+                      </button>
+                    );
+                  })}
                 </div>
+                <p className="text-[11px] text-text-muted">
+                  5 additional specialized directions (Dramatic, Action, Emotional, Dialogue, Comedy) are available in Advanced Settings.
+                </p>
               </div>
 
-              {/* 3. Aspect Ratio Selection */}
+              {/* Option 3: Target Aspect Ratio */}
               <div className="space-y-2">
                 <label className="text-xs font-semibold text-text-primary block">
                   3. Target Aspect Ratio
                 </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {ASPECT_RATIOS.map((ar) => (
-                    <button
-                      key={ar.id}
-                      type="button"
-                      onClick={() => setSelectedAspectRatio(ar.id)}
-                      className={`p-3 rounded-xl border text-center transition ${
-                        selectedAspectRatio === ar.id
-                          ? 'bg-indigo-500/10 border-indigo-500 text-indigo-400'
-                          : 'bg-surface border-border text-text-secondary hover:border-text-muted/50'
-                      }`}
-                    >
-                      <Crop className="w-4 h-4 mx-auto mb-1 opacity-70" />
-                      <span className="text-xs font-semibold block">{ar.label}</span>
-                      <span className="text-[10px] text-text-muted">{ar.ratio}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* 4. Subject Tracking Mode */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary block">
-                  4. Intelligent Subject Tracking Mode
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  {[
-                    { id: 'face', label: 'Face Tracking', icon: User, desc: 'Haar Cascade face detection center' },
-                    { id: 'upper_body', label: 'Person / Upper Body', icon: Users, desc: 'Tracks speaker torso & motion' },
-                    { id: 'object', label: 'Object Motion', icon: MoveHorizontal, desc: 'Spectral saliency focal points' },
-                    { id: 'multi', label: 'Multi-Subject Group', icon: Users, desc: 'Dynamic group framing' },
-                  ].map((trk) => {
-                    const Icon = trk.icon;
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                  {ASPECT_RATIOS.map((ar) => {
+                    const isSelected = selectedAspectRatio === ar.id;
                     return (
                       <button
-                        key={trk.id}
+                        key={ar.id}
                         type="button"
-                        onClick={() => setTrackingMode(trk.id as any)}
-                        className={`p-3 rounded-xl border text-left transition ${
-                          trackingMode === trk.id
-                            ? 'bg-indigo-500/10 border-indigo-500 text-text-primary'
-                            : 'bg-surface border-border text-text-secondary hover:border-text-muted/50'
+                        onClick={() => setSelectedAspectRatio(ar.id)}
+                        className={`p-2.5 rounded-xl border text-center transition-all ${
+                          isSelected
+                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                            : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
                         }`}
                       >
-                        <Icon className={`w-4 h-4 mb-1.5 ${trackingMode === trk.id ? 'text-indigo-400' : 'text-text-muted'}`} />
-                        <span className="text-xs font-semibold block">{trk.label}</span>
-                        <span className="text-[10px] text-text-muted block mt-0.5">{trk.desc}</span>
+                        <Crop className={`w-3.5 h-3.5 mx-auto mb-1 ${isSelected ? 'text-text-primary' : 'text-text-muted'}`} />
+                        <span className="text-xs font-semibold block">{ar.label}</span>
+                        <span className="text-[10px] text-text-muted">{ar.ratio}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
 
-              {/* 5. Duration Limits Slider */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="font-semibold text-text-primary">5. Duration Range</span>
-                  <span className="font-mono text-indigo-400">{minDurationSec}s - {maxDurationSec}s</span>
+              {/* Option 4: Duration Preference */}
+              <div className="space-y-2">
+                <label className="text-xs font-semibold text-text-primary block">
+                  4. Duration Preference
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {[
+                    { id: 'ai_best_duration', label: 'AI Selects Best Duration' },
+                    { id: 'short', label: 'Short (15-30s)' },
+                    { id: 'medium', label: 'Medium (30-60s)' },
+                    { id: 'long', label: 'Long (60-90s)' },
+                    { id: 'custom', label: 'Custom Range' },
+                  ].map((dur) => {
+                    const isSelected = durationPreference === dur.id;
+                    return (
+                      <button
+                        key={dur.id}
+                        type="button"
+                        onClick={() => setDurationPreference(dur.id as any)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+                          isSelected
+                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                            : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-border-focus'
+                        }`}
+                      >
+                        {dur.label}
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-[11px] text-text-muted">Min: {minDurationSec}s</span>
-                  <input
-                    type="range"
-                    min={10}
-                    max={45}
-                    value={minDurationSec}
-                    onChange={(e) => setMinDurationSec(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-indigo-500"
-                  />
-                  <input
-                    type="range"
-                    min={30}
-                    max={120}
-                    value={maxDurationSec}
-                    onChange={(e) => setMaxDurationSec(parseInt(e.target.value, 10))}
-                    className="flex-1 accent-indigo-500"
-                  />
-                  <span className="text-[11px] text-text-muted">Max: {maxDurationSec}s</span>
-                </div>
+
+                {durationPreference === 'ai_best_duration' ? (
+                  <p className="text-[11px] text-text-muted">
+                    Clips snap naturally to complete conversational turns, speech pauses, and scene transitions without arbitrary hard cuts.
+                  </p>
+                ) : durationPreference === 'custom' ? (
+                  <div className="p-3 rounded-xl border border-border bg-surface-subtle space-y-2 mt-2">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-text-secondary font-medium">Custom Limits</span>
+                      <span className="font-mono text-text-primary font-semibold">{minDurationSec}s - {maxDurationSec}s</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-[11px] text-text-muted font-mono">{minDurationSec}s</span>
+                      <input
+                        type="range"
+                        min={10}
+                        max={45}
+                        value={minDurationSec}
+                        onChange={(e) => setMinDurationSec(parseInt(e.target.value, 10))}
+                        className="flex-1 accent-text-primary"
+                      />
+                      <input
+                        type="range"
+                        min={30}
+                        max={120}
+                        value={maxDurationSec}
+                        onChange={(e) => setMaxDurationSec(parseInt(e.target.value, 10))}
+                        className="flex-1 accent-text-primary"
+                      />
+                      <span className="text-[11px] text-text-muted font-mono">{maxDurationSec}s</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
 
-              {/* Big Bottom Action Button */}
-              <div className="pt-4 border-t border-border flex justify-end">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="px-8 shadow-lg shadow-indigo-600/20"
-                  isLoading={generatingShorts}
-                  onClick={handleGenerateShorts}
-                  leftIcon={<Scissors className="w-4 h-4" />}
+              {/* EXPANDABLE ADVANCED SETTINGS */}
+              <div className="pt-2 border-t border-border">
+                <button
+                  type="button"
+                  onClick={() => setAdvancedExpanded(!advancedExpanded)}
+                  className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-hover transition"
                 >
-                  Generate Shorts Now
-                </Button>
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-3.5 h-3.5 text-text-muted" />
+                    Advanced Settings
+                    {(selectedDirection !== 'best_overall' && selectedDirection !== 'viral_punchy') ||
+                    trackingMode !== 'smart' ||
+                    sceneFocusMode !== 'all' ||
+                    noveltyMode !== 'strict' ? (
+                      <span className="w-1.5 h-1.5 rounded-full bg-text-primary" />
+                    ) : null}
+                  </span>
+                  {advancedExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-text-muted" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-text-muted" />
+                  )}
+                </button>
+
+                {advancedExpanded && (
+                  <div className="mt-4 space-y-5 p-4 rounded-xl border border-border bg-surface-subtle animate-in fade-in">
+                    {/* A. All 18 Creative Directions */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-text-primary block">
+                        Detailed Creative Direction (7 Supported, 11 Coming Soon)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                        {CREATIVE_DIRECTIONS.map((dir) => {
+                          const isSelected = selectedDirection === dir.id;
+                          const isAvailable = dir.supported;
+                          return (
+                            <button
+                              key={dir.id}
+                              type="button"
+                              disabled={!isAvailable}
+                              onClick={() => {
+                                if (isAvailable) setSelectedDirection(dir.id);
+                              }}
+                              className={`p-2.5 rounded-xl text-left border transition-all ${
+                                !isAvailable
+                                  ? 'opacity-40 cursor-not-allowed bg-surface/50 border-border'
+                                  : isSelected
+                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-medium block text-text-primary">
+                                  {dir.label}
+                                </span>
+                                {!isAvailable && (
+                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-surface border border-border text-text-muted">
+                                    Coming Soon
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[10px] text-text-muted mt-0.5 line-clamp-1 block">
+                                {dir.desc}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* B. Subject Tracking & Framing */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-text-primary block">
+                        Intelligent Subject Tracking &amp; Framing Strategy
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {[
+                          { id: 'smart', label: 'Auto Smart Framing', desc: 'Dynamic subject bounding' },
+                          { id: 'center', label: 'Center Crop', desc: 'Fixed centered framing' },
+                          { id: 'face', label: 'Face Tracking', desc: 'Haar frontal + profile IoU' },
+                          { id: 'upper_body', label: 'Person / Upper Body', desc: 'Speaker torso motion' },
+                          { id: 'object', label: 'Motion Saliency', desc: 'Spectral saliency points' },
+                          { id: 'multi', label: 'Multi-Subject Group', desc: 'Dynamic joint framing' },
+                        ].map((trk) => {
+                          const isSelected = trackingMode === trk.id;
+                          return (
+                            <button
+                              key={trk.id}
+                              type="button"
+                              onClick={() => setTrackingMode(trk.id as any)}
+                              className={`p-2.5 rounded-xl border text-left transition-all ${
+                                isSelected
+                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
+                              }`}
+                            >
+                              <span className="text-xs font-semibold block text-text-primary">{trk.label}</span>
+                              <span className="text-[10px] text-text-muted block mt-0.5">{trk.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* C. Scene & Content Focus */}
+                    <div className="space-y-2">
+                      <label className="text-xs font-semibold text-text-primary block">
+                        Scene &amp; Content Focus
+                      </label>
+                      <div className="flex flex-wrap items-center gap-3 text-xs">
+                        <label className="flex items-center gap-2 cursor-pointer text-text-secondary">
+                          <input
+                            type="radio"
+                            name="sceneFocus"
+                            checked={sceneFocusMode === 'all'}
+                            onChange={() => setSceneFocusMode('all')}
+                            className="accent-text-primary"
+                          />
+                          <span>Entire Source Video ({scenes.length} scenes)</span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer text-text-secondary">
+                          <input
+                            type="radio"
+                            name="sceneFocus"
+                            checked={sceneFocusMode === 'selected'}
+                            onChange={() => setSceneFocusMode('selected')}
+                            className="accent-text-primary"
+                          />
+                          <span>Selected Scenes Only ({selectedSceneIds.size} of {scenes.length} selected)</span>
+                        </label>
+                      </div>
+                      {sceneFocusMode === 'selected' && (
+                        <p className="text-[11px] text-text-muted">
+                          Configure which scenes are included or excluded from the <strong className="text-text-primary cursor-pointer underline" onClick={() => setActiveTab('scenes')}>Scene Analysis tab</strong>.
+                        </p>
+                      )}
+                    </div>
+
+                    {/* D. Novelty & Non-Repetition Control */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-text-primary">
+                          Persistent Novelty &amp; Non-Repetition Policy
+                        </label>
+                        <span className="text-[11px] font-mono text-text-muted">
+                          {noveltyHistory?.total_clips_generated ?? noveltyHistory?.history?.length ?? 0} historical clips recorded
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {[
+                          {
+                            id: 'strict',
+                            title: 'Strict Non-Repetition (Default)',
+                            desc: 'Rejects any candidate with >45% IoU overlap or identical dialogue to previous batches.',
+                          },
+                          {
+                            id: 'relaxed',
+                            title: 'Relaxed Novelty (Higher Yield)',
+                            desc: 'Allows up to 65% overlap to extract extra moments from shorter footage without repeating exact clips.',
+                          },
+                        ].map((nov) => {
+                          const isSelected = noveltyMode === nov.id;
+                          return (
+                            <button
+                              key={nov.id}
+                              type="button"
+                              onClick={() => setNoveltyMode(nov.id as any)}
+                              className={`p-2.5 rounded-xl border text-left transition-all ${
+                                isSelected
+                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
+                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
+                              }`}
+                            >
+                              <span className="text-xs font-semibold block text-text-primary">{nov.title}</span>
+                              <span className="text-[10px] text-text-muted block mt-0.5">{nov.desc}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* E. Preset Actions */}
+                    <div className="pt-2 border-t border-border flex items-center justify-between">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs h-7 text-text-muted hover:text-text-primary"
+                        onClick={handleResetDefaults}
+                        leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                      >
+                        Reset to Defaults
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs h-7"
+                        onClick={handleSaveVideoConfig}
+                        leftIcon={<Save className="w-3.5 h-3.5 text-text-muted" />}
+                      >
+                        Save Configuration for this Video
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Button & Telemetry */}
+              <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="text-xs text-text-muted flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>
+                    {isVideoAnalyzed
+                      ? 'Reusing saved video intelligence — fast candidate discovery'
+                      : 'First-time deep analysis + short video discovery'}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {isVideoAnalyzed && (
+                    <Button
+                      variant="outline"
+                      size="lg"
+                      className="text-xs h-10 px-4"
+                      isLoading={generatingShorts && generationStage === 'analyzing_source'}
+                      onClick={() => handleGenerateShorts({ forceReanalysis: true })}
+                      leftIcon={<RefreshCw className="w-4 h-4 text-text-muted" />}
+                    >
+                      Re-analyze &amp; Generate
+                    </Button>
+                  )}
+                  <Button
+                    variant="primary"
+                    size="lg"
+                    className="flex-1 sm:flex-initial h-10 px-6 shadow-xs"
+                    isLoading={generatingShorts}
+                    onClick={() => handleGenerateShorts({ isGenerateMore: isVideoAnalyzed && candidates.length > 0 })}
+                    leftIcon={<Scissors className="w-4 h-4" />}
+                  >
+                    {!isVideoAnalyzed
+                      ? 'Analyze & Generate Shorts Now'
+                      : candidates.length > 0
+                      ? 'Generate More Shorts'
+                      : 'Generate Shorts Now'}
+                  </Button>
+                </div>
               </div>
             </Card>
           </div>
         )}
 
-        {/* TAB 3: GENERATED SHORTS (CARDS, RATINGS, CUT INTERVALS, EDIT CLIP MODAL, EXPORT MP4) */}
+        {/* TAB 3: GENERATED SHORTS (BATCH MANAGEMENT, CANDIDATE CARDS, PREVIEW, EDIT & EXPORT) */}
         {activeTab === 'generated_shorts' && (
           <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-text-primary">Discovered Short Video Candidates</h2>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  Natural cut boundaries, multimodal virality scores, and framing tools.
+                  Natural cut boundaries, multimodal scores, and candidate clip editing.
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setActiveTab('short_generator')}
-                leftIcon={<Sparkles className="w-3.5 h-3.5 text-indigo-400" />}
-              >
-                Generate Another Batch
-              </Button>
+
+              <div className="flex items-center gap-3">
+                {/* Batch Filter Selector */}
+                {generationRuns.length > 1 && (
+                  <select
+                    value={selectedBatchFilter}
+                    onChange={(e) => setSelectedBatchFilter(e.target.value)}
+                    className="bg-surface border border-border rounded-xl px-3 py-1.5 text-xs text-text-primary font-medium outline-none focus:border-border-focus"
+                  >
+                    <option value="all">All Batches ({candidates.length} clips)</option>
+                    {generationRuns.map((run, idx) => (
+                      <option key={run.id} value={run.id}>
+                        Batch #{generationRuns.length - idx} ({run.creative_direction}, {run.candidates_selected} clips)
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="text-xs"
+                  isLoading={generatingShorts}
+                  onClick={() => handleGenerateShorts({ isGenerateMore: true })}
+                  leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                >
+                  Generate More Shorts
+                </Button>
+              </div>
             </div>
 
             {candidates.length === 0 ? (
               <EmptyState
                 icon={<Scissors className="w-10 h-10 text-text-muted" />}
                 title="No Short Clips Generated Yet"
-                description="Click Generate Shorts to discover interesting moments from this video."
+                description="Click Generate Shorts to discover interesting moments from this video using saved intelligence."
                 actionText="Go to Short Video Generator"
                 onAction={() => setActiveTab('short_generator')}
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {candidates.map((cand) => {
+                {(selectedBatchFilter === 'all'
+                  ? candidates
+                  : candidates.filter((c) => c.generation_run_id === selectedBatchFilter)
+                ).map((cand) => {
                   const scorePercent = Math.round(cand.quality_score * 100);
+                  const isExporting = exportingCandidateId === cand.id;
                   return (
                     <Card
                       key={cand.id}
-                      className="overflow-hidden rounded-2xl border-border bg-surface hover:border-indigo-500/40 transition flex flex-col justify-between"
+                      className="overflow-hidden rounded-2xl border-border bg-surface hover:border-border-focus transition flex flex-col justify-between"
                     >
                       <div>
                         {/* Candidate Thumbnail with play trigger */}
@@ -930,7 +1451,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                               (e.target as HTMLElement).style.display = 'none';
                             }}
                           />
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-bold text-indigo-400 border border-indigo-500/30">
+                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-bold text-text-primary border border-white/10">
                             Score {scorePercent}/100
                           </div>
 
@@ -941,27 +1462,30 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
                         {/* Candidate Metadata */}
                         <div className="p-4 space-y-2">
-                          <h3 className="text-xs font-bold text-text-primary line-clamp-1">
-                            {cand.suggested_title || cand.title || 'Untitled Short'}
-                          </h3>
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-xs font-bold text-text-primary line-clamp-1">
+                              {cand.suggested_title || cand.title || 'Untitled Short'}
+                            </h3>
+                            <Badge variant="default" className="text-[10px] shrink-0 font-mono">
+                              Discovered
+                            </Badge>
+                          </div>
 
                           {cand.ai_explanation?.hook && (
-                            <p className="text-[11px] text-indigo-300 italic line-clamp-2">
+                            <p className="text-[11px] text-text-secondary italic line-clamp-2">
                               "{cand.ai_explanation.hook}"
                             </p>
                           )}
 
                           <div className="flex items-center justify-between text-[11px] text-text-muted font-mono pt-1">
                             <span>Cut: {formatSeconds(cand.start_time)} → {formatSeconds(cand.end_time)}</span>
-                            <Badge variant="default" className="text-[10px]">
-                              {cand.category || 'Viral'}
-                            </Badge>
+                            <span className="capitalize">{cand.category || 'Highlight'}</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Candidate Actions: Edit Clip & Export */}
-                      <div className="p-3 bg-surface-hover/40 border-t border-border flex items-center gap-2">
+                      <div className="p-3 bg-surface-subtle border-t border-border flex items-center gap-2">
                         <Button
                           variant="outline"
                           size="sm"
@@ -970,7 +1494,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                             setEditingCandidate(cand);
                             setEditorModalOpen(true);
                           }}
-                          leftIcon={<Sliders className="w-3.5 h-3.5 text-indigo-400" />}
+                          leftIcon={<Sliders className="w-3.5 h-3.5 text-text-muted" />}
                         >
                           Edit Clip
                         </Button>
@@ -978,7 +1502,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           variant="primary"
                           size="sm"
                           className="flex-1 text-xs"
-                          isLoading={exportingCandidateId === cand.id}
+                          isLoading={isExporting}
                           onClick={() => handleExportCandidate(cand)}
                           leftIcon={<Download className="w-3.5 h-3.5" />}
                         >
@@ -1029,20 +1553,20 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                     </div>
 
                     <div className="space-y-2 text-xs">
-                      <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">Hook Sentence:</span>
+                      <div className="p-3 bg-surface-active/50 border border-border rounded-xl">
+                        <span className="text-[10px] font-medium text-text-muted uppercase tracking-wider block">Hook sentence</span>
                         <p className="text-text-primary font-medium mt-0.5">"{scr.hook}"</p>
                       </div>
 
                       <div className="p-3 bg-canvas-subtle rounded-xl border border-border">
-                        <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">Dialogue Excerpt:</span>
+                        <span className="text-[10px] font-medium text-text-muted uppercase tracking-wider block">Dialogue excerpt</span>
                         <p className="text-text-secondary mt-1 leading-relaxed">{scr.dialogue}</p>
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
                         {scr.narrativeArc.map((arc, aIdx) => (
                           <div key={aIdx} className="p-2.5 bg-surface border border-border rounded-lg">
-                            <span className="text-[9px] font-semibold text-text-muted uppercase block">{arc.phase}</span>
+                            <span className="text-[9px] font-medium text-text-muted uppercase block">{arc.phase}</span>
                             <span className="text-[11px] text-text-primary line-clamp-2 mt-0.5">{arc.text}</span>
                           </div>
                         ))}
@@ -1051,7 +1575,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
                     <div className="flex justify-end pt-2 border-t border-border">
                       <Button
-                        variant="primary"
+                        variant="secondary"
                         size="sm"
                         onClick={() => {
                           const candMatch = candidates.find((c) => c.id === scr.candidateId);
@@ -1063,9 +1587,9 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                             setActiveTab('home');
                           }
                         }}
-                        leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+                        leftIcon={<Scissors className="w-3.5 h-3.5 text-text-secondary" />}
                       >
-                        Regenerate Video from Script
+                        Edit Candidate Clip
                       </Button>
                     </div>
                   </Card>
@@ -1124,7 +1648,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                         <span className="text-text-muted font-mono">{formatSeconds(sc.end_time - sc.start_time)}</span>
                       </div>
                       <div className="flex flex-wrap gap-1">
-                        <span className="text-[9px] px-1 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono">
+                        <span className="text-[9px] px-1 py-0.5 rounded bg-surface-active text-text-primary font-mono border border-border">
                           {sc.change_score ? 'Cut' : 'Transition'}
                         </span>
                         <span className="text-[9px] px-1 py-0.5 rounded bg-surface border border-border text-text-muted font-mono">
@@ -1157,7 +1681,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   placeholder="Search spoken words..."
                   value={transcriptSearch}
                   onChange={(e) => setTranscriptSearch(e.target.value)}
-                  className="w-full pl-8 pr-3 py-1.5 bg-surface border border-border rounded-xl text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-indigo-500"
+                  className="w-full pl-8 pr-3 py-1.5 bg-surface border border-border rounded-xl text-xs text-text-primary placeholder:text-text-muted focus:outline-none focus:border-border-focus"
                 />
               </div>
             </div>
@@ -1179,9 +1703,9 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                       handleSeek(seg.start_time);
                       setActiveTab('home');
                     }}
-                    className="p-3 bg-surface border border-border rounded-xl hover:border-indigo-500/50 hover:bg-surface-hover cursor-pointer transition flex items-start gap-3"
+                    className="p-3 bg-surface border border-border rounded-xl hover:border-border-focus hover:bg-surface-hover cursor-pointer transition flex items-start gap-3"
                   >
-                    <div className="px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 font-mono text-[10px] shrink-0 mt-0.5">
+                    <div className="px-2 py-0.5 rounded bg-surface-active text-text-primary font-mono text-[10px] shrink-0 mt-0.5 border border-border">
                       {formatSeconds(seg.start_time)}
                     </div>
 
@@ -1249,7 +1773,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                       key={sc.id}
                       className={`p-3.5 space-y-3 rounded-2xl border transition ${
                         isChecked
-                          ? 'border-indigo-500/50 bg-indigo-500/5'
+                          ? 'border-border-focus bg-surface-active/40'
                           : 'border-border bg-surface opacity-70'
                       }`}
                     >
@@ -1264,7 +1788,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                               else next.delete(sc.id);
                               setSelectedSceneIds(next);
                             }}
-                            className="rounded accent-indigo-500 w-4 h-4 cursor-pointer"
+                            className="rounded accent-text-primary w-4 h-4 cursor-pointer"
                           />
                           <span className="text-xs font-bold text-text-primary">
                             Scene #{sc.scene_index + 1}
@@ -1317,7 +1841,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <Card className="p-4 space-y-3">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-indigo-400" />
+                  <Activity className="w-4 h-4 text-text-secondary" />
                   Pipeline Components Status
                 </h3>
                 <div className="divide-y divide-border text-xs">
