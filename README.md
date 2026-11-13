@@ -331,6 +331,9 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 8 Completion Report: Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction](docs/reports/session_8/SESSION_8_COMPLETION_REPORT.md)
+- [Object Detection, Multi-Subject Intelligence & Framing Architecture](docs/architecture/OBJECT_AND_MULTI_SUBJECT_TRACKING.md)
+- [Temporal Novelty & Candidate Deduplication Architecture](docs/architecture/TEMPORAL_NOVELTY_DESIGN.md)
 - [Session 7 Completion Report: Complete Product Integration & Real-World Validation](docs/reports/session_7/SESSION_7_COMPLETION_REPORT.md)
 - [End-to-End Product Flow Specification](docs/architecture/END_TO_END_PRODUCT_FLOW.md)
 - [Session 6C Completion Report: Real Short Video Rendering & Batch Export](docs/reports/session_6c/SESSION_6C_COMPLETION_REPORT.md)

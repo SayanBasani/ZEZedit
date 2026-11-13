@@ -438,17 +438,23 @@ class HighlightDiscoveryEngine:
                     break
 
                 # 2. Temporal overlap (tIoU and asymmetric overlap ratios)
-                iou, cand_overlap_ratio = self._compute_temporal_overlap(
+                tiou, cand_overlap_ratio, shorter_overlap_ratio = self._compute_temporal_overlap(
                     cand.start_time, cand.end_time, hist["start_time"], hist["end_time"]
                 )
                 intersection = max(0.0, min(cand.end_time, hist["end_time"]) - max(cand.start_time, hist["start_time"]))
                 hist_dur = max(0.001, hist["end_time"] - hist["start_time"])
                 hist_overlap_ratio = intersection / hist_dur
 
-                iou_limit = 0.65 if novelty_mode == "relaxed" else 0.45
-                ratio_limit = 0.70 if novelty_mode == "relaxed" else 0.55
+                iou_limit = 0.55 if novelty_mode == "relaxed" else 0.45
+                ratio_limit = 0.65 if novelty_mode == "relaxed" else 0.55
+                shorter_limit = 0.70 if novelty_mode == "relaxed" else 0.60
 
-                if iou >= iou_limit or cand_overlap_ratio >= ratio_limit or hist_overlap_ratio >= ratio_limit:
+                if (
+                    tiou >= iou_limit
+                    or cand_overlap_ratio >= ratio_limit
+                    or hist_overlap_ratio >= ratio_limit
+                    or shorter_overlap_ratio >= shorter_limit
+                ):
                     is_novel = False
                     break
 
@@ -478,11 +484,25 @@ class HighlightDiscoveryEngine:
         processed_candidates.sort(key=lambda c: c.score_breakdown.total_score, reverse=True)
 
         # Select distinct non-overlapping candidate moments up to target_clip_count
-        # (Skip alternative cuts of an already selected moment so a batch never duplicates scenes)
+        # (Skip alternative cuts of an already selected moment, and ensure new candidate doesn't overlap with any previously selected in this batch)
         selected_candidates: List[GeneratedCandidate] = []
         for cand in processed_candidates:
             if cand.alternative_of_id is not None:
                 continue
+
+            # Compare against already selected candidates in current batch
+            overlaps_batch = False
+            for sel in selected_candidates:
+                tiou, _, shorter_ratio = self._compute_temporal_overlap(
+                    cand.start_time, cand.end_time, sel.start_time, sel.end_time
+                )
+                if tiou >= 0.50 or shorter_ratio >= 0.60:
+                    overlaps_batch = True
+                    break
+
+            if overlaps_batch:
+                continue
+
             selected_candidates.append(cand)
             if len(selected_candidates) >= target_clip_count:
                 break
@@ -1024,23 +1044,27 @@ class HighlightDiscoveryEngine:
         end_a: float,
         start_b: float,
         end_b: float,
-    ) -> Tuple[float, float]:
-        """Calculates Temporal Intersection over Union (tIoU) and Overlap Ratio relative to candidate A."""
+    ) -> Tuple[float, float, float]:
+        """Calculates Temporal Intersection over Union (tIoU), Overlap Ratio relative to A, and relative to shorter."""
         intersection = max(0.0, min(end_a, end_b) - max(start_a, start_b))
         if intersection <= 0.0:
-            return 0.0, 0.0
+            return 0.0, 0.0, 0.0
 
+        dur_a = max(0.001, end_a - start_a)
+        dur_b = max(0.001, end_b - start_b)
         union = max(0.001, max(end_a, end_b) - min(start_a, start_b))
         tiou = intersection / union
-        overlap_ratio = intersection / max(0.001, end_a - start_a)
-        return tiou, overlap_ratio
+        overlap_ratio_a = intersection / dur_a
+        overlap_ratio_shorter = intersection / min(dur_a, dur_b)
+        return tiou, overlap_ratio_a, overlap_ratio_shorter
 
     def _deduplicate_and_group(
         self,
         candidates: List[GeneratedCandidate],
-        overlap_threshold: float = 0.55,
+        overlap_threshold: float = 0.50,
+        shorter_overlap_threshold: float = 0.60,
     ) -> List[GeneratedCandidate]:
-        """Detect heavily overlapping candidate intervals and cluster alternative cuts."""
+        """Detect heavily overlapping candidate intervals (including full/substantial containment) and cluster alternative cuts."""
         candidates.sort(key=lambda c: c.score_breakdown.total_score, reverse=True)
         clustered: List[GeneratedCandidate] = []
 
@@ -1049,10 +1073,10 @@ class HighlightDiscoveryEngine:
             primary_id = None
 
             for existing in clustered:
-                tiou, _ = self._compute_temporal_overlap(
+                tiou, _, shorter_ratio = self._compute_temporal_overlap(
                     cand.start_time, cand.end_time, existing.start_time, existing.end_time
                 )
-                if tiou >= overlap_threshold:
+                if tiou >= overlap_threshold or shorter_ratio >= shorter_overlap_threshold:
                     matched_group_id = existing.overlap_group_id or f"group_{existing.id}"
                     existing.overlap_group_id = matched_group_id
                     primary_id = existing.id

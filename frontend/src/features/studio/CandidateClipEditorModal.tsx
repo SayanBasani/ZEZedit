@@ -699,8 +699,20 @@ export const CandidateClipEditorModal: React.FC<CandidateClipEditorModalProps> =
                   </div>
 
                   <p className="text-[11px] text-text-muted leading-relaxed">
-                    Uses OpenCV Haar cascades (face/upper-body) and central visual saliency over frame samples on the clip interval to calculate smoothed portrait crop keyframes.
+                    Uses CPU-first multi-subject detection (skin-tone face/person & salient object contours) with TrackerMIL temporal identity tracking and scene-cut aware trajectory smoothing.
                   </p>
+
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40 text-[10px] text-emerald-400 font-mono">
+                      Face & Person: Available
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-950/40 border border-emerald-800/40 text-[10px] text-emerald-400 font-mono">
+                      Object / Motion: Available
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-[#1C202B] border border-[#2D3548] text-[10px] text-text-muted font-mono" title="Dedicated deep AV diarization requires GPU runtime; visual prominence used instead">
+                      Speaker Diarization: Unsupported
+                    </span>
+                  </div>
 
                   <Button
                     variant="outline"

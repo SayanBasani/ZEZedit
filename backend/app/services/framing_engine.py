@@ -115,16 +115,26 @@ class FramingEngine:
             warnings.append(f"No subjects detected at t={timestamp:.2f}s; applied center fallback")
             return (source_w / 2.0, source_h / 2.0, "fallback", 0, warnings)
 
-        # Single subject framing
-        if subject_count == 1 or preferred_strategy == "single_subject":
-            d = active_dets[0]
+        # Single subject framing / Primary subject framing
+        if subject_count == 1 or preferred_strategy in ("single_subject", "primary_subject"):
+            # Select most prominent subject by (confidence, area)
+            d = max(active_dets, key=lambda x: (x.confidence, x.box_w * x.box_h))
             target_x = d.center_x
             target_y = max(0.0, d.box_y - (self.headroom_factor * source_h * 0.5)) + (d.box_h / 2.0)
             return target_x, target_y, "single_subject", 1, warnings
 
+        # Object tracking / action object
+        if preferred_strategy in ("action_object", "object_tracking"):
+            obj_dets = [d for d in active_dets if d.category in ("object", "vehicle", "animal")]
+            target_det = max(obj_dets, key=lambda x: (x.confidence, x.box_w * x.box_h)) if obj_dets else active_dets[0]
+            target_x = target_det.center_x
+            target_y = max(0.0, target_det.box_y - (self.headroom_factor * source_h * 0.5)) + (target_det.box_h / 2.0)
+            return target_x, target_y, "action_object", 1, warnings
+
         # Two-person framing
-        if subject_count == 2 or preferred_strategy == "two_person":
-            d1, d2 = active_dets[0], active_dets[1]
+        if preferred_strategy == "two_person" or subject_count == 2:
+            sorted_dets = sorted(active_dets, key=lambda x: (x.confidence, x.box_w * x.box_h), reverse=True)
+            d1, d2 = sorted_dets[0], sorted_dets[1]
             min_x = min(d1.box_x, d2.box_x)
             max_x = max(d1.box_x + d1.box_w, d2.box_x + d2.box_w)
             spread_x = max_x - min_x
@@ -137,14 +147,13 @@ class FramingEngine:
                 target_y = min(d1.center_y, d2.center_y)
                 return target_x, target_y, "two_person", 2, warnings
             else:
-                # Subjects are too far apart for standard 9:16 portrait
+                # Subjects are too far apart for standard portrait crop
                 warnings.append(f"Two subjects spread ({spread_x:.0f}px) exceeds portrait width ({crop_w}px)")
-                # Prioritize higher confidence or center between them
                 target_x = (min_x + max_x) / 2.0
                 target_y = min(d1.center_y, d2.center_y)
                 return target_x, target_y, "two_person", 2, warnings
 
-        # Group framing (3+ subjects)
+        # Group framing / all subjects (3+ subjects or explicit all_subjects / group)
         min_x = min(d.box_x for d in active_dets)
         max_x = max(d.box_x + d.box_w for d in active_dets)
         group_w = max_x - min_x

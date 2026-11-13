@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-13  
-**Active Milestone:** Session 7 Completed — Complete Product Integration, Real-World Validation & Workflow Refinement (169 Backend Tests Passed, 120 Frontend Tests Passed, 100% End-to-End Real Video Integration Verified)
+**Active Milestone:** Session 8 Completed — Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction (181 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,25 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction (Session 8)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S8-01 | Temporal Novelty Correction & Containment Rejection | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Multi-layer overlap scoring with $R_{\min} = \frac{\text{Intersection}}{\min(\text{dur}_A, \text{dur}_B)}$; prevents containment duplicates (e.g. $[63.07, 87.31]$ vs $[63.07, 114.01]$) |
+| S8-02 | Intra-Batch Overlap Deduplication & Alternative Cuts | Discovery Engine | Implemented | `backend/app/services/highlight_discovery.py` | Validates every candidate against all candidates selected in current batch and clusters alternative cuts |
+| S8-03 | CPU-Friendly Multi-Class Subject Detection | Vision Tracker | Implemented | `backend/app/services/subject_tracker.py` | YCrCb skin segmentation for `person`/`face` and Sobel gradient saliency for `vehicle`/`object`/`animal` |
+| S8-04 | Genuine Temporal Tracking via TrackerMIL | Vision Tracker | Implemented | `backend/app/services/subject_tracker.py` | Persistent `TrackerMIL` instances maintain independent identities (`subject_1`, `subject_2`) across frames |
+| S8-05 | Scene Cut Aware Track Termination | Vision Tracker | Implemented | `backend/app/services/subject_tracker.py` | Tracks strictly terminate across scene transitions; never smooths or tracks across scene cuts |
+| S8-06 | Multi-Subject Framing Strategies | Framing Engine | Implemented | `backend/app/services/framing_engine.py` | Supports `primary_subject`, `two_person`, `group`/`all_subjects`, `action_object`, and `pinned_subject_id` |
+| S8-07 | Dynamic Tracking Render Pipeline Integration | Export Service | Implemented | `backend/app/services/export_service.py` | `_resolve_keyframes` runs `ReframingService` dynamically on demand and compiles piecewise-linear FFmpeg crop expressions |
+| S8-08 | Speaker-Focused Framing Capability Audit | UI & Docs | Implemented | `frontend/src/features/studio/CandidateClipEditorModal.tsx` | Distinguishes Available (Face/Person, Object, Group) from Unsupported (Deep AV speaker diarization on CPU) |
+| S8-09 | Comprehensive Automated Verification Tests | Testing | Implemented | `backend/tests/test_session8_tracking_and_novelty.py` | 12 new automated tests for overlap, containment, multi-subject tracking, and dynamic filtergraph generation |
+| S8-10 | Architecture & Design Specifications | Documentation | Implemented | `docs/architecture/OBJECT_AND_MULTI_SUBJECT_TRACKING.md`, `docs/architecture/TEMPORAL_NOVELTY_DESIGN.md` | Formal specs for object tracking, multi-subject framing, and novelty design |
+
+---
 
 ---
 

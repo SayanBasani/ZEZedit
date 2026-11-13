@@ -531,9 +531,10 @@ export const ReframingWorkspace: React.FC<ReframingWorkspaceProps> = ({
             className="text-xs bg-surface-card border border-border rounded-lg px-2.5 py-1 text-text-primary focus:outline-none"
           >
             <option value="auto">Auto Strategy</option>
-            <option value="single_subject">Single Subject</option>
+            <option value="single_subject">Primary Subject</option>
             <option value="two_person">Two People</option>
-            <option value="group">Group</option>
+            <option value="group">Group / All Subjects</option>
+            <option value="action_object">Object / Motion</option>
           </select>
 
           {/* Revisions History Button */}
@@ -582,9 +583,10 @@ export const ReframingWorkspace: React.FC<ReframingWorkspaceProps> = ({
                 ? 'bg-brand text-white shadow-xs'
                 : 'bg-surface border border-border text-text-secondary hover:text-text-primary'
             }`}
+            title="Automatically frames the primary detected subject. Dedicated deep speaker diarization is unsupported on CPU baseline."
           >
             <User className="w-3.5 h-3.5" />
-            <span>Auto Active Speaker</span>
+            <span>Primary Subject</span>
           </button>
           <button
             onClick={() => handleSelectCharacter(null, 'two_person')}

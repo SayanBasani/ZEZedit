@@ -227,3 +227,13 @@ All features MUST comply with these baseline constraints:
   - Central Process Manager verified tracking all 10 render and analysis jobs with execution telemetry and source video linkage.
   - Honest tracking capability audit: OpenCV Haar cascades for face/upper body, color saliency fallback; multi-subject/speaker tracking marked unsupported.
   - Full regression pass: 169/169 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript compilation errors.
+- **Session 8 (Completed):** Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction:
+  - Corrected temporal novelty calculation flaw: added relative containment ratio $R_{\min} = \frac{\text{Intersection}}{\min(\text{dur}_A, \text{dur}_B)}$ to prevent longer containing cuts (e.g. $[63.07, 87.31]$ vs $[63.07, 114.01]$) from co-occurring in the same batch or across subsequent Generate More runs.
+  - Implemented intra-batch candidate overlap validation and alternative cut clustering in `HighlightDiscoveryEngine`.
+  - Replaced legacy cascade calls with modern, CPU-friendly multi-stage vision detector: YCrCb skin chroma segmentation for `face` and `person` ($h/w \ge 1.3 \to$ person, $0.7 \le h/w < 1.3 \to$ face) and Sobel gradient magnitude for foreground objects/vehicles ($w/h \ge 1.4 \to$ vehicle/object).
+  - Implemented genuine temporal object tracking using OpenCV `TrackerMIL` instances, preserving independent track identities (`subject_1`, `subject_2`, etc.) across frame samples.
+  - Scene-cut aware track termination: active tracks terminate strictly at scene transitions.
+  - Multi-subject framing strategies in `FramingEngine`: `primary_subject` (prominence-ranked), `two_person` (joint framing), `group`/`all_subjects` (union bounding box), `action_object` (object/vehicle prioritization), and `pinned_subject_id`.
+  - Dynamic tracking render pipeline integration: `ExportService._resolve_keyframes` dynamically executes `ReframingService` on demand and compiles piecewise-linear FFmpeg crop expressions (`crop=w:h:x(t):y(t)`).
+  - Speaker-focused framing capability audit: clearly distinguished Available capabilities (Face/Person, Object, Group framing) from Unsupported capabilities (Deep neural AV speaker diarization on CPU baseline).
+  - Full automated verification: 12 new tests in `test_session8_tracking_and_novelty.py`, 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), clean TypeScript build.

@@ -738,6 +738,7 @@ class ExportService:
         engine = FramingEngine(target_aspect_ratio=target_aspect)
         cw, ch = engine.calculate_crop_dimensions(source_w, source_h)
 
+        # If framing mode is manual in clip_edit, compute manual crop keyframes
         if clip_edit and clip_edit.get("framing_mode") == "manual":
             zoom = max(0.5, min(3.0, float(clip_edit.get("manual_crop_zoom") or 1.0)))
             if zoom != 1.0:
@@ -753,6 +754,29 @@ class ExportService:
             cx = (max(0, min(source_w - cw, cx)) // 2) * 2
             cy = (max(0, min(source_h - ch, cy)) // 2) * 2
         else:
+            # Dynamic subject tracking via ReframingService
+            try:
+                desired_strategy = "auto"
+                pinned_sub = None
+                if clip_edit:
+                    desired_strategy = clip_edit.get("framing_mode") or "auto"
+                    pinned_sub = clip_edit.get("tracked_subject_id")
+
+                new_plan = self.reframing_service.analyze_and_create_plan(
+                    project_id=project_id,
+                    media_asset_id=media_asset_id,
+                    candidate_id=candidate_id,
+                    target_aspect_ratio=target_aspect,
+                    framing_strategy=desired_strategy,
+                    start_time=start_time,
+                    end_time=end_time,
+                    pinned_subject_id=pinned_sub,
+                )
+                if new_plan and new_plan.keyframes:
+                    return new_plan.keyframes
+            except Exception as plan_exc:
+                logger.info("Dynamic reframing plan generation bypassed (%s); applying centered keyframes", plan_exc)
+
             cx = (max(0, (source_w - cw) // 2) // 2) * 2
             cy = (max(0, (source_h - ch) // 2) // 2) * 2
 

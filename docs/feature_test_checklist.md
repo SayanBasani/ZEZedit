@@ -4,6 +4,25 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 8 — Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction
+- [x] Pre-implementation Git audit verified Session 7 commit `7d2796a` on branch `main`.
+- [x] Temporal novelty calculation corrected: added relative containment ratio $R_{\min} = \frac{\text{Intersection}}{\min(\text{dur}_A, \text{dur}_B)}$ to eliminate containing cuts (e.g. $[63.07, 87.31]$ vs $[63.07, 114.01]$).
+- [x] Intra-batch candidate overlap validation implemented in `HighlightDiscoveryEngine.discover_highlights()` to prevent containing or overlapping candidates from being selected in the same batch.
+- [x] Alternative cut clustering verified in `_deduplicate_and_group()` when $R_{\min} \ge 0.60$ or $tIoU \ge 0.50$.
+- [x] Pure-CPU multi-class detection implemented in `SubjectTracker.detect_subjects_in_frame()`: YCrCb skin-color chroma segmentation for `person`/`face` and Sobel gradient magnitude for `vehicle`/`object`/`animal`.
+- [x] Genuine temporal tracking implemented via `cv2.TrackerMIL` maintaining independent persistent identities (`subject_1`, `subject_2`, etc.) across frame samples.
+- [x] Scene-cut aware track termination verified: active tracks terminate strictly at scene boundaries.
+- [x] Multi-subject framing strategies implemented in `FramingEngine`: `primary_subject`, `two_person`, `group`/`all_subjects`, `action_object`, and `pinned_subject_id`.
+- [x] Dynamic reframing integrated into `ExportService._resolve_keyframes`, generating on-demand reframing plans and piecewise-linear FFmpeg crop expressions.
+- [x] Speaker-focused framing capability audit completed and honest status badges added to UI.
+- [x] Architecture design specifications written in `docs/architecture/OBJECT_AND_MULTI_SUBJECT_TRACKING.md` and `docs/architecture/TEMPORAL_NOVELTY_DESIGN.md`.
+- [x] 12 automated verification tests passed in `backend/tests/test_session8_tracking_and_novelty.py`.
+- [x] Full backend pytest suite passed: 181/181 tests (100%).
+- [x] Full frontend vitest suite passed: 120/120 tests (100%).
+- [x] TypeScript compilation and production build succeed with 0 errors (`npx tsc --noEmit && npm run build`).
+
+---
+
 ## Session 7 — Complete Product Integration, Real-World Validation & Workflow Refinement
 - [x] Pre-implementation Git audit verified Session 6B commit `9f02a2b` and Session 6C commit `1d37361` on `main`.
 - [x] End-to-end product workflow mapped and documented in `docs/architecture/END_TO_END_PRODUCT_FLOW.md`.
