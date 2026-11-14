@@ -221,39 +221,75 @@ class JobOrchestrator:
         )
 
         with sqlite_session(self.db_path) as conn:
-            conn.execute(
-                """
-                UPDATE jobs
-                SET status = ?,
-                    progress_pct = COALESCE(?, progress_pct),
-                    current_stage = COALESCE(?, current_stage),
-                    error_message = COALESCE(?, error_message),
-                    result_metadata_json = ?,
-                    worker_id = COALESCE(?, worker_id),
-                    worker_pid = COALESCE(?, worker_pid),
-                    started_at = ?,
-                    completed_at = ?,
-                    cancellation_requested_at = ?,
-                    cancelled_at = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (
-                    new_status,
-                    progress_pct,
-                    stage,
-                    error_message,
-                    res_json,
-                    worker_id,
-                    worker_pid,
-                    started_at,
-                    completed_at,
-                    cancelling_at,
-                    cancelled_at,
-                    now,
-                    job_id,
-                ),
-            )
+            if new_status == "completed":
+                # Ensure error_message is cleared to NULL on completion unless explicitly provided
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = ?,
+                        progress_pct = COALESCE(?, progress_pct),
+                        current_stage = COALESCE(?, current_stage),
+                        error_message = ?,
+                        result_metadata_json = ?,
+                        worker_id = COALESCE(?, worker_id),
+                        worker_pid = COALESCE(?, worker_pid),
+                        started_at = ?,
+                        completed_at = ?,
+                        cancellation_requested_at = ?,
+                        cancelled_at = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        new_status,
+                        progress_pct,
+                        stage,
+                        error_message,
+                        res_json,
+                        worker_id,
+                        worker_pid,
+                        started_at,
+                        completed_at,
+                        cancelling_at,
+                        cancelled_at,
+                        now,
+                        job_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = ?,
+                        progress_pct = COALESCE(?, progress_pct),
+                        current_stage = COALESCE(?, current_stage),
+                        error_message = COALESCE(?, error_message),
+                        result_metadata_json = ?,
+                        worker_id = COALESCE(?, worker_id),
+                        worker_pid = COALESCE(?, worker_pid),
+                        started_at = ?,
+                        completed_at = ?,
+                        cancellation_requested_at = ?,
+                        cancelled_at = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        new_status,
+                        progress_pct,
+                        stage,
+                        error_message,
+                        res_json,
+                        worker_id,
+                        worker_pid,
+                        started_at,
+                        completed_at,
+                        cancelling_at,
+                        cancelled_at,
+                        now,
+                        job_id,
+                    ),
+                )
 
         return self.get_job(job_id)
 
@@ -442,6 +478,22 @@ class JobOrchestrator:
         """Persist granular execution checkpoint with completed units and intermediate files."""
         job = self.get_job(job_id)
         now = datetime.now(timezone.utc).isoformat()
+
+        # Terminal state protection:
+        # A completed or cancelled job must never be mutated by a late checkpoint
+        if job.status == "completed":
+            return job
+        if job.status == "cancelled":
+            return job
+        if job.status == "failed":
+            is_stalled_heal = (
+                job.error_message
+                and job.error_message.startswith("Job stalled")
+                and (stage == "completed" or completed_units >= total_units)
+            )
+            if not is_stalled_heal:
+                return job
+
         total = max(total_units, 1)
         max_pct = 100.0 if stage == "completed" or job.status == "completed" else 99.0
         pct = round(min(max_pct, max(0.0, (completed_units / total) * 100.0)), 1)
@@ -464,15 +516,15 @@ class JobOrchestrator:
                     """
                     UPDATE jobs
                     SET current_stage = ?,
-                        progress_pct = ?,
-                        status = CASE WHEN status = 'running' OR (status = 'failed' AND error_message LIKE 'Job stalled%') THEN 'completed' ELSE status END,
-                        error_message = CASE WHEN status = 'failed' AND error_message LIKE 'Job stalled%' THEN NULL ELSE error_message END,
+                        progress_pct = 100.0,
+                        status = 'completed',
+                        error_message = NULL,
                         completed_at = COALESCE(completed_at, ?),
                         checkpoint_data_json = ?,
                         updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND (status = 'running' OR (status = 'failed' AND error_message LIKE 'Job stalled%'))
                     """,
-                    (stage, pct, now, cp_json, now, job_id),
+                    (stage, now, cp_json, now, job_id),
                 )
             else:
                 conn.execute(
@@ -482,7 +534,7 @@ class JobOrchestrator:
                         progress_pct = ?,
                         checkpoint_data_json = ?,
                         updated_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND status = 'running'
                     """,
                     (stage, pct, cp_json, now, job_id),
                 )
@@ -714,25 +766,48 @@ class JobOrchestrator:
     def complete_job(self, job_id: str, result_summary: Optional[dict] = None) -> JobRecord:
         """Convenience method to transition an active job to completed."""
         job = self.get_job(job_id)
+        if job.status == "completed":
+            return job
+        if job.status == "cancelled":
+            raise AppError(
+                code="INVALID_JOB_TRANSITION",
+                message=f"Cannot transition job {job_id} from 'cancelled' to 'completed'.",
+                status_code=400,
+            )
         # If job was prematurely marked failed by stall detector, allow completing it cleanly
-        if job.status == "failed" and job.error_message and "Job stalled" in job.error_message:
-            with sqlite_session(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE jobs SET status = 'running', error_message = NULL WHERE id = ?",
-                    (job_id,),
+        if job.status == "failed":
+            if job.error_message and "Job stalled" in job.error_message:
+                with sqlite_session(self.db_path) as conn:
+                    conn.execute(
+                        "UPDATE jobs SET status = 'running', error_message = NULL WHERE id = ?",
+                        (job_id,),
+                    )
+            else:
+                raise AppError(
+                    code="INVALID_JOB_TRANSITION",
+                    message=f"Cannot transition job {job_id} from 'failed' to 'completed'.",
+                    status_code=400,
                 )
         return self.transition_job_state(
-            job_id, "completed", progress_pct=100.0, stage="completed", result_metadata=result_summary
+            job_id, "completed", progress_pct=100.0, stage="completed", result_metadata=result_summary, error_message=None
         )
 
     def fail_job(self, job_id: str, error_message: str) -> JobRecord:
         """Convenience method to transition a job to failed with an error message."""
+        job = self.get_job(job_id)
+        if job.status == "completed":
+            raise AppError(
+                code="INVALID_JOB_TRANSITION",
+                message=f"Cannot transition job {job_id} from 'completed' to 'failed'.",
+                status_code=400,
+            )
         return self.transition_job_state(job_id, "failed", error_message=error_message, stage="failed")
 
     def check_stalled_jobs(self, timeout_seconds: float = 600.0) -> List[str]:
         """Detect and mark jobs that stopped sending heartbeats while in running status."""
         now_dt = datetime.now(timezone.utc)
         now = now_dt.isoformat()
+        current_backend_pid = os.getpid()
         stalled_ids: List[str] = []
         with sqlite_session(self.db_path) as conn:
             rows = conn.execute(
@@ -762,39 +837,41 @@ class JobOrchestrator:
                     except Exception:
                         pass
 
-                # 2. Check worker process liveness if worker_pid is known
-                if pid and psutil is not None:
+                # 2. Check worker process liveness ONLY if worker_pid is a dedicated external/child process (pid != current_backend_pid)
+                if pid and pid != current_backend_pid and psutil is not None:
                     try:
                         if psutil.pid_exists(pid):
-                            # Worker process is still actively running in OS
+                            # Dedicated child worker process (e.g. ffmpeg.exe) is still actively running in OS
                             # Only stall if completely silent for over 30 minutes
                             if age > 1800.0:
                                 is_stalled = True
                         else:
-                            # Process PID is truly terminated from OS
+                            # Dedicated child process PID is truly terminated from OS
                             # Allow 30s buffer for orchestrator thread to finalize
                             if age > 30.0:
                                 is_stalled = True
                     except Exception:
                         pass
                 else:
-                    # In-process async background task or unknown PID
-                    # Stall if silent for more than timeout_seconds (default 600s / 10 min)
+                    # In-process worker thread (pid == current_backend_pid or pid is None)
+                    # Governed by timeout_seconds (default 600s / 10 min)
                     if age > timeout_seconds:
                         is_stalled = True
 
                 if is_stalled:
+                    stalled_pct = min(pct, 99.0)
                     conn.execute(
                         """
                         UPDATE jobs
                         SET status = 'failed',
                             error_message = ?,
                             current_stage = 'stalled_timeout',
+                            progress_pct = ?,
                             updated_at = ?,
                             completed_at = ?
                         WHERE id = ? AND status = 'running' AND (current_stage != 'completed' AND progress_pct < 100.0)
                         """,
-                        (f"Job stalled: no worker heartbeat or progress update for {int(age)}s.", now, now, jid),
+                        (f"Job stalled: no worker heartbeat or progress update for {int(age)}s.", stalled_pct, now, now, jid),
                     )
                     stalled_ids.append(jid)
         return stalled_ids

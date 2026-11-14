@@ -217,9 +217,14 @@ class ExportService:
         project_id: str,
         candidate_id: Optional[str] = None,
         media_asset_id: Optional[str] = None,
+        search: Optional[str] = None,
+        status: Optional[str] = None,
+        aspect_ratio: Optional[str] = None,
+        sort_by: str = "newest",
         limit: int = 50,
+        offset: int = 0,
     ) -> List[ExportRecord]:
-        """List exports for a project with optional candidate or media asset filtering."""
+        """List exports for a project with optional candidate, asset, search, status, and sorting filtering."""
         query = "SELECT * FROM exports WHERE project_id = ?"
         params: list = [project_id]
         if candidate_id:
@@ -228,13 +233,64 @@ class ExportService:
         if media_asset_id:
             query += " AND media_asset_id = ?"
             params.append(media_asset_id)
-        query += " ORDER BY created_at DESC LIMIT ?"
-        params.append(limit)
+        if status and status != "all":
+            query += " AND status = ?"
+            params.append(status)
+        if aspect_ratio and aspect_ratio != "all":
+            query += " AND target_aspect_ratio = ?"
+            params.append(aspect_ratio)
+        if search:
+            query += " AND (title LIKE ? OR output_filename LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        order_clause = "created_at DESC"
+        if sort_by == "oldest":
+            order_clause = "created_at ASC"
+        elif sort_by == "duration_desc":
+            order_clause = "duration_seconds DESC"
+        elif sort_by == "duration_asc":
+            order_clause = "duration_seconds ASC"
+        elif sort_by == "title":
+            order_clause = "title ASC"
+
+        query += f" ORDER BY {order_clause} LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
 
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query, params).fetchall()
             return [self._row_to_export_record(r) for r in rows]
+
+    def count_exports(
+        self,
+        project_id: str,
+        candidate_id: Optional[str] = None,
+        media_asset_id: Optional[str] = None,
+        search: Optional[str] = None,
+        status: Optional[str] = None,
+        aspect_ratio: Optional[str] = None,
+    ) -> int:
+        """Count total exports matching filters for scalable pagination."""
+        query = "SELECT COUNT(*) FROM exports WHERE project_id = ?"
+        params: list = [project_id]
+        if candidate_id:
+            query += " AND candidate_id = ?"
+            params.append(candidate_id)
+        if media_asset_id:
+            query += " AND media_asset_id = ?"
+            params.append(media_asset_id)
+        if status and status != "all":
+            query += " AND status = ?"
+            params.append(status)
+        if aspect_ratio and aspect_ratio != "all":
+            query += " AND target_aspect_ratio = ?"
+            params.append(aspect_ratio)
+        if search:
+            query += " AND (title LIKE ? OR output_filename LIKE ?)"
+            params.extend([f"%{search}%", f"%{search}%"])
+
+        with sqlite_session(self.db_path) as conn:
+            return conn.execute(query, params).fetchone()[0]
 
     def get_export(self, project_id: str, export_id: str) -> ExportRecord:
         """Fetch a specific export record."""

@@ -59,8 +59,28 @@ def test_completed_or_100pct_job_never_marked_stalled(tmp_path: Path):
     assert rec2.status != "failed"
 
 
-def test_active_os_pid_never_marked_stalled_within_grace(tmp_path: Path):
-    """If the worker process PID is alive in the OS, long execution without heartbeat does not cause premature failure."""
+def test_active_external_child_pid_never_marked_stalled_within_grace(tmp_path: Path):
+    """If a dedicated external child worker process (e.g. ffmpeg.exe) is alive in the OS, long execution without heartbeat does not cause premature failure."""
+    settings, orchestrator = _setup_test_orchestrator(tmp_path)
+    # Use parent process ID as an external active process that is distinct from current backend process
+    external_pid = os.getppid()
+
+    # Simulate 120s of silence while running
+    past_time = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+    job = orchestrator.create_job("clip_render", "default", input_config={})
+    orchestrator.start_job(job.id, stage="rendering_video", worker_pid=external_pid)
+
+    with sqlite3.connect(orchestrator.db_path) as conn:
+        conn.execute("UPDATE jobs SET updated_at = ?, progress_pct = 25.0 WHERE id = ?", (past_time, job.id))
+
+    stalled = orchestrator.check_stalled_jobs(timeout_seconds=60.0)
+    assert job.id not in stalled
+    updated_rec = orchestrator.get_job(job.id)
+    assert updated_rec.status == "running"
+
+
+def test_in_process_job_stalls_when_silent_beyond_timeout(tmp_path: Path):
+    """If an in-process worker thread (same backend PID or None) is silent beyond timeout, it stalls even though backend PID is alive."""
     settings, orchestrator = _setup_test_orchestrator(tmp_path)
     current_pid = os.getpid()
 
@@ -73,9 +93,10 @@ def test_active_os_pid_never_marked_stalled_within_grace(tmp_path: Path):
         conn.execute("UPDATE jobs SET updated_at = ?, progress_pct = 25.0 WHERE id = ?", (past_time, job.id))
 
     stalled = orchestrator.check_stalled_jobs(timeout_seconds=60.0)
-    assert job.id not in stalled
+    assert job.id in stalled
     updated_rec = orchestrator.get_job(job.id)
-    assert updated_rec.status == "running"
+    assert updated_rec.status == "failed"
+    assert "Job stalled" in (updated_rec.error_message or "")
 
 
 def test_dead_os_pid_marked_stalled_after_grace(tmp_path: Path):

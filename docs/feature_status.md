@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-15  
-**Active Milestone:** Session 11 Completed — Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library (186 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
+**Active Milestone:** Session 12 Completed — Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair (209 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,20 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Independent Acceptance Testing, Job Reliability Stress Testing & Defect Repair (Session 12)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S12-01 | Deadlock-Resistant Watchdog & PID Distinction | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Strictly distinguishes in-process threads from external child processes (`psutil.pid_exists`), capping progress to 99% on failure and preventing server-process PID masking |
+| S12-02 | Inactivity-Bounded Heartbeat Ticker | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Automatically halts heartbeat pulse if worker thread freezes/deadlocks for >300s, ensuring frozen tasks fail cleanly |
+| S12-03 | 16-Case Job Lifecycle Stress Suite | Test Suite | Implemented | `backend/tests/test_session12_job_lifecycle_stress.py` | 16 comprehensive edge cases verifying normal completion, slow operations, thread/process crashes, deadlocks, restart recovery, cancellation, and late race conditions |
+| S12-04 | 1,000-Record Library Scalability Benchmark | Test Suite & Export Service | Implemented | `backend/tests/test_session12_large_library.py` | Verified sub-15ms server-side pagination, 98.8% payload size reduction (~10KB vs >850KB), 0 missing/duplicate items, and multi-criteria filters |
+| S12-05 | Server-Side Scalable Exports API | Export API | Implemented | `backend/app/api/v1/exports.py` | Added query parameters (`search`, `status`, `aspect_ratio`, `sort_by`, `offset`, `limit`) and total count to `/projects/{id}/exports` |
+| S12-06 | Non-Destructive Export Deletion | Export Service & UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Deleting rendered MP4 exports preserves narrative scripts and candidate discovery boundaries |
+| S12-07 | End-to-End Browser Acceptance Verification | Browser Testing | Implemented | `docs/reports/session_12/SESSION_12_ACCEPTANCE_REPORT.md` | Full interactive verification on `Visionquest S01E08.mkv` confirming zero 15s timeout alerts and clean Process Manager state |
 
 ---
 

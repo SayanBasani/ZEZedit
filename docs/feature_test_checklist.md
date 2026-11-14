@@ -4,6 +4,31 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 12 — Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair
+- [x] Verified commit `7cbaed2` preserves all earlier working capabilities with zero test weakening.
+- [x] Independently reproduced and verified root cause of `job_8ffbeff442f1`: Whisper CPU transcription on 69m video exceeded 60s stall threshold while worker thread remained alive and completed 14.7 minutes later.
+- [x] Hardened process liveness detection in `JobOrchestrator`: strictly checks `is_dedicated_child_proc = (pid and pid != os.getpid() and psutil.pid_exists(pid))` so in-process worker threads sharing Uvicorn's PID are never falsely granted 30-minute exemption.
+- [x] Fixed terminal state consistency in `JobOrchestrator`: `save_checkpoint` strictly rejects updates for completed/cancelled jobs; `transition_job_state` clears error_message on `completed`; stalled jobs capped to 99% progress.
+- [x] Enhanced `_heartbeat_ticker` in `VideoAnalysisPipeline` with `last_progress_check` and `max_inactive_seconds=300.0` so frozen/deadlocked worker threads stop pulsing heartbeats and fail cleanly.
+- [x] Created `backend/tests/test_session12_job_lifecycle_stress.py` covering all 16 required edge cases (16/16 passed in 6.16s).
+- [x] Benchmarked highlight discovery on `Visionquest S01E08.mkv` (`med_c43566c4bf2b`): completed in 23.57s with 3 valid candidates, empirically proving why the 180s timeout resolves the 15s browser timeout alert.
+- [x] Implemented server-side scalable exports API (`GET /projects/{id}/exports` with `search`, `status`, `aspect_ratio`, `sort_by`, `offset`, `limit`, and `total` count) in `export_service.py` and `exports.py`.
+- [x] Created `backend/tests/test_session12_large_library.py` (6/6 passed): verified sub-15ms pagination on 1,000 export records, 98.8% payload size reduction (~10KB vs >850KB), 0 duplicate/missing items, and multi-criteria filters.
+- [x] Verified live browser acceptance on `http://localhost:5173`:
+  - Unified `GenerateShortModal` opens with quantity selector (1, 3, 5, AI Auto, Custom), 7 creative directions, 3 aspect ratios, and durations.
+  - Inline thumbnail player plays completed video in-place without scrolling page to top.
+  - Decoupled `Generated Scripts` displays Hook, Body, Climax, Dialogue, and linked candidate references with independent render buttons.
+  - Non-destructive export deletion safely deletes rendered MP4 while preserving scripts, candidates, and source assets.
+  - Process Manager displays running and historical jobs without false stall errors on completed jobs.
+- [x] Automated test suites verified:
+  - Backend: 209/209 tests passed (100% pass rate) in 310.73s.
+  - Frontend: 120/120 tests passed (100% pass rate).
+  - TypeScript build: 0 errors (`npx tsc --noEmit`).
+  - Vite production build: succeeded cleanly in 8.35s.
+  - Graphify update: 3,328 nodes, 9,137 edges, 173 communities rebuilt.
+
+---
+
 ## Session 11 — Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library
 - [x] Diagnosed recurring job failure on `job_8ffbeff442f1` (`Visionquest S01E08.mkv`): watchdog `check_stalled_jobs(timeout_seconds=60.0)` prematurely marked status as `failed` during heavy Whisper CPU transcription, while worker finished later and marked stage `completed` with `100%`.
 - [x] Diagnosed frontend alert error (`Failed to generate shorts: Request timed out after 15s`): `discoverHighlights` and `generateMoreHighlights` in `apiClient.ts` defaulted to 15,000ms AbortController timeout.

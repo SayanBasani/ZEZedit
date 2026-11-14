@@ -33,12 +33,23 @@ def _now_utc() -> str:
 
 
 @asynccontextmanager
-async def _heartbeat_ticker(job_id: Optional[str], stage_name: str, orchestrator: Optional[JobOrchestrator]):
-    """Keep active worker heartbeat ticking periodically during heavy synchronous thread tasks."""
+async def _heartbeat_ticker(
+    job_id: Optional[str],
+    stage_name: str,
+    orchestrator: Optional[JobOrchestrator],
+    last_progress_check: Optional[Callable[[], float]] = None,
+    max_inactive_seconds: float = 300.0,
+    max_stage_seconds: float = 600.0,
+):
+    """Keep active worker heartbeat ticking periodically during heavy synchronous thread tasks.
+    Halts heartbeats if worker thread makes zero progress for longer than max_inactive_seconds,
+    preventing infinite heartbeats from masking a deadlocked worker thread.
+    """
     if not job_id or not orchestrator:
         yield
         return
     stop_event = asyncio.Event()
+    start_mono = time.monotonic()
 
     async def _ticker():
         while not stop_event.is_set():
@@ -46,6 +57,27 @@ async def _heartbeat_ticker(job_id: Optional[str], stage_name: str, orchestrator
                 await asyncio.sleep(8.0)
                 if stop_event.is_set():
                     break
+                elapsed = time.monotonic() - start_mono
+                if elapsed > max_stage_seconds:
+                    logger.warning(
+                        "Stage '%s' exceeded max duration limit of %.0fs; halting heartbeat ticker to allow watchdog detection.",
+                        stage_name,
+                        max_stage_seconds,
+                    )
+                    break
+                if last_progress_check is not None:
+                    last_act = last_progress_check()
+                    # Only check inactivity if at least one callback was received or after initial grace period
+                    silence_from = last_act if last_act > 0.0 else start_mono
+                    silence_dur = time.monotonic() - silence_from
+                    if silence_dur > max_inactive_seconds:
+                        logger.warning(
+                            "Worker progress inactive for %.1fs (>%.0fs limit) in stage '%s'; halting heartbeat ticker to allow watchdog detection.",
+                            silence_dur,
+                            max_inactive_seconds,
+                            stage_name,
+                        )
+                        break
                 orchestrator.record_heartbeat(
                     job_id,
                     stage=stage_name,
@@ -546,7 +578,12 @@ class VideoAnalysisPipeline:
                 )
 
             if audio_meta.has_audio and audio_meta.duration_seconds > 0.1:
-                async with _heartbeat_ticker(effective_job_id, "transcribing_speech", self.job_orchestrator):
+                async with _heartbeat_ticker(
+                    effective_job_id,
+                    "transcribing_speech",
+                    self.job_orchestrator,
+                    last_progress_check=lambda: last_cb_time[0],
+                ):
                     transcription = await asyncio.to_thread(
                         self.transcriber.transcribe,
                         audio_path,

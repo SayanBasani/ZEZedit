@@ -1087,16 +1087,47 @@ export function submitExportPreview(
   );
 }
 
+export interface FetchExportsOptions {
+  candidateId?: string;
+  mediaAssetId?: string;
+  search?: string;
+  status?: string;
+  aspectRatio?: string;
+  sortBy?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export function fetchProjectExports(
   projectId: string,
-  candidateId?: string,
-  mediaAssetId?: string
-): Promise<{ items: ExportItem[]; count: number }> {
+  candidateIdOrOptions?: string | FetchExportsOptions,
+  mediaAssetId?: string,
+  extraOptions?: FetchExportsOptions
+): Promise<{ items: ExportItem[]; count: number; total?: number; offset?: number; limit?: number }> {
   const params = new URLSearchParams();
-  if (candidateId) params.set('candidate_id', candidateId);
-  if (mediaAssetId) params.set('media_asset_id', mediaAssetId);
+  let opts: FetchExportsOptions = {};
+
+  if (typeof candidateIdOrOptions === 'object' && candidateIdOrOptions !== null) {
+    opts = candidateIdOrOptions;
+  } else {
+    if (candidateIdOrOptions) opts.candidateId = candidateIdOrOptions;
+    if (mediaAssetId) opts.mediaAssetId = mediaAssetId;
+    if (extraOptions) opts = { ...opts, ...extraOptions };
+  }
+
+  if (opts.candidateId) params.set('candidate_id', opts.candidateId);
+  if (opts.mediaAssetId) params.set('media_asset_id', opts.mediaAssetId);
+  if (opts.search) params.set('search', opts.search);
+  if (opts.status) params.set('status', opts.status);
+  if (opts.aspectRatio) params.set('aspect_ratio', opts.aspectRatio);
+  if (opts.sortBy) params.set('sort_by', opts.sortBy);
+  if (opts.limit !== undefined) params.set('limit', String(opts.limit));
+  if (opts.offset !== undefined) params.set('offset', String(opts.offset));
+
   const qs = params.toString() ? `?${params.toString()}` : '';
-  return request<{ items: ExportItem[]; count: number }>(`/projects/${projectId}/exports${qs}`);
+  return request<{ items: ExportItem[]; count: number; total?: number; offset?: number; limit?: number }>(
+    `/projects/${projectId}/exports${qs}`
+  );
 }
 
 export function fetchExportDetails(projectId: string, exportId: string): Promise<ExportItem> {

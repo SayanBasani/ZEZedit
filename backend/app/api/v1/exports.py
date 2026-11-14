@@ -180,17 +180,41 @@ def list_exports(
     project_id: str,
     candidate_id: Optional[str] = Query(None),
     media_asset_id: Optional[str] = Query(None),
-    limit: int = Query(50, ge=1, le=100),
+    search: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    aspect_ratio: Optional[str] = Query(None),
+    sort_by: str = Query("newest"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     service: ExportService = Depends(get_export_service),
 ):
-    """List exports for a project, optionally filtered by candidate or media asset."""
+    """List exports for a project, optionally filtered by candidate, media asset, search query, status, and aspect ratio."""
     exports = service.list_exports(
         project_id=project_id,
         candidate_id=candidate_id,
         media_asset_id=media_asset_id,
+        search=search,
+        status=status,
+        aspect_ratio=aspect_ratio,
+        sort_by=sort_by,
         limit=limit,
+        offset=offset,
     )
-    return {"items": [e.__dict__ for e in exports], "count": len(exports)}
+    total = service.count_exports(
+        project_id=project_id,
+        candidate_id=candidate_id,
+        media_asset_id=media_asset_id,
+        search=search,
+        status=status,
+        aspect_ratio=aspect_ratio,
+    )
+    return {
+        "items": [e.__dict__ for e in exports],
+        "count": len(exports),
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+    }
 
 
 @router.get("/{export_id}")

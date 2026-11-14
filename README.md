@@ -331,6 +331,7 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 12 Acceptance Report: Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair](docs/reports/session_12/SESSION_12_ACCEPTANCE_REPORT.md)
 - [Session 11 Completion Report: Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library](docs/reports/session_11/SESSION_11_COMPLETION_REPORT.md)
 - [Session 9 Completion Report: Critical Performance Diagnostics & Generation Validation](docs/reports/session_9/SESSION_9_COMPLETION_REPORT.md)
 - [Analysis Performance, Progress Streaming & Short Generation Architecture](docs/architecture/ANALYSIS_PERFORMANCE_AND_PROGRESS.md)
