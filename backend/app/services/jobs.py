@@ -643,6 +643,116 @@ class JobOrchestrator:
             "completed_at": job.completed_at,
         }
 
+    def record_heartbeat(
+        self,
+        job_id: str,
+        progress_pct: Optional[float] = None,
+        stage: Optional[str] = None,
+        stage_details: Optional[Dict[str, Any]] = None,
+    ) -> JobRecord:
+        """Record periodic worker heartbeat, updating updated_at and optional checkpoint data."""
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite_session(self.db_path) as conn:
+            if stage_details is not None:
+                cp_row = conn.execute("SELECT checkpoint_data_json FROM jobs WHERE id = ?", (job_id,)).fetchone()
+                existing_cp = {}
+                if cp_row and cp_row["checkpoint_data_json"]:
+                    try:
+                        existing_cp = json.loads(cp_row["checkpoint_data_json"])
+                    except Exception:
+                        existing_cp = {}
+                existing_cp["last_heartbeat"] = now
+                existing_cp["stage_details"] = stage_details
+                if stage:
+                    existing_cp["stage"] = stage
+                if progress_pct is not None:
+                    existing_cp["progress_pct"] = progress_pct
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET updated_at = ?,
+                        progress_pct = COALESCE(?, progress_pct),
+                        current_stage = COALESCE(?, current_stage),
+                        checkpoint_data_json = ?
+                    WHERE id = ?
+                    """,
+                    (now, progress_pct, stage, json.dumps(existing_cp), job_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET updated_at = ?,
+                        progress_pct = COALESCE(?, progress_pct),
+                        current_stage = COALESCE(?, current_stage)
+                    WHERE id = ?
+                    """,
+                    (now, progress_pct, stage, job_id),
+                )
+        return self.get_job(job_id)
+
+    def start_job(self, job_id: str, stage: str = "running", worker_pid: Optional[int] = None) -> JobRecord:
+        """Convenience method to transition a queued job to running."""
+        return self.transition_job_state(job_id, "running", stage=stage, worker_pid=worker_pid)
+
+    def complete_job(self, job_id: str, result_summary: Optional[dict] = None) -> JobRecord:
+        """Convenience method to transition an active job to completed."""
+        return self.transition_job_state(
+            job_id, "completed", progress_pct=100.0, stage="completed", result_metadata=result_summary
+        )
+
+    def fail_job(self, job_id: str, error_message: str) -> JobRecord:
+        """Convenience method to transition a job to failed with an error message."""
+        return self.transition_job_state(job_id, "failed", error_message=error_message, stage="failed")
+
+    def check_stalled_jobs(self, timeout_seconds: float = 60.0) -> List[str]:
+        """Detect and mark jobs that stopped sending heartbeats while in running status."""
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        stalled_ids: List[str] = []
+        with sqlite_session(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, status, updated_at, worker_pid, current_stage FROM jobs WHERE status = 'running'"
+            ).fetchall()
+            for r in rows:
+                jid = r["id"]
+                upd = r["updated_at"]
+                pid = r["worker_pid"]
+                is_stalled = False
+                age = 0.0
+                if upd:
+                    try:
+                        upd_dt = datetime.fromisoformat(upd.replace("Z", "+00:00"))
+                        age = (now_dt - upd_dt).total_seconds()
+                        if age > timeout_seconds:
+                            is_stalled = True
+                    except Exception:
+                        pass
+                if pid and psutil is not None:
+                    try:
+                        # Only mark stalled if the worker PID is gone AND it has been silent for >15s
+                        # to allow the orchestrator thread to read buffers and transition states cleanly.
+                        if not psutil.pid_exists(pid) and age > 15.0:
+                            is_stalled = True
+                    except Exception:
+                        pass
+
+                if is_stalled:
+                    conn.execute(
+                        """
+                        UPDATE jobs
+                        SET status = 'failed',
+                            error_message = ?,
+                            current_stage = 'stalled_timeout',
+                            updated_at = ?,
+                            completed_at = ?
+                        WHERE id = ?
+                        """,
+                        (f"Job stalled: no worker heartbeat or progress update for {int(age)}s.", now, now, jid),
+                    )
+                    stalled_ids.append(jid)
+        return stalled_ids
+
     def _row_to_record(self, row) -> JobRecord:
         keys = row.keys() if hasattr(row, "keys") else []
         cp_data = None

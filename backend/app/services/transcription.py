@@ -1,9 +1,10 @@
 """Faster-Whisper CPU transcription provider with word and segment normalization."""
 
 import logging
+import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 # Compatibility patch for PyAV 14+ with faster-whisper
 try:
@@ -21,6 +22,10 @@ from app.core.errors import ProcessingError
 from app.services.speech_segmentation import NormalizedSegment
 
 logger = logging.getLogger("zezedit.transcription")
+
+# Singleton process-level model cache to prevent repeated HuggingFace downloads and reloads
+_WHISPER_CACHE: Dict[Tuple[str, str, str, int], Any] = {}
+_CACHE_LOCK = threading.Lock()
 
 
 @dataclass
@@ -45,10 +50,13 @@ class WhisperTranscriber:
         self.device = device
         self.compute_type = compute_type
         self.cpu_threads = cpu_threads
-        self._model = None
 
     def _get_model(self):
-        if self._model is None:
+        cache_key = (self.model_size, self.device, self.compute_type, self.cpu_threads)
+        with _CACHE_LOCK:
+            if cache_key in _WHISPER_CACHE:
+                return _WHISPER_CACHE[cache_key]
+
             try:
                 from faster_whisper import WhisperModel
             except ImportError as exc:
@@ -63,13 +71,14 @@ class WhisperTranscriber:
                 self.compute_type,
                 self.cpu_threads,
             )
-            self._model = WhisperModel(
+            model = WhisperModel(
                 self.model_size,
                 device=self.device,
                 compute_type=self.compute_type,
                 cpu_threads=self.cpu_threads,
             )
-        return self._model
+            _WHISPER_CACHE[cache_key] = model
+            return model
 
     def transcribe(
         self,
@@ -77,40 +86,30 @@ class WhisperTranscriber:
         language: Optional[str] = None,
         word_timestamps: bool = True,
         beam_size: int = 1,
+        vad_filter: bool = False,
+        progress_callback: Optional[Callable[[float, float, str], None]] = None,
     ) -> TranscriptionResult:
-        """Transcribe an audio file (preferably 16kHz mono WAV) into normalized segments."""
+        """Transcribe an audio file (preferably 16kHz mono WAV) into normalized segments with streaming progress."""
         if not audio_path.exists():
             raise ProcessingError(f"Audio file does not exist: {audio_path}")
 
         model = self._get_model()
 
-        logger.info("Transcribing audio %s with Faster-Whisper (%s)...", audio_path.name, self.model_size)
+        logger.info("Transcribing audio %s with Faster-Whisper (%s, vad=%s)...", audio_path.name, self.model_size, vad_filter)
         try:
             raw_segments, info = model.transcribe(
                 str(audio_path),
                 language=language,
                 beam_size=beam_size,
                 word_timestamps=word_timestamps,
-                vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500),
+                vad_filter=vad_filter,
+                vad_parameters=dict(min_silence_duration_ms=500) if vad_filter else None,
             )
 
-            raw_list = list(raw_segments)
-            # If VAD filter classified everything as non-speech (common with dialogue over music/rhymes),
-            # retry without VAD filter to preserve real speech
-            if not raw_list:
-                logger.info("VAD filter yielded 0 segments for %s; retrying without VAD filter", audio_path.name)
-                raw_segments, info = model.transcribe(
-                    str(audio_path),
-                    language=language,
-                    beam_size=beam_size,
-                    word_timestamps=word_timestamps,
-                    vad_filter=False,
-                )
-                raw_list = list(raw_segments)
+            total_duration = float(info.duration) if hasattr(info, "duration") and info.duration else 0.0
 
             normalized_segments: List[NormalizedSegment] = []
-            for seg in raw_list:
+            for seg in raw_segments:
                 seg_text = seg.text.strip()
                 if not seg_text:
                     continue
@@ -130,12 +129,57 @@ class WhisperTranscriber:
                 # Estimate confidence from avg_logprob if available
                 confidence = 1.0
                 if hasattr(seg, "avg_logprob") and seg.avg_logprob is not None:
-                    # e.g. exp(logprob) or normalized score
                     import math
                     confidence = round(max(0.0, min(1.0, math.exp(seg.avg_logprob))), 3)
 
-                normalized_segments.append(
-                    NormalizedSegment(
+                norm_seg = NormalizedSegment(
+                    start_time=round(float(seg.start), 3),
+                    end_time=round(float(seg.end), 3),
+                    text=seg_text,
+                    language=info.language,
+                    confidence=confidence,
+                    words=words_data,
+                )
+                normalized_segments.append(norm_seg)
+
+                # Dispatch streaming progress callback
+                if progress_callback and total_duration > 0.0:
+                    try:
+                        progress_callback(float(seg.end), total_duration, seg_text)
+                    except Exception as p_err:
+                        logger.debug("Transcription progress callback error: %s", p_err)
+
+            # If VAD filter was requested and yielded 0 segments, fall back cleanly without VAD
+            if not normalized_segments and vad_filter:
+                logger.info("VAD filter yielded 0 segments for %s; retrying without VAD filter", audio_path.name)
+                raw_segments, info = model.transcribe(
+                    str(audio_path),
+                    language=language,
+                    beam_size=beam_size,
+                    word_timestamps=word_timestamps,
+                    vad_filter=False,
+                )
+                total_duration = float(info.duration) if hasattr(info, "duration") and info.duration else total_duration
+                for seg in raw_segments:
+                    seg_text = seg.text.strip()
+                    if not seg_text:
+                        continue
+                    words_data = []
+                    if hasattr(seg, "words") and seg.words:
+                        for w in seg.words:
+                            words_data.append(
+                                {
+                                    "word": w.word,
+                                    "start": round(float(w.start), 3),
+                                    "end": round(float(w.end), 3),
+                                    "probability": round(float(w.probability), 3) if hasattr(w, "probability") else 1.0,
+                                }
+                            )
+                    confidence = 1.0
+                    if hasattr(seg, "avg_logprob") and seg.avg_logprob is not None:
+                        import math
+                        confidence = round(max(0.0, min(1.0, math.exp(seg.avg_logprob))), 3)
+                    norm_seg = NormalizedSegment(
                         start_time=round(float(seg.start), 3),
                         end_time=round(float(seg.end), 3),
                         text=seg_text,
@@ -143,7 +187,12 @@ class WhisperTranscriber:
                         confidence=confidence,
                         words=words_data,
                     )
-                )
+                    normalized_segments.append(norm_seg)
+                    if progress_callback and total_duration > 0.0:
+                        try:
+                            progress_callback(float(seg.end), total_duration, seg_text)
+                        except Exception:
+                            pass
 
             logger.info(
                 "Transcription complete: %d segments detected (language: %s, prob: %.2f)",
@@ -155,7 +204,7 @@ class WhisperTranscriber:
             return TranscriptionResult(
                 detected_language=info.language,
                 language_probability=round(float(info.language_probability), 3),
-                duration_seconds=round(float(info.duration), 3) if hasattr(info, "duration") else 0.0,
+                duration_seconds=round(total_duration, 3),
                 segments=normalized_segments,
             )
 

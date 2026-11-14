@@ -50,7 +50,7 @@ class SubjectTracker:
     def __init__(
         self,
         ffmpeg_path: str = "ffmpeg",
-        sample_fps: float = 3.0,
+        sample_fps: float = 2.0,
         gap_tolerance_seconds: float = 1.2,
     ) -> None:
         self.ffmpeg_path = shutil.which(ffmpeg_path) or "ffmpeg"
@@ -71,32 +71,52 @@ class SubjectTracker:
         end_time: float,
         temp_dir: Path,
     ) -> List[Tuple[float, Path]]:
-        """Extract frame samples at sample_fps rate between start_time and end_time."""
+        """Extract frame samples at sample_fps using a single fast batched FFmpeg pass."""
         samples: List[Tuple[float, Path]] = []
         duration = max(0.5, end_time - start_time)
         step = 1.0 / self.sample_fps
-        t = start_time
 
-        idx = 0
-        while t <= end_time + 0.05:
-            out_img = temp_dir / f"frame_{idx:05d}_{t:.2f}.jpg"
-            cmd = [
-                self.ffmpeg_path,
-                "-y",
-                "-ss", f"{t:.3f}",
-                "-i", str(media_path),
-                "-vframes", "1",
-                "-q:v", "4",
-                str(out_img),
-            ]
-            try:
-                subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                if out_img.exists() and out_img.stat().st_size > 0:
-                    samples.append((round(t, 3), out_img))
-            except Exception:
-                pass
-            t += step
-            idx += 1
+        out_pattern = temp_dir / "frame_%05d.jpg"
+        cmd = [
+            self.ffmpeg_path,
+            "-y",
+            "-ss", f"{start_time:.3f}",
+            "-to", f"{end_time:.3f}",
+            "-i", str(media_path),
+            "-vf", f"fps={self.sample_fps},scale='min(640,iw)':-2",
+            "-q:v", "4",
+            str(out_pattern),
+        ]
+        try:
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            files = sorted(temp_dir.glob("frame_*.jpg"))
+            for i, f_path in enumerate(files):
+                if f_path.stat().st_size > 0:
+                    t = round(start_time + i * step, 3)
+                    samples.append((t, f_path))
+        except Exception as e:
+            logger.warning("Batched frame extraction failed: %s, falling back to sequential extraction", e)
+            t = start_time
+            idx = 0
+            while t <= end_time + 0.05:
+                out_img = temp_dir / f"fallback_{idx:05d}.jpg"
+                fallback_cmd = [
+                    self.ffmpeg_path,
+                    "-y",
+                    "-ss", f"{t:.3f}",
+                    "-i", str(media_path),
+                    "-vframes", "1",
+                    "-q:v", "4",
+                    str(out_img),
+                ]
+                try:
+                    subprocess.run(fallback_cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+                    if out_img.exists() and out_img.stat().st_size > 0:
+                        samples.append((round(t, 3), out_img))
+                except Exception:
+                    pass
+                t += step
+                idx += 1
 
         return samples
 
@@ -244,6 +264,10 @@ class SubjectTracker:
         if not detections:
             return self._fallback_detection(timestamp, source_w, source_h)
 
+        if len(detections) > 4:
+            detections.sort(key=lambda d: (d.box_w * d.box_h * d.confidence), reverse=True)
+            detections = detections[:4]
+
         return detections
 
     def _fallback_detection(self, timestamp: float, source_w: int, source_h: int) -> List[DetectedSubject]:
@@ -388,8 +412,8 @@ class SubjectTracker:
                     trk.last_seen = timestamp
                     matched_detection_indices.add(best_match_idx)
 
-                    # Re-initialize TrackerMIL with fresh detection to prevent drift
-                    if img is not None and self._has_tracker_mil:
+                    # Refresh TrackerMIL with fresh detection for active tracker
+                    if img is not None and self._has_tracker_mil and tid in active_trackers:
                         pixel_box = (
                             int(matched_det.box_x / scale_x),
                             int(matched_det.box_y / scale_y),
@@ -459,7 +483,7 @@ class SubjectTracker:
                     tracks.append(new_track)
                     active_tracks.append(new_track)
 
-                    if img is not None and self._has_tracker_mil:
+                    if img is not None and self._has_tracker_mil and len(active_trackers) < 2:
                         pixel_box = (
                             int(det.box_x / scale_x),
                             int(det.box_y / scale_y),

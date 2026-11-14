@@ -340,9 +340,15 @@ class VideoAnalysisPipeline:
         # Stage 1: Validate Source
         stage_details: Dict[str, Any] = {
             "stage": "validating_source",
+            "stage_status": "in_progress",
             "stage_pct": 100.0,
             "overall_pct": 5.0,
+            "completed_units": 1,
+            "total_units": 1,
+            "units_label": "files",
             "elapsed_seconds": round(time.monotonic() - start_mono, 2),
+            "last_heartbeat": _now_utc(),
+            "operation_description": "Validating media source signature and integrity",
             "cached_stages": [],
             "warnings": [],
         }
@@ -379,13 +385,20 @@ class VideoAnalysisPipeline:
 
             # Stage 2: Extract & Verify Metadata
             stage_details["stage"] = "extracting_metadata"
+            stage_details["stage_status"] = "in_progress"
             stage_details["overall_pct"] = 10.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = 1
+            stage_details["total_units"] = 1
+            stage_details["units_label"] = "streams"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = "Inspecting audio/video stream container with FFprobe"
             self.update_run_progress(
                 run_id, "running", 10.0, "extracting_metadata", stage_details=stage_details, job_id=effective_job_id
             )
 
-            audio_meta = inspect_audio_stream(media_path)
+            audio_meta = await asyncio.to_thread(inspect_audio_stream, media_path)
             if not audio_meta.has_audio:
                 stage_details["warnings"].append("Source video has no audio track. Speech transcription will be skipped.")
 
@@ -408,15 +421,23 @@ class VideoAnalysisPipeline:
 
             # Stage 3: Extract Audio (FFmpeg 16kHz mono WAV)
             stage_details["stage"] = "extracting_audio"
-            stage_details["overall_pct"] = 25.0
+            stage_details["stage_status"] = "in_progress"
+            stage_details["overall_pct"] = 20.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = int(duration)
+            stage_details["total_units"] = int(duration)
+            stage_details["units_label"] = "seconds"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = f"Demuxing audio track to 16kHz mono WAV ({duration:.1f}s)"
             self.update_run_progress(
-                run_id, "running", 25.0, "extracting_audio", stage_details=stage_details, job_id=effective_job_id
+                run_id, "running", 20.0, "extracting_audio", stage_details=stage_details, job_id=effective_job_id
             )
 
             audio_path = job_temp_dir / "audio_16k.wav"
             t_audio_start = time.monotonic()
-            _, audio_meta = extract_audio_16k_mono(
+            _, audio_meta = await asyncio.to_thread(
+                extract_audio_16k_mono,
                 media_path,
                 audio_path,
                 max_duration_seconds=duration,
@@ -426,20 +447,74 @@ class VideoAnalysisPipeline:
             logger.info("Audio demux for %s took %.2fs (speech_density: %.2f)", media_path.name, audio_demux_time, audio_meta.speech_density)
 
             if self.is_cancelled(run_id, effective_job_id):
-                self.update_run_progress(run_id, "cancelled", 25.0, "cancelled", job_id=effective_job_id)
+                self.update_run_progress(run_id, "cancelled", 20.0, "cancelled", job_id=effective_job_id)
                 return {"status": "cancelled"}
 
-            # Stage 4: Speech Transcription (Faster-Whisper CPU int8)
+            # Stage 4: Speech Transcription (Faster-Whisper CPU int8 with streaming progress)
+            t_trans_start = time.monotonic()
+            tot_dur = max(1.0, audio_meta.duration_seconds if audio_meta.duration_seconds > 0 else duration)
+
             stage_details["stage"] = "transcribing_speech"
-            stage_details["overall_pct"] = 45.0
+            stage_details["stage_status"] = "in_progress"
+            stage_details["overall_pct"] = 25.0
+            stage_details["stage_pct"] = 0.0
+            stage_details["completed_units"] = 0.0
+            stage_details["total_units"] = round(tot_dur, 1)
+            stage_details["units_label"] = "seconds"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = f"Transcribing speech: 0s / {int(tot_dur)}s (0%)"
             self.update_run_progress(
-                run_id, "running", 45.0, "transcribing_speech", stage_details=stage_details, job_id=effective_job_id
+                run_id, "running", 25.0, "transcribing_speech", stage_details=stage_details, job_id=effective_job_id
             )
 
-            t_trans_start = time.monotonic()
+            last_cb_time = [0.0]
+
+            def on_transcribe_progress(current_sec: float, total_sec: float, latest_text: str) -> None:
+                now_mono = time.monotonic()
+                # Rate limit intermediate updates to at most once every 1.0 second unless at end
+                if (now_mono - last_cb_time[0] < 1.0) and current_sec < (total_sec - 1.0):
+                    return
+                last_cb_time[0] = now_mono
+
+                if self.is_cancelled(run_id, effective_job_id):
+                    return
+
+                tot = max(total_sec, 1.0)
+                cur = min(current_sec, tot)
+                st_pct = min(100.0, max(0.0, (cur / tot) * 100.0))
+                # Map stage (0-100%) to overall progress (25% to 55%)
+                overall = round(25.0 + 30.0 * (cur / tot), 1)
+                elapsed = round(time.monotonic() - start_mono, 1)
+                t_in_stage = max(0.1, time.monotonic() - t_trans_start)
+                rate = cur / t_in_stage if t_in_stage > 0 else 1.0
+                rem_audio = max(0.0, tot - cur)
+                est_rem = round(rem_audio / rate, 1) if rate > 0 else 0.0
+
+                prog_details = {
+                    "stage": "transcribing_speech",
+                    "stage_status": "in_progress",
+                    "overall_pct": overall,
+                    "stage_pct": round(st_pct, 1),
+                    "completed_units": round(cur, 1),
+                    "total_units": round(tot, 1),
+                    "units_label": "seconds",
+                    "elapsed_seconds": elapsed,
+                    "estimated_remaining_seconds": est_rem,
+                    "last_heartbeat": _now_utc(),
+                    "operation_description": f"Transcribing speech: {int(cur)}s / {int(tot)}s ({st_pct:.0f}%)",
+                    "latest_text": latest_text[:60] if latest_text else "",
+                }
+                self.update_run_progress(
+                    run_id, "running", overall, "transcribing_speech", stage_details=prog_details, job_id=effective_job_id
+                )
+
             if audio_meta.has_audio and audio_meta.duration_seconds > 0.1:
-                transcription = self.transcriber.transcribe(audio_path)
+                transcription = await asyncio.to_thread(
+                    self.transcriber.transcribe,
+                    audio_path,
+                    progress_callback=on_transcribe_progress,
+                )
             else:
                 transcription = TranscriptionResult(
                     detected_language="none",
@@ -457,27 +532,41 @@ class VideoAnalysisPipeline:
             )
 
             if self.is_cancelled(run_id, effective_job_id):
-                self.update_run_progress(run_id, "cancelled", 45.0, "cancelled", job_id=effective_job_id)
+                self.update_run_progress(run_id, "cancelled", 55.0, "cancelled", job_id=effective_job_id)
                 return {"status": "cancelled"}
 
             # Stage 5: Speech Turn & Dialogue Segmentation
             stage_details["stage"] = "segmenting_dialogue"
-            stage_details["overall_pct"] = 55.0
+            stage_details["stage_status"] = "in_progress"
+            stage_details["overall_pct"] = 60.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = len(transcription.segments)
+            stage_details["total_units"] = len(transcription.segments)
+            stage_details["units_label"] = "segments"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = f"Clustering {len(transcription.segments)} segments into conversational speech turns"
             self.update_run_progress(
-                run_id, "running", 55.0, "segmenting_dialogue", stage_details=stage_details, job_id=effective_job_id
+                run_id, "running", 60.0, "segmenting_dialogue", stage_details=stage_details, job_id=effective_job_id
             )
 
             turns = segment_dialogue_turns(transcription.segments)
 
             if self.is_cancelled(run_id, effective_job_id):
-                self.update_run_progress(run_id, "cancelled", 55.0, "cancelled", job_id=effective_job_id)
+                self.update_run_progress(run_id, "cancelled", 60.0, "cancelled", job_id=effective_job_id)
                 return {"status": "cancelled"}
 
             # Stage 6: Scene Boundary Cut Detection (FFmpeg / PySceneDetect)
             stage_details["stage"] = "detecting_scenes"
+            stage_details["stage_status"] = "in_progress"
             stage_details["overall_pct"] = 70.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = int(duration)
+            stage_details["total_units"] = int(duration)
+            stage_details["units_label"] = "seconds"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = "Analyzing temporal scene transitions and cuts with FFmpeg"
             self.update_run_progress(
                 run_id, "running", 70.0, "detecting_scenes", stage_details=stage_details, job_id=effective_job_id
             )
@@ -485,7 +574,8 @@ class VideoAnalysisPipeline:
             t_scene_start = time.monotonic()
             scenes: List[DetectedScene] = []
             if media_type == "video" and duration > 0.5:
-                scenes = detect_scenes_ffmpeg(
+                scenes = await asyncio.to_thread(
+                    detect_scenes_ffmpeg,
                     media_path,
                     duration_seconds=duration,
                     thumbnails_dir=scenes_dir,
@@ -502,8 +592,15 @@ class VideoAnalysisPipeline:
 
             # Stage 7: Visual Frame Sampling
             stage_details["stage"] = "sampling_frames"
+            stage_details["stage_status"] = "in_progress"
             stage_details["overall_pct"] = 80.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = len(scenes)
+            stage_details["total_units"] = len(scenes)
+            stage_details["units_label"] = "scenes"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = f"Extracting representative keyframes across {len(scenes)} scenes"
             self.update_run_progress(
                 run_id, "running", 80.0, "sampling_frames", stage_details=stage_details, job_id=effective_job_id
             )
@@ -512,7 +609,8 @@ class VideoAnalysisPipeline:
             sampled_frames: List[SampledFrame] = []
             if media_type == "video" and duration > 0.5:
                 max_frames = 20 if profile == "fast" else (50 if profile == "balanced" else 100)
-                sampled_frames = sample_analysis_frames(
+                sampled_frames = await asyncio.to_thread(
+                    sample_analysis_frames,
                     media_path,
                     frames_dir,
                     scenes,
@@ -527,18 +625,43 @@ class VideoAnalysisPipeline:
                 return {"status": "cancelled"}
 
             # Stage 8: Visual Understanding and Subject Tracking
+            sample_count = 5 if profile == "fast" else (12 if profile == "balanced" else 25)
+            target_frames = sampled_frames[:sample_count]
             stage_details["stage"] = "analyzing_visuals"
-            stage_details["overall_pct"] = 90.0
+            stage_details["stage_status"] = "in_progress"
+            stage_details["overall_pct"] = 85.0
+            stage_details["stage_pct"] = 0.0
+            stage_details["completed_units"] = 0
+            stage_details["total_units"] = len(target_frames)
+            stage_details["units_label"] = "frames"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = f"Analyzing visual keyframes (0 / {len(target_frames)})"
             self.update_run_progress(
-                run_id, "running", 90.0, "analyzing_visuals", stage_details=stage_details, job_id=effective_job_id
+                run_id, "running", 85.0, "analyzing_visuals", stage_details=stage_details, job_id=effective_job_id
             )
 
             observations = []
             if hasattr(self.vision_analyzer, "reset"):
                 self.vision_analyzer.reset()
-            sample_count = 5 if profile == "fast" else (12 if profile == "balanced" else 25)
-            for frame in sampled_frames[:sample_count]:
+
+            for idx, frame in enumerate(target_frames):
+                if self.is_cancelled(run_id, effective_job_id):
+                    self.update_run_progress(run_id, "cancelled", 85.0, "cancelled", job_id=effective_job_id)
+                    return {"status": "cancelled"}
+
+                frame_pct = round(((idx + 1) / max(len(target_frames), 1)) * 100.0, 1)
+                vis_overall = round(85.0 + 10.0 * ((idx + 1) / max(len(target_frames), 1)), 1)
+                stage_details["stage_pct"] = frame_pct
+                stage_details["overall_pct"] = vis_overall
+                stage_details["completed_units"] = idx + 1
+                stage_details["last_heartbeat"] = _now_utc()
+                stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+                stage_details["operation_description"] = f"Analyzing keyframe {idx + 1} of {len(target_frames)} ({frame_pct:.0f}%)"
+                self.update_run_progress(
+                    run_id, "running", vis_overall, "analyzing_visuals", stage_details=stage_details, job_id=effective_job_id
+                )
+
                 frame_path = Path(frame.frame_path)
                 frame_obs = await self.vision_analyzer.analyze_frame(
                     frame_path,
@@ -547,13 +670,20 @@ class VideoAnalysisPipeline:
                 observations.extend(frame_obs)
 
             if self.is_cancelled(run_id, effective_job_id):
-                self.update_run_progress(run_id, "cancelled", 90.0, "cancelled", job_id=effective_job_id)
+                self.update_run_progress(run_id, "cancelled", 95.0, "cancelled", job_id=effective_job_id)
                 return {"status": "cancelled"}
 
             # Stage 9: Persist to SQLite
             stage_details["stage"] = "persisting_results"
+            stage_details["stage_status"] = "in_progress"
             stage_details["overall_pct"] = 95.0
+            stage_details["stage_pct"] = 100.0
+            stage_details["completed_units"] = 1
+            stage_details["total_units"] = 1
+            stage_details["units_label"] = "transactions"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
+            stage_details["last_heartbeat"] = _now_utc()
+            stage_details["operation_description"] = "Saving transcripts, scenes, dialogue turns, and frames into persistent intelligence database"
             self.update_run_progress(
                 run_id, "running", 95.0, "persisting_results", stage_details=stage_details, job_id=effective_job_id
             )
@@ -718,9 +848,16 @@ class VideoAnalysisPipeline:
             total_elapsed = round(time.monotonic() - start_mono, 2)
             stage_details = {
                 "stage": "completed",
+                "stage_status": "completed",
                 "stage_pct": 100.0,
                 "overall_pct": 100.0,
+                "completed_units": 100,
+                "total_units": 100,
+                "units_label": "percent",
                 "elapsed_seconds": total_elapsed,
+                "estimated_remaining_seconds": 0.0,
+                "last_heartbeat": _now_utc(),
+                "operation_description": f"Video intelligence analysis complete in {total_elapsed:.1f}s",
                 "segment_count": len(transcription.segments),
                 "turn_count": len(turns),
                 "scene_count": len(scenes),

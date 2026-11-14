@@ -36,6 +36,7 @@ import {
   deleteExport,
   discoverHighlights,
   fetchAnalysisCacheInfo,
+  fetchAnalysisRun,
   fetchAnalysisRuns,
   fetchAnalysisScenes,
   fetchAnalysisTranscript,
@@ -254,20 +255,26 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   }, [assetId, asset?.project_id, projectId]);
 
-  // Poll for Active Jobs (Progress Bar Telemetry)
+  // Poll for Active Jobs & Analysis Telemetry (Progress Bar Telemetry)
   useEffect(() => {
     let timer: any;
     const pollJobs = async () => {
       try {
-        const jobsRes = await fetchJobs({ mediaAssetId: assetId });
+        const [jobsRes, runsRes] = await Promise.all([
+          fetchJobs({ mediaAssetId: assetId }).catch(() => ({ items: [] })),
+          fetchAnalysisRuns(asset?.project_id || projectId || 'default', assetId).catch(() => []),
+        ]);
         const items = jobsRes.items || [];
         setVideoJobs(items);
-        const matchingJob = items.find(
-          (j: JobItem) => j.status === 'running' || j.status === 'queued'
-        );
-        setActiveJob(matchingJob || null);
+        if (runsRes && runsRes.length > 0) {
+          setAnalysisRuns(runsRes);
+        }
 
-        if (matchingJob) {
+        const runningJob = items.find((j: JobItem) => j.status === 'running' && j.media_asset_id === assetId);
+        const queuedJob = items.find((j: JobItem) => j.status === 'queued' && j.media_asset_id === assetId);
+        setActiveJob(runningJob || queuedJob || null);
+
+        if (runningJob || (runsRes[0] && runsRes[0].status === 'running')) {
           void loadIntelligenceData();
         }
       } catch (err) {
@@ -276,9 +283,9 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     };
 
     void pollJobs();
-    timer = setInterval(pollJobs, 2500);
+    timer = setInterval(pollJobs, 1500);
     return () => clearInterval(timer);
-  }, [assetId, loadIntelligenceData]);
+  }, [assetId, asset?.project_id, projectId, loadIntelligenceData]);
 
   useEffect(() => {
     void loadAssetDetails();
@@ -296,53 +303,74 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     return getStreamMediaUrl(asset.id);
   }, [asset]);
 
-  // Calculate Progress Percent and Details
+  // Calculate Progress Percent and Truthful Details
   const progressDetails = useMemo(() => {
-    if (generationStage === 'analyzing_source') {
+    const latestRun = analysisRuns[0];
+    const isRunActive = latestRun && (latestRun.status === 'running' || latestRun.status === 'pending');
+    const isJobActive = activeJob && (activeJob.status === 'running' || activeJob.status === 'queued');
+
+    // Case 1: Active Source Video Analysis Run
+    if (isRunActive) {
+      const details = (latestRun as any).stage_details || {};
+      const stageName = latestRun.current_stage || details.stage || 'Analyzing Video';
+      const pct = latestRun.progress_pct ?? details.overall_pct ?? 0;
+      const desc = details.operation_description || `Stage: ${stageName}`;
+      const eta = details.estimated_remaining_seconds != null && details.estimated_remaining_seconds > 0
+        ? ` • ~${Math.round(details.estimated_remaining_seconds)}s remaining`
+        : '';
       return {
         isActive: true,
-        stage: 'Deep AI Video Analysis in Progress...',
-        percent: 45,
-        etaText: 'Extracting speech segments, visual keyframes & scene boundaries',
+        stage: stageName.replace(/_/g, ' '),
+        percent: Math.min(100, Math.max(0, pct)),
+        etaText: `${desc}${eta}`,
       };
-    }
-    if (generationStage === 'generating_more') {
-      return {
-        isActive: true,
-        stage: 'Reusing Saved Analysis • Searching Unused Moments...',
-        percent: 75,
-        etaText: 'Checking novelty ledger against previously generated clips',
-      };
-    }
-    if (generatingShorts) {
-      return {
-        isActive: true,
-        stage: 'Discovering Candidate Moments & Boundaries...',
-        percent: 60,
-        etaText: 'Evaluating multimodal scores and natural speech pauses',
-      };
-    }
-    if (!activeJob) {
-      const latestRun = analysisRuns[0];
-      if (latestRun?.status === 'running') {
-        return {
-          isActive: true,
-          stage: latestRun.current_stage || 'Analyzing Video...',
-          percent: latestRun.progress_pct || 45,
-          etaText: 'Processing local neural pipelines...',
-        };
-      }
-      return { isActive: false, stage: 'Idle', percent: 100, etaText: '' };
     }
 
-    const stage = activeJob.current_stage || 'Processing Pipeline';
-    const percent = Math.min(100, Math.max(0, activeJob.progress_pct || 0));
-    return {
-      isActive: true,
-      stage,
-      percent,
-      etaText: `Job ${activeJob.id.slice(0, 8)} • Stage: ${stage}`,
-    };
+    // Case 2: Active Background Job
+    if (isJobActive && activeJob) {
+      const cp = (activeJob as any).checkpoint_data || {};
+      const details = cp.stage_details || cp.checkpoint_payload || {};
+      const stageName = activeJob.current_stage || 'Processing Pipeline';
+      const pct = activeJob.progress_pct ?? details.overall_pct ?? 0;
+      const desc = details.operation_description || `Job ${activeJob.id.slice(0, 8)} • Stage: ${stageName}`;
+      const eta = activeJob.estimated_remaining_seconds != null && activeJob.estimated_remaining_seconds > 0
+        ? ` • ~${Math.round(activeJob.estimated_remaining_seconds)}s remaining`
+        : '';
+      return {
+        isActive: true,
+        stage: stageName.replace(/_/g, ' '),
+        percent: Math.min(100, Math.max(0, pct)),
+        etaText: `${desc}${eta}`,
+      };
+    }
+
+    // Case 3: Generating Shorts / Discovery
+    if (generatingShorts) {
+      if (generationStage === 'analyzing_source') {
+        return {
+          isActive: true,
+          stage: 'Deep AI Video Analysis...',
+          percent: 10,
+          etaText: 'Initializing video intelligence pipeline...',
+        };
+      }
+      if (generationStage === 'generating_more') {
+        return {
+          isActive: true,
+          stage: 'Reusing Saved Analysis',
+          percent: 85,
+          etaText: 'Filtering novelty ledger against previously discovered candidates',
+        };
+      }
+      return {
+        isActive: true,
+        stage: 'Discovering Highlights',
+        percent: 60,
+        etaText: 'Evaluating multimodal audio/visual scoring moments',
+      };
+    }
+
+    return { isActive: false, stage: 'Idle', percent: 100, etaText: '' };
   }, [activeJob, analysisRuns, generationStage, generatingShorts]);
 
   // Video Player Controls
@@ -433,7 +461,8 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     setAnalysisLoading(true);
     const effPid = asset.project_id || projectId || 'default';
     try {
-      await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, forceReanalysis);
+      const run = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, forceReanalysis);
+      setAnalysisRuns((prev) => [run, ...prev.filter((p) => p.id !== run.id)]);
       await loadIntelligenceData();
     } catch (err: any) {
       alert(`Failed to start analysis: ${err.message || 'Unknown error'}`);
@@ -457,11 +486,30 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     try {
       let currentRunId = completedAnalysisRun?.id;
 
-      // 1. If not analyzed or forcing reanalysis, run source analysis first
+      // 1. If not analyzed or forcing reanalysis, run source analysis first and wait for completion
       if (!isVideoAnalyzed || options?.forceReanalysis) {
         setGenerationStage('analyzing_source');
-        const analysisRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, options?.forceReanalysis || false);
-        currentRunId = analysisRun.id;
+        const initialRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, options?.forceReanalysis || false);
+        currentRunId = initialRun.id;
+        setAnalysisRuns((prev) => [initialRun, ...prev.filter((p) => p.id !== initialRun.id)]);
+
+        let pollRun = initialRun;
+        while (pollRun.status === 'running' || pollRun.status === 'pending') {
+          await new Promise((r) => setTimeout(r, 1200));
+          try {
+            pollRun = await fetchAnalysisRun(effPid, asset.id, initialRun.id);
+            setAnalysisRuns((prev) => [pollRun, ...prev.filter((p) => p.id !== pollRun.id)]);
+          } catch {
+            // retry next tick
+          }
+        }
+        if (pollRun.status === 'failed') {
+          throw new Error(pollRun.error_message || 'Video analysis failed.');
+        }
+        if (pollRun.status === 'cancelled') {
+          throw new Error('Video analysis was cancelled.');
+        }
+        currentRunId = pollRun.id;
         await loadIntelligenceData();
       }
 

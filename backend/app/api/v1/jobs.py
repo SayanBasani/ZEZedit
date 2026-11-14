@@ -42,7 +42,12 @@ def _enrich_job_response(rec) -> JobResponse:
             else:
                 end_dt = datetime.now(timezone.utc)
             elapsed = round(max(0.0, (end_dt - start_dt).total_seconds()), 1)
-            if rec.status == "running" and progress > 3.0 and progress < 99.0 and elapsed > 0:
+            # If stage_details provides a more accurate work-unit ETA, use it
+            cp = rec.checkpoint_data or {}
+            st_details = cp.get("checkpoint_payload") or cp.get("stage_details") or {}
+            if "estimated_remaining_seconds" in st_details:
+                remaining = float(st_details["estimated_remaining_seconds"])
+            elif rec.status == "running" and progress > 3.0 and progress < 99.0 and elapsed > 0:
                 total_est = (elapsed / progress) * 100.0
                 remaining = round(max(0.0, total_est - elapsed), 1)
         except Exception:
@@ -57,6 +62,7 @@ def get_queue_stats(
     service: JobOrchestrator = Depends(get_job_orchestrator),
 ) -> QueueStatsResponse:
     """Return aggregated queue metrics for all background jobs."""
+    service.check_stalled_jobs(timeout_seconds=60.0)
     stats = service.get_queue_stats()
     return QueueStatsResponse(**stats)
 
@@ -87,6 +93,8 @@ def list_jobs(
     limit: int = Query(100, ge=1, le=500),
     service: JobOrchestrator = Depends(get_job_orchestrator),
 ) -> JobListResponse:
+    # Auto-detect stalled jobs on queue inspection
+    service.check_stalled_jobs(timeout_seconds=60.0)
     items = service.list_jobs(
         project_id=project_id,
         media_asset_id=media_asset_id,

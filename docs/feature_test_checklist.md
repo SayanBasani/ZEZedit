@@ -4,6 +4,34 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 9 — Critical Performance Diagnostics, Stuck Analysis Repair & Complete Short-Video Generation Validation
+- [x] Pre-implementation audit performed on real test video `D:\videos\Ek Mota Hathi Ghumne Chala.mp4` (70.0 MB, 302.40s duration, 1920x1080 @ 25fps).
+- [x] Root cause 1 diagnosed and fixed: Starlette background task event-loop blocking resolved by AnyIO worker thread offloading (`_run_analysis_worker`).
+- [x] Polling latency during active transcription verified: reduced from infinite/timeout to **10.92ms average** (max 79ms).
+- [x] Root cause 2 diagnosed and fixed: Faster-Whisper singleton model caching implemented in `_WHISPER_CACHE`, dropping subsequent warmup time to 0.00s.
+- [x] Root cause 3 diagnosed and fixed: VAD pitfall resolved with `vad_filter=False` primary path and incremental segment streaming callbacks.
+- [x] Sub-progress tracking verified: real work units (seconds transcribed), elapsed time, estimated remaining seconds, and heartbeats streamed to frontend.
+- [x] Live analysis completed on `Ek Mota Hathi Ghumne Chala.mp4` in **101.43s** (down from >10 minutes stuck).
+- [x] Root cause 4 diagnosed and fixed: replaced 91 sequential FFmpeg subprocess calls in `SubjectTracker.extract_frame_samples` with single batched extraction pass (40.9x speedup, 2.23s).
+- [x] OpenCV TrackerMIL optimization verified: downscaled frames to 640px, filtered top 4 salient subjects, capped active trackers to 2 (reduced tracking from >100s to 11.5s).
+- [x] Root cause 5 diagnosed and fixed: stalled job false-positive detection on clean process exit resolved with 15s grace period.
+- [x] Default short video generation verified (AI Recommended quantity, Best Overall direction, 9:16 portrait, AI Best duration).
+- [x] Real MP4 rendering verified across all 3 aspect ratios:
+  - Vertical 9:16: `Action___Motion_Highlight__00_12__9x16_91afd2.mp4` (1080x1920, 13.17 MB, 52.38s render time)
+  - Square 1:1: `Action___Motion_Highlight__00_12__1x1_2c1cc0.mp4` (1080x1080, 8.71 MB, 33.57s render time)
+  - Landscape 16:9: `Action___Motion_Highlight__00_12__16x9_572f83.mp4` (1920x1080, 12.01 MB, 45.78s render time)
+- [x] All 3 rendered MP4s passed FFprobe stream verification and FFmpeg null-sink decode (`-f null -`) with 0 errors.
+- [x] "Generate More Shorts" persistent temporal novelty verified: zero duplicate candidate IDs, zero high-overlap intervals ($R_{\min} < 0.85$, $tIoU < 0.70$).
+- [x] All 7 creative directions verified: Best Overall (69.2), Viral & Punchy (66.0), Dramatic (58.8), Action & Motion (73.0), Emotional & Sad (59.2), Engaging Dialogue (76.5), Humorous (67.5).
+- [x] Quantity preferences verified: AI Recommended (5 clips), Target 1 (1 clip), Target 3 (3 clips), Target 5 (5 clips).
+- [x] Duration preferences verified: AI Best Duration, Short, Medium, Long, Custom.
+- [x] Central Process Manager lifecycle and multi-video isolation verified.
+- [x] Full backend pytest suite passed: 181/181 tests (100%).
+- [x] Full frontend vitest suite passed: 120/120 tests (100%).
+- [x] TypeScript compilation and production build succeed with 0 errors (`npx tsc --noEmit; npm run build`).
+
+---
+
 ## Session 8 — Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction
 - [x] Pre-implementation Git audit verified Session 7 commit `7d2796a` on branch `main`.
 - [x] Temporal novelty calculation corrected: added relative containment ratio $R_{\min} = \frac{\text{Intersection}}{\min(\text{dur}_A, \text{dur}_B)}$ to eliminate containing cuts (e.g. $[63.07, 87.31]$ vs $[63.07, 114.01]$).

@@ -387,6 +387,7 @@ class ExportService:
                 source_w=source_w,
                 source_h=source_h,
                 clip_edit=dict(clip_edit_row) if clip_edit_row else None,
+                job_id=job_id,
             )
 
             # Stage 6: Validate source interval
@@ -647,20 +648,34 @@ class ExportService:
 
         except Exception as exc:
             logger.error("Export render job %s failed: %s", job_id, exc)
-            with sqlite_session(self.db_path) as conn:
-                conn.execute(
-                    "UPDATE exports SET status = 'failed', error_message = ?, completed_at = datetime('now') WHERE id = ?",
-                    (str(exc), export_id),
-                )
+            job_cur = None
             try:
                 job_cur = self.jobs.get_job(job_id)
-                if job_cur.status not in {"completed", "failed", "cancelled"}:
-                    self.jobs.transition_job_state(
-                        job_id, "failed", error_message=str(exc), stage="failed"
-                    )
-            except Exception as j_exc:
-                logger.warning("Could not transition job %s to failed: %s", job_id, j_exc)
-            raise
+            except Exception:
+                pass
+            is_cancel = (job_cur and job_cur.status in {"cancelling", "cancelled"}) or "cancelling" in str(exc).lower()
+            status_to_set = "cancelled" if is_cancel else "failed"
+            err_msg = "Cancelled by user" if is_cancel else str(exc)
+            with sqlite_session(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE exports SET status = ?, error_message = ?, completed_at = datetime('now') WHERE id = ?",
+                    (status_to_set, err_msg, export_id),
+                )
+            if is_cancel:
+                try:
+                    self.jobs.transition_job_state(job_id, "cancelled", stage="cancelled")
+                except Exception:
+                    pass
+                return {"status": "cancelled"}
+            else:
+                try:
+                    if job_cur and job_cur.status not in {"completed", "failed", "cancelled"}:
+                        self.jobs.transition_job_state(
+                            job_id, "failed", error_message=str(exc), stage="failed"
+                        )
+                except Exception as j_exc:
+                    logger.warning("Could not transition job %s to failed: %s", job_id, j_exc)
+                raise
         finally:
             # Clean up scratch files
             if job_temp_dir.exists():
@@ -700,9 +715,13 @@ class ExportService:
         source_w: int,
         source_h: int,
         clip_edit: Optional[Dict[str, Any]] = None,
+        job_id: Optional[str] = None,
     ) -> List[CropKeyframe]:
         """Load keyframes from specified revision or plan, or compute fallback centered/manual keyframes."""
         keyframes: List[CropKeyframe] = []
+
+        if job_id:
+            self.jobs.record_heartbeat(job_id)
 
         # If specific revision ID requested
         if revision_id:
@@ -762,6 +781,8 @@ class ExportService:
                     desired_strategy = clip_edit.get("framing_mode") or "auto"
                     pinned_sub = clip_edit.get("tracked_subject_id")
 
+                if job_id:
+                    self.jobs.record_heartbeat(job_id)
                 new_plan = self.reframing_service.analyze_and_create_plan(
                     project_id=project_id,
                     media_asset_id=media_asset_id,
@@ -772,6 +793,8 @@ class ExportService:
                     end_time=end_time,
                     pinned_subject_id=pinned_sub,
                 )
+                if job_id:
+                    self.jobs.record_heartbeat(job_id)
                 if new_plan and new_plan.keyframes:
                     return new_plan.keyframes
             except Exception as plan_exc:

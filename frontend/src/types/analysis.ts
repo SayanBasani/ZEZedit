@@ -11,6 +11,8 @@ export interface AnalysisRunItem {
   completed_at?: string;
   created_at: string;
   updated_at: string;
+  stage_details?: Record<string, any>;
+  checkpoint_data?: Record<string, any>;
 }
 
 export interface WordTimestamp {
@@ -103,6 +105,8 @@ export interface TranscriptCorrectionItem {
   corrected_text: string;
   created_at: string;
   updated_at: string;
+  stage_details?: Record<string, any>;
+  checkpoint_data?: Record<string, any>;
 }
 
 export interface TemporalContextPayload {

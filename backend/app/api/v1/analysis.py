@@ -186,11 +186,12 @@ class TranscriptCorrectionItem(BaseModel):
 
 # --- Background worker helper ---
 
-async def _run_analysis_task(pipeline: VideoAnalysisPipeline, run_id: str) -> None:
+def _run_analysis_worker(pipeline: VideoAnalysisPipeline, run_id: str) -> None:
+    """Run analysis pipeline in dedicated threadpool worker, keeping FastAPI main loop unblocked."""
     try:
-        await pipeline.execute_analysis(run_id)
+        asyncio.run(pipeline.execute_analysis(run_id))
     except Exception as exc:
-        logger.error("Background analysis task %s failed: %s", run_id, exc)
+        logger.error("Background analysis worker failed for run %s: %s", run_id, exc, exc_info=True)
 
 
 # --- Endpoints ---
@@ -230,7 +231,7 @@ async def start_analysis(
     if payload.run_synchronously:
         await pipeline.execute_analysis(run_id)
     else:
-        background_tasks.add_task(_run_analysis_task, pipeline, run_id)
+        background_tasks.add_task(_run_analysis_worker, pipeline, run_id)
 
     # Return created run record
     with sqlite_session(db_path) as conn:
@@ -518,7 +519,7 @@ async def retry_analysis(
     """Retry a failed, cancelled, or interrupted analysis run."""
     try:
         result = pipeline.retry_run(run_id)
-        background_tasks.add_task(_run_analysis_task, pipeline, run_id)
+        background_tasks.add_task(_run_analysis_worker, pipeline, run_id)
         return result
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

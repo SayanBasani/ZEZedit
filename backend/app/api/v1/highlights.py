@@ -52,7 +52,7 @@ class DiscoverHighlightsRequest(BaseModel):
     novelty_mode: str = Field(default="strict")
     generation_type: Optional[str] = None
     use_ai_explanations: bool = Field(default=True)
-    run_synchronously: bool = Field(default=False)
+    run_synchronously: bool = Field(default=True)
     selected_scene_ids: Optional[List[str]] = None
     excluded_scene_ids: Optional[List[str]] = None
 
@@ -266,27 +266,19 @@ def start_highlight_discovery(
             selected_scene_ids=payload.selected_scene_ids,
             excluded_scene_ids=payload.excluded_scene_ids,
         )
-        gen_run_id = results[0].get("generation_run_id") if results else None
+        if not results:
+            return []
+        gen_run_id = results[0].get("generation_run_id")
         with sqlite_session(db_path) as conn:
             conn.row_factory = sqlite3.Row
-            if gen_run_id:
-                rows = conn.execute(
-                    """
-                    SELECT * FROM shorts_candidates
-                    WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
-                    ORDER BY quality_score DESC
-                    """,
-                    (project_id, media_asset_id, gen_run_id),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    """
-                    SELECT * FROM shorts_candidates
-                    WHERE project_id = ? AND media_asset_id = ?
-                    ORDER BY quality_score DESC
-                    """,
-                    (project_id, media_asset_id),
-                ).fetchall()
+            rows = conn.execute(
+                """
+                SELECT * FROM shorts_candidates
+                WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
+                ORDER BY quality_score DESC
+                """,
+                (project_id, media_asset_id, gen_run_id),
+            ).fetchall()
             return [_row_to_candidate_dict(r) for r in rows]
     else:
         # Background execution tracked via JobOrchestrator

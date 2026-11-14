@@ -237,3 +237,15 @@ All features MUST comply with these baseline constraints:
   - Dynamic tracking render pipeline integration: `ExportService._resolve_keyframes` dynamically executes `ReframingService` on demand and compiles piecewise-linear FFmpeg crop expressions (`crop=w:h:x(t):y(t)`).
   - Speaker-focused framing capability audit: clearly distinguished Available capabilities (Face/Person, Object, Group framing) from Unsupported capabilities (Deep neural AV speaker diarization on CPU baseline).
   - Full automated verification: 12 new tests in `test_session8_tracking_and_novelty.py`, 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), clean TypeScript build.
+- **Session 9 (Completed):** Critical Performance Diagnostics, Stuck Analysis Repair & Complete Short-Video Generation Validation:
+  - Forensic diagnosis of pipeline freeze on 5-minute video `Ek Mota Hathi Ghumne Chala.mp4` (302.4s, 70MB): Starlette event loop blocking by synchronous Whisper/FFmpeg tasks resolved with AnyIO threadpool worker offloading.
+  - HTTP polling latency during heavy transcription reduced from infinite/timeout to 10.92ms average (max 79ms).
+  - Implemented Faster-Whisper singleton model caching in `_WHISPER_CACHE`, dropping recurring model load times to 0.00s.
+  - Fixed VAD filter zero-yield pitfall with direct non-VAD primary processing and streaming segment callbacks with real work units (seconds transcribed), ETA calculation, and speech text ticker.
+  - Live analysis on real test video completed in 101.43s on CPU.
+  - Replaced 91 sequential FFmpeg subprocess calls in `SubjectTracker.extract_frame_samples` with single batched extraction pass (40.9x speedup, 2.23s).
+  - OpenCV TrackerMIL optimization: downscaled frames to 640px, filtered top 4 salient subjects, capped active trackers to 2 (reduced tracking from >100s to 11.5s).
+  - Resolved stalled job false-positive detection on clean process exit with a 15-second grace period.
+  - Verified default short video generation, all 7 creative directions, 4 quantity options, 5 duration modes, and zero-collision temporal novelty.
+  - Real MP4 rendering verified across 9:16 portrait (1080x1920), 1:1 square (1080x1080), and 16:9 landscape (1920x1080) with 100% clean FFmpeg null-sink decode (`-f null -`).
+  - Full automated verification: 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript compilation errors.
