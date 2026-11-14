@@ -933,5 +933,40 @@ This checklist tracks concrete verification criteria per milestone. Items may on
   - Frontend: 115/115 tests passed across 24 test files (including `processesManager.test.tsx` and `storageReclamation.test.tsx`).
   - Production build: `npm run build` succeeds cleanly with 0 TypeScript errors.
 
+## Session 10 — Safe Website Data Reset, Full System Audit & Real Video Analysis-to-Export Validation (`BLACK TORCH S01E02.mkv`)
+
+- [x] **Safety Backup & Verified Safe Data Reset:**
+  - Verified pre-reset backup saved to `storage/backups/session10_prereset_backup/` with `PRAGMA integrity_check` = `ok`.
+  - Safely reset 634 user files and truncated 31 tables while strictly preserving `schema_migrations`, `app_settings`, and clean default workspace.
+  - Post-reset storage directories clean (0 media, 0 exports, 0 temp files).
+- [x] **Target Video Ingestion (`BLACK TORCH S01E02.mkv`):**
+  - Inspected format: Matroska 1280x720 H.264, 3 HE-AAC audio tracks (Hindi, English, Japanese), 3 SubRip subtitle tracks, 1430.14s duration.
+  - HTTP chunked multipart upload completed in 4.3s (`med_d27da18070ff`).
+  - Verified thumbnail endpoint (HTTP 200) and byte-range seeking (HTTP 206 Partial Content).
+- [x] **Video Intelligence Pipeline Execution:**
+  - 17 modular stages executed across 1430s media in 498.90s (~8.3 min, ~3x real-time speed).
+  - Faster-Whisper CPU int8 transcription: 490 segments, 279 dialogue turns, streaming sub-progress callbacks and heartbeats.
+  - Multi-worker concurrent thumbnail extraction implemented in `scene_detector.py` and `frame_sampler.py`.
+  - 354 scenes detected, 50 frames sampled, 12 visual observations analyzed.
+- [x] **Candidate Discovery & Strict Temporal Novelty:**
+  - Discovered 4 high-scoring natural-boundary short candidates (scores 79.80 – 87.20) for default settings.
+  - Verified all creative directions (Action, Dialogue, Emotional, Educational, Dramatic, Humor).
+  - Verified exact clip quantities (1, 3, 5), duration preferences (15s, 30s, 60s), and aspect ratios (9:16, 1:1, 16:9).
+  - Verified "Generate More Shorts" (Batch 2) with strict novelty: 3 novel clips with 0 duplicate IDs, $R_{\min} < 0.85$, and $tIoU < 0.70$.
+- [x] **Real MP4 Video Rendering & Playback Audit:**
+  - Rendered 9:16 portrait (`exp_e8d1e3049bd9`, 4.33 MB in 7.75s).
+  - Rendered 1:1 square (`exp_1213ece782a6`, 2.83 MB in 8.79s).
+  - Rendered 16:9 landscape (`exp_a0b40e2de760`, 3.34 MB in 10.42s).
+  - Verified FFprobe container, H.264/AAC codecs, exact resolution, and faststart `moov` atom preceding `mdat`.
+  - Verified full FFmpeg null-sink decode (`-f null -`) with 0 errors across all 3 videos.
+  - Verified HTTP 206 Partial Content byte-range seeking and direct download endpoints.
+- [x] **Full Regression & Build Parity:**
+  - Backend pytest: 181/181 passed in 262.22s.
+  - Frontend vitest: 120/120 passed in 54.16s across 26 test files.
+  - TypeScript: 0 errors (`npx tsc --noEmit`).
+  - Production build: `vite build` completed cleanly in 3.91s.
+  - Graphify updated: 3,266 nodes, 8,940 edges, 175 communities.
+
+
 
 

@@ -1,5 +1,6 @@
 """Controlled, downscaled visual frame extraction for analysis."""
 
+import concurrent.futures
 import logging
 import subprocess
 from dataclasses import dataclass
@@ -76,25 +77,21 @@ def sample_analysis_frames(
     # Downscale filter preserving aspect ratio: scale='if(gt(iw,ih),640,-2)':'if(gt(iw,ih),-2,640)'
     scale_filter = f"scale='if(gt(iw,ih),{max_dimension},-2)':'if(gt(iw,ih),-2,{max_dimension})'"
 
-    sampled_results: List[SampledFrame] = []
-
-    for ts, sc_idx in deduped:
+    def _sample_one(item: tuple[float, Optional[int]]) -> Optional[SampledFrame]:
+        ts, sc_idx = item
         ts_ms = int(ts * 1000)
         frame_filename = f"frame_{ts_ms:08d}.jpg"
         target_path = output_dir / frame_filename
 
         # Re-use existing cached frame if valid and non-empty
         if target_path.exists() and target_path.stat().st_size > 0:
-            sampled_results.append(
-                SampledFrame(
-                    timestamp=ts,
-                    frame_path=str(target_path),
-                    scene_index=sc_idx,
-                    width=max_dimension,
-                    height=int(max_dimension * 9 / 16),
-                )
+            return SampledFrame(
+                timestamp=ts,
+                frame_path=str(target_path),
+                scene_index=sc_idx,
+                width=max_dimension,
+                height=int(max_dimension * 9 / 16),
             )
-            continue
 
         cmd = [
             ffmpeg_bin,
@@ -111,19 +108,27 @@ def sample_analysis_frames(
         try:
             subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=20.0)
             if target_path.exists() and target_path.stat().st_size > 0:
-                sampled_results.append(
-                    SampledFrame(
-                        timestamp=ts,
-                        frame_path=str(target_path),
-                        scene_index=sc_idx,
-                        width=max_dimension,
-                        height=int(max_dimension * 9 / 16),
-                    )
+                return SampledFrame(
+                    timestamp=ts,
+                    frame_path=str(target_path),
+                    scene_index=sc_idx,
+                    width=max_dimension,
+                    height=int(max_dimension * 9 / 16),
                 )
         except subprocess.TimeoutExpired:
             logger.warning("Frame extraction timed out after 20s at %.2fs", ts)
         except Exception as exc:
             logger.warning("Failed to sample frame at %.2fs: %s", ts, exc)
+        return None
 
+    if not deduped:
+        return []
+
+    workers = min(6, len(deduped), 8)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(_sample_one, deduped))
+
+    sampled_results: List[SampledFrame] = [r for r in results if r is not None]
+    sampled_results.sort(key=lambda f: f.timestamp)
     logger.info("Sampled %d frames from %s", len(sampled_results), video_path.name)
     return sampled_results

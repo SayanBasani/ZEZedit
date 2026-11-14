@@ -1,5 +1,6 @@
 """Scene cut and boundary detection using FFmpeg scene filter and thumbnail generation."""
 
+import concurrent.futures
 import logging
 import re
 import subprocess
@@ -143,15 +144,16 @@ def generate_scene_thumbnails(
     scenes: List[DetectedScene],
     thumbnails_dir: Path,
     max_dimension: int = 480,
+    max_workers: int = 6,
 ) -> None:
-    """Extract a fast JPEG thumbnail for each detected scene at its representative timestamp."""
+    """Extract fast JPEG thumbnails for detected scenes at their representative timestamps using concurrent workers."""
     settings = get_settings()
     ffmpeg_bin = settings.ffmpeg_path or "ffmpeg"
     thumbnails_dir.mkdir(parents=True, exist_ok=True)
 
     scale_filter = f"scale='min({max_dimension},iw)':-2"
 
-    for sc in scenes:
+    def _extract_one(sc: DetectedScene) -> None:
         thumb_path = thumbnails_dir / f"scene_{sc.scene_index:03d}.jpg"
         ts = sc.representative_timestamp
         cmd = [
@@ -166,8 +168,15 @@ def generate_scene_thumbnails(
             str(thumb_path),
         ]
         try:
-            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=15.0)
             if thumb_path.exists() and thumb_path.stat().st_size > 0:
                 sc.thumbnail_path = str(thumb_path)
         except Exception as exc:
             logger.warning("Failed to generate thumbnail for scene %d at %.2fs: %s", sc.scene_index, ts, exc)
+
+    if not scenes:
+        return
+
+    workers = min(max_workers, len(scenes), 8)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as executor:
+        list(executor.map(_extract_one, scenes))

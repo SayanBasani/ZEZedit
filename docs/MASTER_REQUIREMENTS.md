@@ -249,3 +249,17 @@ All features MUST comply with these baseline constraints:
   - Verified default short video generation, all 7 creative directions, 4 quantity options, 5 duration modes, and zero-collision temporal novelty.
   - Real MP4 rendering verified across 9:16 portrait (1080x1920), 1:1 square (1080x1080), and 16:9 landscape (1920x1080) with 100% clean FFmpeg null-sink decode (`-f null -`).
   - Full automated verification: 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript compilation errors.
+- **Session 10 (Completed):** Safe Website Data Reset, Full System Audit & Real Video Analysis-to-Export Validation:
+  - Safely reset all website user-generated data (1.77 GB reclaimed, 634 user files purged across media, exports, cache, temp) after creating and verifying a clean safety backup at `storage/backups/session10_prereset_backup/`.
+  - Database schema, migrations 0001-0016, and system settings preserved; default workspace re-created clean with `PRAGMA integrity_check` = `ok`.
+  - Parallelized thumbnail extraction in `scene_detector.py` and `frame_sampler.py` using `ThreadPoolExecutor(max_workers=6)` for ~5x faster execution on long videos.
+  - Validated end-to-end video intelligence pipeline on real long-form Matroska video `D:\videos\BLACK TORCH S01E02.mkv` (236.38 MB, 1430.144s / ~23.8 minutes, 1 video stream, 3 audio streams, 3 subtitle streams).
+  - Executed 17-stage video analysis in 498.90s (~8.3 min, ~3x real-time speed): 490 transcript segments, 279 dialogue turns, 354 scenes, 50 frames, 12 visual observations.
+  - Validated Short Video Candidate Discovery across all creative directions (Best Overall, Action, Dialogue, Emotional, Educational, Dramatic, Humor), clip quantities (1, 3, 5), duration options (15s, 30s, 60s), and aspect ratios (9:16, 1:1, 16:9).
+  - Validated "Generate More Shorts" (Batch 2) with strict novelty: returned 3 novel candidates with 0 duplicate IDs, $R_{\min} < 0.85$, and $tIoU < 0.70$.
+  - Rendered real MP4 short videos in 9:16 portrait (`exp_e8d1e3049bd9`), 1:1 square (`exp_1213ece782a6`), and 16:9 landscape (`exp_a0b40e2de760`) with faststart `moov` atom preceding `mdat` and 100% clean FFmpeg null-sink decode (`-f null -`, 0 errors).
+  - Verified HTTP 206 Partial Content byte-range seeking and direct download endpoints.
+  - Verified Central Process Manager lifecycle tracking for upload, analysis, discovery, and rendering.
+  - Full regression pass: 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript compilation errors, production build verified.
+  - Graphify updated: 3,266 nodes, 8,940 edges, 175 communities.
+
