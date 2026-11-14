@@ -77,10 +77,10 @@ describe('Product Restructure — Video-Centric Workflows', () => {
       expect(screen.getByText('Action Movie Scene')).toBeDefined();
     });
 
-    // Verify 8 tabs are rendered
+    // Verify 8 horizontal tabs are rendered (Session 11 unified structure)
     expect(screen.getByRole('button', { name: 'Home' })).toBeDefined();
-    expect(screen.getByRole('button', { name: 'Short Video Generator' })).toBeDefined();
     expect(screen.getByRole('button', { name: /Generated Shorts/i })).toBeDefined();
+    expect(screen.getByRole('button', { name: /Generated Videos/i })).toBeDefined();
     expect(screen.getByRole('button', { name: /Generated Scripts/i })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Analyzed Frames' })).toBeDefined();
     expect(screen.getByRole('button', { name: 'Voice & Transcript Analysis' })).toBeDefined();
@@ -91,12 +91,12 @@ describe('Product Restructure — Video-Centric Workflows', () => {
     expect(screen.getByText('Technical Video Specifications')).toBeDefined();
     expect(screen.getByText('1920 x 1080')).toBeDefined();
 
-    // Switch to Short Video Generator tab
-    const genTabBtn = screen.getByRole('button', { name: 'Short Video Generator' });
-    fireEvent.click(genTabBtn);
+    // Generate Shorts modal opens on CTA click (Session 11 modal requirement)
+    const genBtns = screen.getAllByRole('button', { name: /Generate Shorts/i });
+    expect(genBtns.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(genBtns[0]);
 
-    expect(screen.getByText(/1. How Many Short Video Clips Do You Want\?/i)).toBeDefined();
-    expect(screen.getByText(/2. Creative Direction & Context Focus/i)).toBeDefined();
-    expect(screen.getByRole('button', { name: /Generate Shorts Now/i })).toBeDefined();
+    expect(screen.getByText('Creative Direction')).toBeDefined();
+    expect(screen.getByRole('button', { name: 'Generate 3 Shorts' })).toBeDefined();
   });
 });

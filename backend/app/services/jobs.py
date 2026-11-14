@@ -459,17 +459,33 @@ class JobOrchestrator:
         cp_json = json.dumps(checkpoint)
 
         with sqlite_session(self.db_path) as conn:
-            conn.execute(
-                """
-                UPDATE jobs
-                SET current_stage = ?,
-                    progress_pct = ?,
-                    checkpoint_data_json = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (stage, pct, cp_json, now, job_id),
-            )
+            if stage == "completed" or pct >= 100.0:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET current_stage = ?,
+                        progress_pct = ?,
+                        status = CASE WHEN status = 'running' OR (status = 'failed' AND error_message LIKE 'Job stalled%') THEN 'completed' ELSE status END,
+                        error_message = CASE WHEN status = 'failed' AND error_message LIKE 'Job stalled%' THEN NULL ELSE error_message END,
+                        completed_at = COALESCE(completed_at, ?),
+                        checkpoint_data_json = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (stage, pct, now, cp_json, now, job_id),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE jobs
+                    SET current_stage = ?,
+                        progress_pct = ?,
+                        checkpoint_data_json = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (stage, pct, cp_json, now, job_id),
+                )
             if job.project_id:
                 event_id = f"evt_{uuid.uuid4().hex[:12]}"
                 conn.execute(
@@ -697,6 +713,14 @@ class JobOrchestrator:
 
     def complete_job(self, job_id: str, result_summary: Optional[dict] = None) -> JobRecord:
         """Convenience method to transition an active job to completed."""
+        job = self.get_job(job_id)
+        # If job was prematurely marked failed by stall detector, allow completing it cleanly
+        if job.status == "failed" and job.error_message and "Job stalled" in job.error_message:
+            with sqlite_session(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE jobs SET status = 'running', error_message = NULL WHERE id = ?",
+                    (job_id,),
+                )
         return self.transition_job_state(
             job_id, "completed", progress_pct=100.0, stage="completed", result_metadata=result_summary
         )
@@ -705,37 +729,59 @@ class JobOrchestrator:
         """Convenience method to transition a job to failed with an error message."""
         return self.transition_job_state(job_id, "failed", error_message=error_message, stage="failed")
 
-    def check_stalled_jobs(self, timeout_seconds: float = 60.0) -> List[str]:
+    def check_stalled_jobs(self, timeout_seconds: float = 600.0) -> List[str]:
         """Detect and mark jobs that stopped sending heartbeats while in running status."""
         now_dt = datetime.now(timezone.utc)
         now = now_dt.isoformat()
         stalled_ids: List[str] = []
         with sqlite_session(self.db_path) as conn:
             rows = conn.execute(
-                "SELECT id, status, updated_at, worker_pid, current_stage FROM jobs WHERE status = 'running'"
+                """
+                SELECT id, status, updated_at, worker_pid, current_stage, progress_pct 
+                FROM jobs 
+                WHERE status = 'running'
+                """
             ).fetchall()
             for r in rows:
                 jid = r["id"]
                 upd = r["updated_at"]
                 pid = r["worker_pid"]
+                stage = r["current_stage"]
+                pct = r["progress_pct"] if r["progress_pct"] is not None else 0.0
+
+                # 1. Never mark completed or 100% jobs as stalled
+                if stage == "completed" or pct >= 100.0:
+                    continue
+
                 is_stalled = False
                 age = 0.0
                 if upd:
                     try:
                         upd_dt = datetime.fromisoformat(upd.replace("Z", "+00:00"))
                         age = (now_dt - upd_dt).total_seconds()
-                        if age > timeout_seconds:
-                            is_stalled = True
                     except Exception:
                         pass
+
+                # 2. Check worker process liveness if worker_pid is known
                 if pid and psutil is not None:
                     try:
-                        # Only mark stalled if the worker PID is gone AND it has been silent for >15s
-                        # to allow the orchestrator thread to read buffers and transition states cleanly.
-                        if not psutil.pid_exists(pid) and age > 15.0:
-                            is_stalled = True
+                        if psutil.pid_exists(pid):
+                            # Worker process is still actively running in OS
+                            # Only stall if completely silent for over 30 minutes
+                            if age > 1800.0:
+                                is_stalled = True
+                        else:
+                            # Process PID is truly terminated from OS
+                            # Allow 30s buffer for orchestrator thread to finalize
+                            if age > 30.0:
+                                is_stalled = True
                     except Exception:
                         pass
+                else:
+                    # In-process async background task or unknown PID
+                    # Stall if silent for more than timeout_seconds (default 600s / 10 min)
+                    if age > timeout_seconds:
+                        is_stalled = True
 
                 if is_stalled:
                     conn.execute(
@@ -746,7 +792,7 @@ class JobOrchestrator:
                             current_stage = 'stalled_timeout',
                             updated_at = ?,
                             completed_at = ?
-                        WHERE id = ?
+                        WHERE id = ? AND status = 'running' AND (current_stage != 'completed' AND progress_pct < 100.0)
                         """,
                         (f"Job stalled: no worker heartbeat or progress update for {int(age)}s.", now, now, jid),
                     )

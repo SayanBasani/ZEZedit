@@ -165,7 +165,7 @@ describe('Session 6C: Generated Videos and Batch Export UI', () => {
     expect(downloadLink.getAttribute('href')).toContain('/exports/exp_001/download');
   });
 
-  it('opens in-browser HTML5 player when play button is clicked', async () => {
+  it('opens in-browser HTML5 player modal when expand button is clicked', async () => {
     render(
       <VideoEditDashboard
         assetId={mockVideoAsset.id}
@@ -185,8 +185,8 @@ describe('Session 6C: Generated Videos and Batch Export UI', () => {
       expect(screen.getByText('Hook Render')).toBeDefined();
     });
 
-    const playBtn = screen.getByRole('button', { name: /^Play$/i });
-    fireEvent.click(playBtn);
+    const expandBtn = screen.getByRole('button', { name: /Expand Modal Preview/i });
+    fireEvent.click(expandBtn);
 
     // Player modal should appear with Close and Download buttons
     expect(screen.getByRole('button', { name: /Close Player/i })).toBeDefined();

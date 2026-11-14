@@ -331,6 +331,7 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 
 ## Architecture & Documentation
 
+- [Session 11 Completion Report: Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library](docs/reports/session_11/SESSION_11_COMPLETION_REPORT.md)
 - [Session 9 Completion Report: Critical Performance Diagnostics & Generation Validation](docs/reports/session_9/SESSION_9_COMPLETION_REPORT.md)
 - [Analysis Performance, Progress Streaming & Short Generation Architecture](docs/architecture/ANALYSIS_PERFORMANCE_AND_PROGRESS.md)
 - [Session 8 Completion Report: Real Object Tracking, Multi-Subject Intelligence & Temporal Novelty Correction](docs/reports/session_8/SESSION_8_COMPLETION_REPORT.md)

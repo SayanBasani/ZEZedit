@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
-**Last Updated:** 2026-11-14  
-**Active Milestone:** Session 9 Completed — Critical Performance Diagnostics, Stuck Analysis Repair & Complete Short-Video Generation Validation (181 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
+**Last Updated:** 2026-11-15  
+**Active Milestone:** Session 11 Completed — Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library (186 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,23 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library (Session 11)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S11-01 | Stalled Job Watchdog Timeout & Race Hardening | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Raised default stall threshold from 60s to 600s, added OS PID liveness check via `psutil`, guarded completed/100% jobs from stall, and added self-healing on checkpoint save |
+| S11-02 | Pipeline Heartbeat Ticker for Heavy CPU Stages | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Background async context manager pulses heartbeats every 8.0s during Whisper CPU transcription, FFmpeg scene detection, and frame sampling |
+| S11-03 | Frontend Highlight Discovery Timeout Increase | API Client | Implemented | `frontend/src/services/apiClient.ts` | Extended highlight discovery request timeout from 15s to 180s to accommodate long multi-scene sliding window scoring |
+| S11-04 | Simplified Video Dashboard Home Architecture | Video Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Removed obsolete duplicate generator tab; Home tab prominently displays video technical specs, Reusable Intelligence card, and clear primary CTAs |
+| S11-05 | Unified Generate Short Modal | Video Studio UI | Implemented | `frontend/src/features/videos/GenerateShortModal.tsx` | Modal with explicit quantity selector (1, 3, 5, AI Auto, Custom), 7 creative directions, 3 aspect ratios, duration modes, and expandable advanced settings |
+| S11-06 | Decoupled Generated Scripts & Video Archive | Video Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Scripts and exports managed independently; video deletion leaves narrative scripts intact; failed renders show Retry Render CTA |
+| S11-07 | Inline Thumbnail Playback (Zero Scroll-to-Top) | Video Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Clicking card thumbnail flips that exact card into an inline HTML5 video player without scrolling to top; fullscreen and expand modal preview supported |
+| S11-08 | Scalable Generated Videos Library | Video Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Fast client search, aspect ratio pills, status filter pills, multi-criteria sorting, and 12-item pagination with lazy image loading |
+| S11-09 | End-to-End Automated Test Verification | Test Suites | Implemented | `backend/tests/test_job_lifecycle_stall_and_recovery.py` | 186/186 backend tests and 120/120 frontend tests pass with 100% pass rate |
+| S11-10 | Session 11 Completion Report & Documentation | Documentation | Implemented | `docs/reports/session_11/SESSION_11_COMPLETION_REPORT.md` | Comprehensive session completion report detailing diagnosis, root causes, architecture changes, and verification evidence |
 
 ---
 

@@ -62,7 +62,7 @@ def get_queue_stats(
     service: JobOrchestrator = Depends(get_job_orchestrator),
 ) -> QueueStatsResponse:
     """Return aggregated queue metrics for all background jobs."""
-    service.check_stalled_jobs(timeout_seconds=60.0)
+    service.check_stalled_jobs(timeout_seconds=300.0)
     stats = service.get_queue_stats()
     return QueueStatsResponse(**stats)
 
@@ -93,8 +93,8 @@ def list_jobs(
     limit: int = Query(100, ge=1, le=500),
     service: JobOrchestrator = Depends(get_job_orchestrator),
 ) -> JobListResponse:
-    # Auto-detect stalled jobs on queue inspection
-    service.check_stalled_jobs(timeout_seconds=60.0)
+    # Auto-detect stalled jobs on queue inspection with safe 300s threshold
+    service.check_stalled_jobs(timeout_seconds=300.0)
     items = service.list_jobs(
         project_id=project_id,
         media_asset_id=media_asset_id,

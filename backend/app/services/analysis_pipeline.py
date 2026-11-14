@@ -7,6 +7,7 @@ import logging
 import shutil
 import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,6 +30,40 @@ logger = logging.getLogger("zezedit.analysis_pipeline")
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+@asynccontextmanager
+async def _heartbeat_ticker(job_id: Optional[str], stage_name: str, orchestrator: Optional[JobOrchestrator]):
+    """Keep active worker heartbeat ticking periodically during heavy synchronous thread tasks."""
+    if not job_id or not orchestrator:
+        yield
+        return
+    stop_event = asyncio.Event()
+
+    async def _ticker():
+        while not stop_event.is_set():
+            try:
+                await asyncio.sleep(8.0)
+                if stop_event.is_set():
+                    break
+                orchestrator.record_heartbeat(
+                    job_id,
+                    stage=stage_name,
+                    stage_details={"last_heartbeat": _now_utc(), "stage": stage_name},
+                )
+            except Exception:
+                pass
+
+    task = asyncio.create_task(_ticker())
+    try:
+        yield
+    finally:
+        stop_event.set()
+        task.cancel()
+        try:
+            await task
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 def compute_source_signature(media_path: Path) -> str:
@@ -62,6 +97,7 @@ class VideoAnalysisPipeline:
         self.vision_analyzer = OllamaVisionAnalyzer()
         self.subject_tracker = SubjectTracker(ffmpeg_path=self.settings.ffmpeg_path)
         self.jobs = JobOrchestrator(self.settings, self.db_path)
+        self.job_orchestrator = self.jobs
 
     def create_analysis_run(
         self,
@@ -510,11 +546,12 @@ class VideoAnalysisPipeline:
                 )
 
             if audio_meta.has_audio and audio_meta.duration_seconds > 0.1:
-                transcription = await asyncio.to_thread(
-                    self.transcriber.transcribe,
-                    audio_path,
-                    progress_callback=on_transcribe_progress,
-                )
+                async with _heartbeat_ticker(effective_job_id, "transcribing_speech", self.job_orchestrator):
+                    transcription = await asyncio.to_thread(
+                        self.transcriber.transcribe,
+                        audio_path,
+                        progress_callback=on_transcribe_progress,
+                    )
             else:
                 transcription = TranscriptionResult(
                     detected_language="none",
@@ -574,12 +611,13 @@ class VideoAnalysisPipeline:
             t_scene_start = time.monotonic()
             scenes: List[DetectedScene] = []
             if media_type == "video" and duration > 0.5:
-                scenes = await asyncio.to_thread(
-                    detect_scenes_ffmpeg,
-                    media_path,
-                    duration_seconds=duration,
-                    thumbnails_dir=scenes_dir,
-                )
+                async with _heartbeat_ticker(effective_job_id, "detecting_scenes", self.job_orchestrator):
+                    scenes = await asyncio.to_thread(
+                        detect_scenes_ffmpeg,
+                        media_path,
+                        duration_seconds=duration,
+                        thumbnails_dir=scenes_dir,
+                    )
             else:
                 single_scene = DetectedScene(0, 0.0, max(duration, 1.0), max(duration / 2.0, 0.5), 0.0)
                 scenes = [single_scene]
@@ -609,14 +647,15 @@ class VideoAnalysisPipeline:
             sampled_frames: List[SampledFrame] = []
             if media_type == "video" and duration > 0.5:
                 max_frames = 20 if profile == "fast" else (50 if profile == "balanced" else 100)
-                sampled_frames = await asyncio.to_thread(
-                    sample_analysis_frames,
-                    media_path,
-                    frames_dir,
-                    scenes,
-                    duration_seconds=duration,
-                    max_frames=max_frames,
-                )
+                async with _heartbeat_ticker(effective_job_id, "sampling_frames", self.job_orchestrator):
+                    sampled_frames = await asyncio.to_thread(
+                        sample_analysis_frames,
+                        media_path,
+                        frames_dir,
+                        scenes,
+                        duration_seconds=duration,
+                        max_frames=max_frames,
+                    )
             sample_time = round(time.monotonic() - t_sample_start, 2)
             logger.info("Sampled %d frames for %s in %.2fs", len(sampled_frames), media_path.name, sample_time)
 

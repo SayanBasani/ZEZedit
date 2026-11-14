@@ -4,33 +4,33 @@ import {
   AlertCircle,
   ArrowLeft,
   CheckCircle2,
-  ChevronDown,
-  ChevronUp,
-  Clock,
-  Crop,
+  ChevronLeft,
+  ChevronRight,
   Database,
   Download,
   Eye,
   FileText,
   Film,
   Loader2,
+  Maximize2,
   Mic,
   Pause,
   Play,
   RefreshCw,
   RotateCcw,
-  Save,
   Scissors,
   Search,
   Sliders,
   Sparkles,
   Volume2,
   VolumeX,
+  X,
 } from 'lucide-react';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
 import { Card } from '../../components/ui/Card';
 import { EmptyState, Skeleton } from '../../components/ui/States';
+import { GenerateShortModal, GenerateShortsModalConfig } from './GenerateShortModal';
 import {
   cancelJob,
   deleteExport,
@@ -90,36 +90,6 @@ export interface VideoEditDashboardProps {
   onBack: () => void;
 }
 
-const CREATIVE_DIRECTIONS = [
-  { id: 'best_overall', label: 'Best Overall', desc: 'Balanced hook, narrative completeness & high visual interest', supported: true },
-  { id: 'viral_punchy', label: 'Viral & Punchy', desc: 'High hook weight, fast pacing, aggressive attention capture', supported: true },
-  { id: 'dramatic', label: 'Dramatic', desc: 'Emphasizes intense pauses, emotional peaks, and dramatic tension', supported: true },
-  { id: 'action_motion', label: 'Action & Motion', desc: 'Prioritizes high visual dynamism, fast movement & spectacle', supported: true },
-  { id: 'emotional_sad', label: 'Emotional & Sad', desc: 'Deep poignant moments, touching dialogue & melancholic score', supported: true },
-  { id: 'engaging_dialogue', label: 'Engaging Dialogue', desc: 'Speech clarity, punchy conversational exchanges & stories', supported: true },
-  { id: 'humorous', label: 'Humorous & Comedy', desc: 'Laughter peaks, comical timing, punchlines & reactions', supported: true },
-  { id: 'educational', label: 'Educational', desc: 'Informative explanations, step-by-step clarity & takeaways', supported: false },
-  { id: 'suspense', label: 'Suspense & Thriller', desc: 'Mounting tension, mystery cues, and suspenseful climaxes', supported: false },
-  { id: 'narrative_arc', label: 'Narrative Arc', desc: 'Complete mini-stories: Setup, conflict, climax & resolution', supported: false },
-  { id: 'high_energy', label: 'High Energy', desc: 'Rapid edits, enthusiastic delivery & continuous stimulation', supported: false },
-  { id: 'cinematic', label: 'Cinematic', desc: 'Wide compositions, beautiful lighting, and artistic framing', supported: false },
-  { id: 'storytelling', label: 'Storytelling', desc: 'Personal anecdotes, emotional journeys & narrative depth', supported: false },
-  { id: 'reaction_focus', label: 'Reaction Focus', desc: 'Expressive face close-ups and genuine reaction moments', supported: false },
-  { id: 'interview_highlight', label: 'Interview Highlight', desc: 'Memorable quotes, profound answers & expert perspectives', supported: false },
-  { id: 'teaser_trailer', label: 'Teaser & Trailer', desc: 'Intriguing clips designed to make viewers want the full video', supported: false },
-  { id: 'motivational', label: 'Motivational', desc: 'Uplifting messages, triumph over adversity & encouragement', supported: false },
-  { id: 'aesthetic_montage', label: 'Aesthetic Montage', desc: 'Visually pleasing scenes scored with ambient rhythm', supported: false },
-];
-
-const ASPECT_RATIOS: Array<{ id: AspectRatioOption; label: string; ratio: string }> = [
-  { id: '9:16', label: '9:16 Vertical', ratio: '9 / 16' },
-  { id: '1:1', label: '1:1 Square', ratio: '1 / 1' },
-  { id: '16:9', label: '16:9 Landscape', ratio: '16 / 9' },
-  { id: '4:5', label: '4:5 Social Feed', ratio: '4 / 5' },
-  { id: '4:3', label: '4:3 Classic', ratio: '4 / 3' },
-  { id: '3:4', label: '3:4 Portrait', ratio: '3 / 4' },
-];
-
 export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   assetId,
   projectId = 'default',
@@ -151,22 +121,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   const [generationRuns, setGenerationRuns] = useState<CandidateGenerationRunItem[]>([]);
   const [noveltyHistory, setNoveltyHistory] = useState<NoveltyHistoryResponse | null>(null);
 
-  // Short Generator Form State
-  const [clipCountPreset, setClipCountPreset] = useState<'ai' | '1' | '3' | '5' | '10' | '15' | 'custom'>('ai');
-  const [customClipCount, setCustomClipCount] = useState<number>(5);
-  const [selectedDirection, setSelectedDirection] = useState<string>('best_overall');
-  const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatioOption>('9:16');
-  const [durationPreference, setDurationPreference] = useState<'ai_best_duration' | 'short' | 'medium' | 'long' | 'custom'>('ai_best_duration');
-  const [trackingMode, setTrackingMode] = useState<'smart' | 'center' | 'face' | 'upper_body' | 'object' | 'multi'>('smart');
-  const [noveltyMode, setNoveltyMode] = useState<'strict' | 'relaxed'>('strict');
-  const [sceneFocusMode, setSceneFocusMode] = useState<'all' | 'selected'>('all');
-  const [minDurationSec, setMinDurationSec] = useState<number>(15);
-  const [maxDurationSec, setMaxDurationSec] = useState<number>(60);
+  // Short Generation Progress State
   const [generatingShorts, setGeneratingShorts] = useState<boolean>(false);
-  const [advancedExpanded, setAdvancedExpanded] = useState<boolean>(false);
   const [generationStage, setGenerationStage] = useState<string | null>(null);
   const [selectedBatchFilter, setSelectedBatchFilter] = useState<string>('all');
-  const [configToast, setConfigToast] = useState<string | null>(null);
 
   // Video Player Ref & State
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -187,7 +145,22 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   const [selectedCandidateIds, setSelectedCandidateIds] = useState<Set<string>>(new Set());
   const [batchExporting, setBatchExporting] = useState<boolean>(false);
   const [activePreviewVideo, setActivePreviewVideo] = useState<ExportItem | null>(null);
-  const renderedVideoPlayerRef = useRef<HTMLVideoElement | null>(null);
+
+  // Generate Short Modal State
+  const [isGenerateModalOpen, setIsGenerateModalOpen] = useState<boolean>(false);
+  const [isGenerateMoreModal, setIsGenerateMoreModal] = useState<boolean>(false);
+
+  // Inline Video Playback State (Generated Videos Library)
+  const [inlinePlayingVideoId, setInlinePlayingVideoId] = useState<string | null>(null);
+  const inlineVideoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+
+  // Scalable Video Library Filter, Search & Pagination State
+  const [videoSearch, setVideoSearch] = useState<string>('');
+  const [videoAspectRatioFilter, setVideoAspectRatioFilter] = useState<'all' | '9:16' | '1:1' | '16:9'>('all');
+  const [videoStatusFilter, setVideoStatusFilter] = useState<'all' | 'completed' | 'rendering' | 'failed'>('all');
+  const [videoSortBy, setVideoSortBy] = useState<'newest' | 'oldest' | 'duration_desc' | 'duration_asc' | 'title'>('newest');
+  const [videoPage, setVideoPage] = useState<number>(1);
+  const VIDEOS_PER_PAGE = 12;
 
   // Reset all video-specific state immediately when assetId changes to prevent stale data bleed
   useEffect(() => {
@@ -395,67 +368,6 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   }, [analysisRuns]);
   const isVideoAnalyzed = Boolean(completedAnalysisRun);
 
-  // Load saved config for this video from localStorage
-  useEffect(() => {
-    if (!assetId) return;
-    try {
-      const saved = localStorage.getItem(`zezedit_config_${assetId}`);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.clipCountPreset) setClipCountPreset(parsed.clipCountPreset);
-        if (parsed.customClipCount) setCustomClipCount(parsed.customClipCount);
-        if (parsed.selectedDirection) setSelectedDirection(parsed.selectedDirection);
-        if (parsed.selectedAspectRatio) setSelectedAspectRatio(parsed.selectedAspectRatio);
-        if (parsed.durationPreference) setDurationPreference(parsed.durationPreference);
-        if (parsed.trackingMode) setTrackingMode(parsed.trackingMode);
-        if (parsed.noveltyMode) setNoveltyMode(parsed.noveltyMode);
-        if (parsed.minDurationSec) setMinDurationSec(parsed.minDurationSec);
-        if (parsed.maxDurationSec) setMaxDurationSec(parsed.maxDurationSec);
-      }
-    } catch {
-      // ignore
-    }
-  }, [assetId]);
-
-  const handleSaveVideoConfig = () => {
-    try {
-      const cfg = {
-        clipCountPreset,
-        customClipCount,
-        selectedDirection,
-        selectedAspectRatio,
-        durationPreference,
-        trackingMode,
-        noveltyMode,
-        minDurationSec,
-        maxDurationSec,
-      };
-      localStorage.setItem(`zezedit_config_${assetId}`, JSON.stringify(cfg));
-      setConfigToast('Configuration saved for this video.');
-      setTimeout(() => setConfigToast(null), 3000);
-    } catch {
-      // ignore
-    }
-  };
-
-  const handleResetDefaults = () => {
-    setClipCountPreset('ai');
-    setCustomClipCount(5);
-    setSelectedDirection('best_overall');
-    setSelectedAspectRatio('9:16');
-    setDurationPreference('ai_best_duration');
-    setTrackingMode('smart');
-    setNoveltyMode('strict');
-    setSceneFocusMode('all');
-    setMinDurationSec(15);
-    setMaxDurationSec(60);
-    try {
-      localStorage.removeItem(`zezedit_config_${assetId}`);
-    } catch {}
-    setConfigToast('Reset to standard AI defaults.');
-    setTimeout(() => setConfigToast(null), 3000);
-  };
-
   const handleStartAnalysis = async (forceReanalysis = false) => {
     if (!asset) return;
     setAnalysisLoading(true);
@@ -471,25 +383,21 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   };
 
-  // Generate Shorts Execution (Handles First-time Analysis & Generate vs Reusing Analysis for Generate More)
-  const handleGenerateShorts = async (options?: { isGenerateMore?: boolean; forceReanalysis?: boolean }) => {
+  // Generate Shorts from the Unified GenerateShortModal
+  const handleGenerateFromModal = async (config: GenerateShortsModalConfig) => {
     if (!asset) return;
     setGeneratingShorts(true);
-    const count =
-      clipCountPreset === 'ai'
-        ? undefined
-        : clipCountPreset === 'custom'
-        ? customClipCount
-        : parseInt(clipCountPreset, 10);
-
+    setGenerationStage(
+      isGenerateMoreModal ? 'Discovering Additional Unique Highlights...' : 'Discovering Highlights with AI...'
+    );
     const effPid = asset.project_id || projectId || 'default';
     try {
       let currentRunId = completedAnalysisRun?.id;
 
-      // 1. If not analyzed or forcing reanalysis, run source analysis first and wait for completion
-      if (!isVideoAnalyzed || options?.forceReanalysis) {
-        setGenerationStage('analyzing_source');
-        const initialRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, options?.forceReanalysis || false);
+      // If not yet analyzed, run analysis and await completion
+      if (!isVideoAnalyzed) {
+        setGenerationStage('Analyzing Source Video...');
+        const initialRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, false);
         currentRunId = initialRun.id;
         setAnalysisRuns((prev) => [initialRun, ...prev.filter((p) => p.id !== initialRun.id)]);
 
@@ -513,38 +421,59 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         await loadIntelligenceData();
       }
 
-      setGenerationStage(options?.isGenerateMore ? 'generating_more' : 'discovering_candidates');
-
-      const selectedScenesList =
-        sceneFocusMode === 'selected' && selectedSceneIds.size > 0 && selectedSceneIds.size < scenes.length
-          ? Array.from(selectedSceneIds)
-          : undefined;
+      setGenerationStage(
+        isGenerateMoreModal ? 'Filtering Novelty & Generating More...' : 'Discovering Best Highlights...'
+      );
 
       const opts: DiscoverHighlightsOptions = {
         analysis_run_id: currentRunId,
-        target_clip_count: count,
-        aspect_ratio: selectedAspectRatio,
-        creative_direction: selectedDirection,
-        duration_preference: durationPreference,
-        novelty_mode: noveltyMode,
-        min_duration: durationPreference === 'custom' ? minDurationSec : undefined,
-        max_duration: durationPreference === 'custom' ? maxDurationSec : undefined,
-        selected_scene_ids: selectedScenesList,
+        target_clip_count: config.targetClipCount ?? undefined,
+        aspect_ratio: config.aspectRatio as AspectRatioOption,
+        creative_direction: config.creativeDirection,
+        duration_preference: config.durationPreference as any,
+        novelty_mode: config.noveltyMode as any,
+        min_duration: config.minDurationSec,
+        max_duration: config.maxDurationSec,
+        run_synchronously: true,
       };
 
-      if (options?.isGenerateMore) {
+      if (isGenerateMoreModal) {
         await generateMoreHighlights(effPid, asset.id, opts);
       } else {
         await discoverHighlights(effPid, asset.id, opts);
       }
 
       await loadIntelligenceData();
+      setIsGenerateModalOpen(false);
       setActiveTab('generated_shorts');
     } catch (err: any) {
       alert(`Failed to generate shorts: ${err.message || 'Unknown error'}`);
     } finally {
       setGeneratingShorts(false);
       setGenerationStage(null);
+    }
+  };
+
+  // Retry a Failed Export Render
+  const handleRetryRender = async (video: ExportItem) => {
+    if (!asset || !video.candidate_id) {
+      alert('Cannot re-render: candidate clip record is missing.');
+      return;
+    }
+    setExportingCandidateId(video.candidate_id);
+    const effPid = asset.project_id || projectId || 'default';
+    try {
+      await submitExportRender(effPid, {
+        candidate_id: video.candidate_id,
+        title: video.title || 'Short Video',
+      });
+      setExportSuccessToast(`Re-render job submitted for "${video.title || 'Short Video'}"!`);
+      setTimeout(() => setExportSuccessToast(null), 5000);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      alert(`Retry render error: ${err.message || 'Failed to submit render'}`);
+    } finally {
+      setExportingCandidateId(null);
     }
   };
 
@@ -705,6 +634,65 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     );
   }, [transcript, transcriptSearch]);
 
+  // Filtered, Sorted and Paginated Generated Videos Library
+  const filteredAndSortedRenderedVideos = useMemo(() => {
+    let list = [...renderedVideos];
+
+    // 1. Search Query
+    if (videoSearch.trim()) {
+      const q = videoSearch.toLowerCase();
+      list = list.filter(
+        (v) =>
+          (v.title || '').toLowerCase().includes(q) ||
+          (v.output_filename || '').toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Aspect Ratio Filter
+    if (videoAspectRatioFilter !== 'all') {
+      list = list.filter((v) => v.target_aspect_ratio === videoAspectRatioFilter);
+    }
+
+    // 3. Status Filter
+    if (videoStatusFilter !== 'all') {
+      if (videoStatusFilter === 'completed') {
+        list = list.filter((v) => v.status === 'completed');
+      } else if (videoStatusFilter === 'rendering') {
+        list = list.filter((v) => v.status === 'rendering' || v.status === 'queued');
+      } else if (videoStatusFilter === 'failed') {
+        list = list.filter((v) => v.status === 'failed');
+      }
+    }
+
+    // 4. Sorting
+    list.sort((a, b) => {
+      if (videoSortBy === 'newest') {
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      }
+      if (videoSortBy === 'oldest') {
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      }
+      if (videoSortBy === 'duration_desc') {
+        return (b.duration_seconds || 0) - (a.duration_seconds || 0);
+      }
+      if (videoSortBy === 'duration_asc') {
+        return (a.duration_seconds || 0) - (b.duration_seconds || 0);
+      }
+      if (videoSortBy === 'title') {
+        return (a.title || a.output_filename).localeCompare(b.title || b.output_filename);
+      }
+      return 0;
+    });
+
+    return list;
+  }, [renderedVideos, videoSearch, videoAspectRatioFilter, videoStatusFilter, videoSortBy]);
+
+  const totalVideoPages = Math.max(1, Math.ceil(filteredAndSortedRenderedVideos.length / VIDEOS_PER_PAGE));
+  const paginatedRenderedVideos = useMemo(() => {
+    const start = (videoPage - 1) * VIDEOS_PER_PAGE;
+    return filteredAndSortedRenderedVideos.slice(start, start + VIDEOS_PER_PAGE);
+  }, [filteredAndSortedRenderedVideos, videoPage]);
+
   if (loadingAsset) {
     return (
       <div className="p-8 space-y-4 max-w-7xl mx-auto">
@@ -773,9 +761,23 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
               {analysisRuns.length > 0 ? 'Re-Analyze Video' : 'Analyze Full Video'}
             </Button>
             <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setIsGenerateMoreModal(false);
+                setIsGenerateModalOpen(true);
+              }}
+              leftIcon={<Film className="w-3.5 h-3.5" />}
+            >
+              Generate Videos
+            </Button>
+            <Button
               variant="primary"
               size="sm"
-              onClick={() => setActiveTab('short_generator')}
+              onClick={() => {
+                setIsGenerateMoreModal(false);
+                setIsGenerateModalOpen(true);
+              }}
               leftIcon={<Scissors className="w-3.5 h-3.5" />}
             >
               Generate Shorts
@@ -816,11 +818,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* 9 Horizontal Tabs Navigation: Quiet 34px Rows with 2px Gaps */}
+        {/* 8 Horizontal Tabs Navigation: Quiet 34px Rows with 2px Gaps */}
         <nav className="flex items-center gap-1 overflow-x-auto pt-1 no-scrollbar border-t border-border">
           {[
             { id: 'home', label: 'Home' },
-            { id: 'short_generator', label: 'Short Video Generator' },
             { id: 'generated_shorts', label: `Generated Shorts (${candidates.length})` },
             { id: 'rendered_videos', label: `Generated Videos (${renderedVideos.filter((v) => v.status === 'completed').length})` },
             { id: 'scripts', label: `Generated Scripts (${synthesizedScripts.length})` },
@@ -967,542 +968,116 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                 </Card>
               </div>
             </div>
-          </div>
-        )}
 
-        {/* TAB 2: SHORT VIDEO GENERATOR (CLEAN DEFAULT FORM & EXPANDABLE ADVANCED SETTINGS) */}
-        {activeTab === 'short_generator' && (
-          <div className="max-w-4xl mx-auto space-y-5">
-            {/* Status Toast */}
-            {configToast && (
-              <div className="p-3 rounded-xl bg-surface border border-border text-xs text-text-primary flex items-center justify-between shadow-xs animate-in fade-in">
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                  {configToast}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setConfigToast(null)}
-                  className="text-text-muted hover:text-text-primary"
-                >
-                  ✕
-                </button>
-              </div>
-            )}
-
-            {/* Video Intelligence Status Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl border border-border bg-surface">
-              <div className="flex items-start sm:items-center gap-3">
-                <span
-                  className={`w-3 h-3 rounded-full mt-0.5 sm:mt-0 shrink-0 ${
-                    isVideoAnalyzed ? 'bg-emerald-500 shadow-xs' : 'bg-amber-500 animate-pulse'
-                  }`}
-                />
-                <div>
+            {/* Reusable Video Intelligence Summary & Primary CTAs */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+              {/* Intelligence Summary Card */}
+              <Card className="p-5 rounded-2xl border-border bg-surface space-y-3">
+                <div className="flex items-center justify-between border-b border-border pb-2.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-text-primary">
-                      {isVideoAnalyzed ? 'Reusable Video Intelligence Ready' : 'Source Video Not Analyzed'}
-                    </span>
-                    {isVideoAnalyzed && (
-                      <Badge variant="success" className="text-[10px] font-mono py-0">
-                        Analysis Cached
-                      </Badge>
-                    )}
+                    <Database className="w-4 h-4 text-indigo-400" />
+                    <h3 className="text-xs font-bold text-text-primary">Reusable Video Intelligence</h3>
                   </div>
-                  <p className="text-[11px] text-text-secondary mt-0.5">
-                    {isVideoAnalyzed
-                      ? `Run ${completedAnalysisRun?.id.slice(0, 10)} • ${scenes.length} scenes • ${transcript?.segments?.length || 0} transcript segments • Reused for all generation requests.`
-                      : 'Deep video analysis runs once and is saved permanently. Subsequent short generations reuse this intelligence.'}
+                  <Badge variant={isVideoAnalyzed ? 'success' : 'purple'} className="text-[10px] font-mono">
+                    {isVideoAnalyzed ? 'Ready & Saved' : 'Needs Analysis'}
+                  </Badge>
+                </div>
+                <div className="space-y-2 text-xs divide-y divide-border">
+                  <div className="pt-1.5 flex justify-between">
+                    <span className="text-text-muted">Speech Transcript:</span>
+                    <span className="font-mono text-text-primary">{transcript?.segments?.length || 0} segments</span>
+                  </div>
+                  <div className="pt-1.5 flex justify-between">
+                    <span className="text-text-muted">Detected Scenes:</span>
+                    <span className="font-mono text-text-primary">{scenes.length} cut boundaries</span>
+                  </div>
+                  <div className="pt-1.5 flex justify-between">
+                    <span className="text-text-muted">Visual Frames:</span>
+                    <span className="font-mono text-text-primary">{scenes.length > 0 ? `${scenes.length} sampled` : 'None'}</span>
+                  </div>
+                  <div className="pt-1.5 flex justify-between">
+                    <span className="text-text-muted">Discovered Candidates:</span>
+                    <span className="font-mono text-indigo-400 font-semibold">{candidates.length} shorts</span>
+                  </div>
+                </div>
+              </Card>
+
+              {/* CTA 1: Generate Videos */}
+              <Card className="p-5 rounded-2xl border-border bg-surface hover:border-indigo-500/40 transition flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <Film className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-text-primary">Generate Videos</h3>
+                  <p className="text-xs text-text-secondary leading-relaxed">
+                    AI-powered video clipping with custom aspect ratios, smart framing, and instant rendering.
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
-                {isVideoAnalyzed ? (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs h-7 px-2.5 text-text-secondary hover:text-text-primary"
-                      onClick={() => setActiveTab('details')}
-                      leftIcon={<Eye className="w-3.5 h-3.5 text-text-muted" />}
-                    >
-                      View Intelligence
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-xs h-7 px-2.5"
-                      isLoading={analysisLoading}
-                      onClick={() => handleStartAnalysis(true)}
-                      leftIcon={<RefreshCw className="w-3.5 h-3.5 text-text-muted" />}
-                    >
-                      Re-analyze
-                    </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="text-xs h-7 px-2.5"
-                    isLoading={analysisLoading}
-                    onClick={() => handleStartAnalysis(false)}
-                    leftIcon={<Sparkles className="w-3.5 h-3.5 text-text-muted" />}
-                  >
-                    Analyze Source Video Only
-                  </Button>
-                )}
-              </div>
-            </div>
-
-            {/* Main Generator Configuration Form */}
-            <Card className="p-6 space-y-6">
-              <div>
-                <h2 className="text-sm font-bold text-text-primary flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-text-secondary" />
-                  Short Video Generator
-                </h2>
-                <p className="text-xs text-text-secondary mt-1">
-                  Configure output parameters. By default, AI selects the optimal clip count, duration, and moments from your saved video intelligence.
-                </p>
-              </div>
-
-              {/* Option 1: Number of short video clips */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary block">
-                  1. How Many Short Video Clips Do You Want?
-                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {[
-                    { id: 'ai', label: 'AI Recommended' },
-                    { id: '1', label: '1 Clip' },
-                    { id: '3', label: '3 Clips' },
-                    { id: '5', label: '5 Clips' },
-                    { id: '10', label: '10 Clips' },
-                    { id: '15', label: '15 Clips' },
-                    { id: 'custom', label: 'Custom' },
-                  ].map((preset) => {
-                    const isSelected = clipCountPreset === preset.id;
-                    return (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => setClipCountPreset(preset.id as any)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                          isSelected
-                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                            : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-border-focus'
-                        }`}
-                      >
-                        {preset.id === 'ai' && <Sparkles className="w-3 h-3 inline mr-1 text-text-muted" />}
-                        {preset.label}
-                      </button>
-                    );
-                  })}
-
-                  {clipCountPreset === 'custom' && (
-                    <input
-                      type="number"
-                      min={1}
-                      max={50}
-                      value={customClipCount}
-                      onChange={(e) => setCustomClipCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                      className="w-20 bg-canvas border border-border rounded-xl px-3 py-1.5 text-xs text-text-primary font-mono outline-none focus:border-border-focus"
-                    />
-                  )}
-                </div>
-                <p className="text-[11px] text-text-muted">
-                  AI Recommended evaluates video length, scene count, and prior novelty history to choose the optimal number of high-quality clips.
-                </p>
-              </div>
-
-              {/* Option 2: Creative Direction */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary block">
-                  2. Creative Direction &amp; Context Focus
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {[
-                    {
-                      id: 'best_overall',
-                      title: 'Best Overall',
-                      desc: 'Balanced scoring across speech clarity, visual dynamism, and narrative completeness.',
-                    },
-                    {
-                      id: 'viral_punchy',
-                      title: 'Discover Varied / Viral-Style Moments',
-                      desc: 'Aggressive hook weighting, rapid visual pacing, and diverse scene categories.',
-                    },
-                  ].map((dir) => {
-                    const isSelected = selectedDirection === dir.id;
-                    return (
-                      <button
-                        key={dir.id}
-                        type="button"
-                        onClick={() => setSelectedDirection(dir.id)}
-                        className={`p-3.5 rounded-xl text-left border transition-all ${
-                          isSelected
-                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                            : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-bold text-text-primary">{dir.title}</span>
-                          {isSelected && <CheckCircle2 className="w-3.5 h-3.5 text-text-primary" />}
-                        </div>
-                        <p className="text-[11px] text-text-muted mt-1 leading-relaxed">{dir.desc}</p>
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] text-text-muted">
-                  5 additional specialized directions (Dramatic, Action, Emotional, Dialogue, Comedy) are available in Advanced Settings.
-                </p>
-              </div>
-
-              {/* Option 3: Target Aspect Ratio */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary block">
-                  3. Target Aspect Ratio
-                </label>
-                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-                  {ASPECT_RATIOS.map((ar) => {
-                    const isSelected = selectedAspectRatio === ar.id;
-                    return (
-                      <button
-                        key={ar.id}
-                        type="button"
-                        onClick={() => setSelectedAspectRatio(ar.id)}
-                        className={`p-2.5 rounded-xl border text-center transition-all ${
-                          isSelected
-                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                            : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
-                        }`}
-                      >
-                        <Crop className={`w-3.5 h-3.5 mx-auto mb-1 ${isSelected ? 'text-text-primary' : 'text-text-muted'}`} />
-                        <span className="text-xs font-semibold block">{ar.label}</span>
-                        <span className="text-[10px] text-text-muted">{ar.ratio}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Option 4: Duration Preference */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-text-primary block">
-                  4. Duration Preference
-                </label>
-                <div className="flex flex-wrap items-center gap-2">
-                  {[
-                    { id: 'ai_best_duration', label: 'AI Selects Best Duration' },
-                    { id: 'short', label: 'Short (15-30s)' },
-                    { id: 'medium', label: 'Medium (30-60s)' },
-                    { id: 'long', label: 'Long (60-90s)' },
-                    { id: 'custom', label: 'Custom Range' },
-                  ].map((dur) => {
-                    const isSelected = durationPreference === dur.id;
-                    return (
-                      <button
-                        key={dur.id}
-                        type="button"
-                        onClick={() => setDurationPreference(dur.id as any)}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
-                          isSelected
-                            ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                            : 'bg-surface border-border text-text-secondary hover:text-text-primary hover:border-border-focus'
-                        }`}
-                      >
-                        {dur.label}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {durationPreference === 'ai_best_duration' ? (
-                  <p className="text-[11px] text-text-muted">
-                    Clips snap naturally to complete conversational turns, speech pauses, and scene transitions without arbitrary hard cuts.
-                  </p>
-                ) : durationPreference === 'custom' ? (
-                  <div className="p-3 rounded-xl border border-border bg-surface-subtle space-y-2 mt-2">
-                    <div className="flex justify-between items-center text-xs">
-                      <span className="text-text-secondary font-medium">Custom Limits</span>
-                      <span className="font-mono text-text-primary font-semibold">{minDurationSec}s - {maxDurationSec}s</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-[11px] text-text-muted font-mono">{minDurationSec}s</span>
-                      <input
-                        type="range"
-                        min={10}
-                        max={45}
-                        value={minDurationSec}
-                        onChange={(e) => setMinDurationSec(parseInt(e.target.value, 10))}
-                        className="flex-1 accent-text-primary"
-                      />
-                      <input
-                        type="range"
-                        min={30}
-                        max={120}
-                        value={maxDurationSec}
-                        onChange={(e) => setMaxDurationSec(parseInt(e.target.value, 10))}
-                        className="flex-1 accent-text-primary"
-                      />
-                      <span className="text-[11px] text-text-muted font-mono">{maxDurationSec}s</span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-
-              {/* EXPANDABLE ADVANCED SETTINGS */}
-              <div className="pt-2 border-t border-border">
-                <button
-                  type="button"
-                  onClick={() => setAdvancedExpanded(!advancedExpanded)}
-                  className="w-full flex items-center justify-between p-2 rounded-xl text-xs font-semibold text-text-secondary hover:text-text-primary hover:bg-surface-hover transition"
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="w-full text-xs font-semibold"
+                  onClick={() => {
+                    setIsGenerateMoreModal(false);
+                    setIsGenerateModalOpen(true);
+                  }}
+                  leftIcon={<Film className="w-4 h-4" />}
                 >
-                  <span className="flex items-center gap-2">
-                    <Sliders className="w-3.5 h-3.5 text-text-muted" />
-                    Advanced Settings
-                    {(selectedDirection !== 'best_overall' && selectedDirection !== 'viral_punchy') ||
-                    trackingMode !== 'smart' ||
-                    sceneFocusMode !== 'all' ||
-                    noveltyMode !== 'strict' ? (
-                      <span className="w-1.5 h-1.5 rounded-full bg-text-primary" />
-                    ) : null}
-                  </span>
-                  {advancedExpanded ? (
-                    <ChevronUp className="w-4 h-4 text-text-muted" />
-                  ) : (
-                    <ChevronDown className="w-4 h-4 text-text-muted" />
-                  )}
-                </button>
+                  Generate Videos
+                </Button>
+              </Card>
 
-                {advancedExpanded && (
-                  <div className="mt-4 space-y-5 p-4 rounded-xl border border-border bg-surface-subtle animate-in fade-in">
-                    {/* A. All 18 Creative Directions */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-text-primary block">
-                        Detailed Creative Direction (7 Supported, 11 Coming Soon)
-                      </label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                        {CREATIVE_DIRECTIONS.map((dir) => {
-                          const isSelected = selectedDirection === dir.id;
-                          const isAvailable = dir.supported;
-                          return (
-                            <button
-                              key={dir.id}
-                              type="button"
-                              disabled={!isAvailable}
-                              onClick={() => {
-                                if (isAvailable) setSelectedDirection(dir.id);
-                              }}
-                              className={`p-2.5 rounded-xl text-left border transition-all ${
-                                !isAvailable
-                                  ? 'opacity-40 cursor-not-allowed bg-surface/50 border-border'
-                                  : isSelected
-                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className="text-xs font-medium block text-text-primary">
-                                  {dir.label}
-                                </span>
-                                {!isAvailable && (
-                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-surface border border-border text-text-muted">
-                                    Coming Soon
-                                  </span>
-                                )}
-                              </div>
-                              <span className="text-[10px] text-text-muted mt-0.5 line-clamp-1 block">
-                                {dir.desc}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* B. Subject Tracking & Framing */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-text-primary block">
-                        Intelligent Subject Tracking &amp; Framing Strategy
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {[
-                          { id: 'smart', label: 'Auto Smart Framing', desc: 'Dynamic subject bounding' },
-                          { id: 'center', label: 'Center Crop', desc: 'Fixed centered framing' },
-                          { id: 'face', label: 'Face Tracking', desc: 'Haar frontal + profile IoU' },
-                          { id: 'upper_body', label: 'Person / Upper Body', desc: 'Speaker torso motion' },
-                          { id: 'object', label: 'Motion Saliency', desc: 'Spectral saliency points' },
-                          { id: 'multi', label: 'Multi-Subject Group', desc: 'Dynamic joint framing' },
-                        ].map((trk) => {
-                          const isSelected = trackingMode === trk.id;
-                          return (
-                            <button
-                              key={trk.id}
-                              type="button"
-                              onClick={() => setTrackingMode(trk.id as any)}
-                              className={`p-2.5 rounded-xl border text-left transition-all ${
-                                isSelected
-                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
-                              }`}
-                            >
-                              <span className="text-xs font-semibold block text-text-primary">{trk.label}</span>
-                              <span className="text-[10px] text-text-muted block mt-0.5">{trk.desc}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* C. Scene & Content Focus */}
-                    <div className="space-y-2">
-                      <label className="text-xs font-semibold text-text-primary block">
-                        Scene &amp; Content Focus
-                      </label>
-                      <div className="flex flex-wrap items-center gap-3 text-xs">
-                        <label className="flex items-center gap-2 cursor-pointer text-text-secondary">
-                          <input
-                            type="radio"
-                            name="sceneFocus"
-                            checked={sceneFocusMode === 'all'}
-                            onChange={() => setSceneFocusMode('all')}
-                            className="accent-text-primary"
-                          />
-                          <span>Entire Source Video ({scenes.length} scenes)</span>
-                        </label>
-                        <label className="flex items-center gap-2 cursor-pointer text-text-secondary">
-                          <input
-                            type="radio"
-                            name="sceneFocus"
-                            checked={sceneFocusMode === 'selected'}
-                            onChange={() => setSceneFocusMode('selected')}
-                            className="accent-text-primary"
-                          />
-                          <span>Selected Scenes Only ({selectedSceneIds.size} of {scenes.length} selected)</span>
-                        </label>
-                      </div>
-                      {sceneFocusMode === 'selected' && (
-                        <p className="text-[11px] text-text-muted">
-                          Configure which scenes are included or excluded from the <strong className="text-text-primary cursor-pointer underline" onClick={() => setActiveTab('scenes')}>Scene Analysis tab</strong>.
-                        </p>
-                      )}
-                    </div>
-
-                    {/* D. Novelty & Non-Repetition Control */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-semibold text-text-primary">
-                          Persistent Novelty &amp; Non-Repetition Policy
-                        </label>
-                        <span className="text-[11px] font-mono text-text-muted">
-                          {noveltyHistory?.total_clips_generated ?? noveltyHistory?.history?.length ?? 0} historical clips recorded
-                        </span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {[
-                          {
-                            id: 'strict',
-                            title: 'Strict Non-Repetition (Default)',
-                            desc: 'Rejects any candidate with >45% IoU overlap or identical dialogue to previous batches.',
-                          },
-                          {
-                            id: 'relaxed',
-                            title: 'Relaxed Novelty (Higher Yield)',
-                            desc: 'Allows up to 65% overlap to extract extra moments from shorter footage without repeating exact clips.',
-                          },
-                        ].map((nov) => {
-                          const isSelected = noveltyMode === nov.id;
-                          return (
-                            <button
-                              key={nov.id}
-                              type="button"
-                              onClick={() => setNoveltyMode(nov.id as any)}
-                              className={`p-2.5 rounded-xl border text-left transition-all ${
-                                isSelected
-                                  ? 'bg-surface-active border-border-focus text-text-primary shadow-xs'
-                                  : 'bg-surface border-border text-text-secondary hover:border-border-focus hover:bg-surface-hover'
-                              }`}
-                            >
-                              <span className="text-xs font-semibold block text-text-primary">{nov.title}</span>
-                              <span className="text-[10px] text-text-muted block mt-0.5">{nov.desc}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* E. Preset Actions */}
-                    <div className="pt-2 border-t border-border flex items-center justify-between">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-xs h-7 text-text-muted hover:text-text-primary"
-                        onClick={handleResetDefaults}
-                        leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
-                      >
-                        Reset to Defaults
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-xs h-7"
-                        onClick={handleSaveVideoConfig}
-                        leftIcon={<Save className="w-3.5 h-3.5 text-text-muted" />}
-                      >
-                        Save Configuration for this Video
-                      </Button>
-                    </div>
+              {/* CTA 2: Generate Shorts */}
+              <Card className="p-5 rounded-2xl border-border bg-surface hover:border-indigo-500/40 transition flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                    <Scissors className="w-5 h-5" />
                   </div>
-                )}
-              </div>
-
-              {/* Action Button & Telemetry */}
-              <div className="pt-4 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3">
-                <div className="text-xs text-text-muted flex items-center gap-2">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>
-                    {isVideoAnalyzed
-                      ? 'Reusing saved video intelligence — fast candidate discovery'
-                      : 'First-time deep analysis + short video discovery'}
-                  </span>
+                  <h3 className="text-sm font-bold text-text-primary">Generate Shorts</h3>
+                  <p className="text-xs text-text-secondary leading-relaxed">
+                    Discover viral hook-driven short clips optimized for vertical 9:16 reels, TikTok & YouTube Shorts.
+                  </p>
                 </div>
-
-                <div className="flex items-center gap-3 w-full sm:w-auto">
-                  {isVideoAnalyzed && (
-                    <Button
-                      variant="outline"
-                      size="lg"
-                      className="text-xs h-10 px-4"
-                      isLoading={generatingShorts && generationStage === 'analyzing_source'}
-                      onClick={() => handleGenerateShorts({ forceReanalysis: true })}
-                      leftIcon={<RefreshCw className="w-4 h-4 text-text-muted" />}
-                    >
-                      Re-analyze &amp; Generate
-                    </Button>
-                  )}
-                  <Button
-                    variant="primary"
-                    size="lg"
-                    className="flex-1 sm:flex-initial h-10 px-6 shadow-xs"
-                    isLoading={generatingShorts}
-                    onClick={() => handleGenerateShorts({ isGenerateMore: isVideoAnalyzed && candidates.length > 0 })}
-                    leftIcon={<Scissors className="w-4 h-4" />}
-                  >
-                    {!isVideoAnalyzed
-                      ? 'Analyze & Generate Shorts Now'
-                      : candidates.length > 0
-                      ? 'Generate More Shorts'
-                      : 'Generate Shorts Now'}
-                  </Button>
-                </div>
-              </div>
-            </Card>
+                <Button
+                  variant="primary"
+                  size="md"
+                  className="w-full text-xs font-semibold"
+                  onClick={() => {
+                    setIsGenerateMoreModal(false);
+                    setIsGenerateModalOpen(true);
+                  }}
+                  leftIcon={<Scissors className="w-4 h-4" />}
+                >
+                  Generate Shorts
+                </Button>
+              </Card>
+            </div>
           </div>
         )}
 
+        {/* TAB 2: SHORT VIDEO GENERATOR (RE-DIRECT TO UNIFIED MODAL) */}
+        {activeTab === 'short_generator' && (
+          <div className="max-w-2xl mx-auto py-12 text-center space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mx-auto">
+              <Scissors className="w-6 h-6" />
+            </div>
+            <h2 className="text-sm font-bold text-text-primary">Generate Short Videos</h2>
+            <p className="text-xs text-text-secondary max-w-md mx-auto">
+              Short video generator configuration is now elevated into the unified modal dialog for quick access anywhere.
+            </p>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={() => {
+                setIsGenerateMoreModal(false);
+                setIsGenerateModalOpen(true);
+              }}
+              leftIcon={<Scissors className="w-4 h-4" />}
+            >
+              Open Generate Shorts Modal
+            </Button>
+          </div>
+        )}
         {/* TAB 3: DISCOVERED CANDIDATES (BATCH SELECTION, PREVIEW, EDIT & RENDER) */}
         {activeTab === 'generated_shorts' && (
           <div className="max-w-6xl mx-auto space-y-6">
@@ -1536,7 +1111,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   size="sm"
                   className="text-xs"
                   isLoading={generatingShorts}
-                  onClick={() => handleGenerateShorts({ isGenerateMore: true })}
+                  onClick={() => {
+                    setIsGenerateMoreModal(true);
+                    setIsGenerateModalOpen(true);
+                  }}
                   leftIcon={<Sparkles className="w-3.5 h-3.5" />}
                 >
                   Generate More Shorts
@@ -1739,14 +1317,17 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         )}
 
-        {/* TAB 4: GENERATED VIDEOS LIBRARY (PLAYABLE MP4s, CONTROLS, DOWNLOAD & DELETE) */}
+        {/* TAB 4: GENERATED VIDEOS LIBRARY (INLINE PLAYBACK, CONTROLS, SCALABLE SEARCH & FILTER) */}
         {activeTab === 'rendered_videos' && (
-          <div className="max-w-6xl mx-auto space-y-6">
+          <div className="max-w-6xl mx-auto space-y-5">
+            {/* Archive Header */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <h2 className="text-sm font-bold text-text-primary">Generated Short Videos Archive</h2>
+                <h2 className="text-sm font-bold text-text-primary">
+                  Generated Short Videos Archive ({filteredAndSortedRenderedVideos.length} of {renderedVideos.length})
+                </h2>
                 <p className="text-xs text-text-secondary mt-0.5">
-                  Playable, verified H.264 MP4 videos rendered from this source video.
+                  Playable, verified H.264 MP4 videos rendered from this source video. Click any thumbnail to play inline.
                 </p>
               </div>
 
@@ -1758,85 +1339,137 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   onClick={() => void loadIntelligenceData()}
                   leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
                 >
-                  Refresh Videos
+                  Refresh
                 </Button>
                 <Button
                   variant="primary"
                   size="sm"
                   className="text-xs"
-                  onClick={() => setActiveTab('generated_shorts')}
+                  onClick={() => {
+                    setIsGenerateMoreModal(true);
+                    setIsGenerateModalOpen(true);
+                  }}
                   leftIcon={<Film className="w-3.5 h-3.5" />}
                 >
-                  Render More Clips
+                  Generate More Shorts
                 </Button>
               </div>
             </div>
 
-            {/* In-Browser Short Video Player Modal/Section when an active video is chosen */}
-            {activePreviewVideo && (
-              <div className="p-4 rounded-2xl bg-surface border border-border shadow-xl space-y-4">
-                <div className="flex items-center justify-between border-b border-border pb-3">
-                  <div>
-                    <h3 className="text-xs font-bold text-text-primary flex items-center gap-2">
-                      <Play className="w-3.5 h-3.5 text-indigo-400" />
-                      <span>{activePreviewVideo.title || activePreviewVideo.output_filename}</span>
-                    </h3>
-                    <p className="text-[11px] text-text-muted font-mono mt-0.5">
-                      {activePreviewVideo.target_aspect_ratio} · {activePreviewVideo.target_width}x{activePreviewVideo.target_height} · {formatSeconds(activePreviewVideo.duration_seconds)} · {formatBytes(activePreviewVideo.file_size_bytes)}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={getExportDownloadUrl(asset.project_id || projectId || 'default', activePreviewVideo.id)}
-                      download={activePreviewVideo.output_filename}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-subtle hover:bg-surface-hover border border-border text-xs font-medium text-text-primary transition"
+            {/* Scalability Filter Bar: Search, Aspect Ratio, Status & Sorting */}
+            <div className="p-3.5 rounded-xl border border-border bg-surface flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3 flex-1 min-w-[280px]">
+                {/* Search Input */}
+                <div className="relative flex-1 min-w-[180px] max-w-xs">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-text-muted" />
+                  <input
+                    type="text"
+                    value={videoSearch}
+                    onChange={(e) => {
+                      setVideoSearch(e.target.value);
+                      setVideoPage(1);
+                    }}
+                    placeholder="Search videos by title..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg bg-canvas border border-border text-text-primary placeholder:text-text-muted focus:outline-hidden focus:border-indigo-500"
+                  />
+                  {videoSearch && (
+                    <button
+                      onClick={() => setVideoSearch('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-primary"
                     >
-                      <Download className="w-3.5 h-3.5 text-text-muted" />
-                      <span>Download MP4</span>
-                    </a>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => setActivePreviewVideo(null)}
-                    >
-                      Close Player
-                    </Button>
-                  </div>
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </div>
 
-                <div className="flex justify-center bg-black/90 rounded-xl p-3 overflow-hidden">
-                  <div
-                    className="relative rounded-lg overflow-hidden border border-white/10 shadow-2xl max-h-[480px]"
-                    style={{
-                      aspectRatio: activePreviewVideo.target_aspect_ratio.replace(':', ' / '),
-                    }}
-                  >
-                    <video
-                      ref={renderedVideoPlayerRef}
-                      src={getExportVideoUrl(asset.project_id || projectId || 'default', activePreviewVideo.id)}
-                      controls
-                      autoPlay
-                      className="w-full h-full object-contain"
-                    />
-                  </div>
+                {/* Aspect Ratio Filter Pills */}
+                <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-lg border border-border text-xs">
+                  {(['all', '9:16', '1:1', '16:9'] as const).map((ratio) => (
+                    <button
+                      key={ratio}
+                      type="button"
+                      onClick={() => {
+                        setVideoAspectRatioFilter(ratio);
+                        setVideoPage(1);
+                      }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition ${
+                        videoAspectRatioFilter === ratio
+                          ? 'bg-surface text-text-primary shadow-2xs font-semibold'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      {ratio === 'all' ? 'All Ratios' : ratio}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Status Filter Pills */}
+                <div className="flex items-center gap-1 bg-surface-subtle p-1 rounded-lg border border-border text-xs">
+                  {(['all', 'completed', 'rendering', 'failed'] as const).map((st) => (
+                    <button
+                      key={st}
+                      type="button"
+                      onClick={() => {
+                        setVideoStatusFilter(st);
+                        setVideoPage(1);
+                      }}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium capitalize transition ${
+                        videoStatusFilter === st
+                          ? 'bg-surface text-text-primary shadow-2xs font-semibold'
+                          : 'text-text-muted hover:text-text-primary'
+                      }`}
+                    >
+                      {st === 'all' ? 'All Status' : st}
+                    </button>
+                  ))}
                 </div>
               </div>
-            )}
 
-            {renderedVideos.length === 0 ? (
+              {/* Sorting Dropdown */}
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-text-muted">Sort:</span>
+                <select
+                  value={videoSortBy}
+                  onChange={(e) => setVideoSortBy(e.target.value as any)}
+                  className="px-2.5 py-1 text-xs rounded-lg bg-canvas border border-border text-text-primary focus:outline-hidden"
+                >
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="duration_desc">Duration (Longest)</option>
+                  <option value="duration_asc">Duration (Shortest)</option>
+                  <option value="title">Title (A-Z)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Video Cards Grid with Inline Playback */}
+            {filteredAndSortedRenderedVideos.length === 0 ? (
               <EmptyState
                 icon={<Film className="w-10 h-10 text-text-muted" />}
-                title="No Rendered Short Videos Yet"
-                description="Select candidates in Discovered Candidates and click 'Render MP4' or 'Render Selected' to generate actual MP4 files."
-                actionText="View Discovered Candidates"
-                onAction={() => setActiveTab('generated_shorts')}
+                title={renderedVideos.length === 0 ? 'No Rendered Short Videos Yet' : 'No Videos Match Filter'}
+                description={
+                  renderedVideos.length === 0
+                    ? "Select candidates in Discovered Candidates and click 'Render Video' to generate actual MP4 files."
+                    : 'Try resetting the search query or status filters.'
+                }
+                actionText={renderedVideos.length === 0 ? 'View Discovered Candidates' : 'Reset Filters'}
+                onAction={() => {
+                  if (renderedVideos.length === 0) {
+                    setActiveTab('generated_shorts');
+                  } else {
+                    setVideoSearch('');
+                    setVideoAspectRatioFilter('all');
+                    setVideoStatusFilter('all');
+                  }
+                }}
               />
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {renderedVideos.map((video) => {
+                {paginatedRenderedVideos.map((video) => {
                   const isCompleted = video.status === 'completed';
                   const isRendering = video.status === 'rendering' || video.status === 'queued';
+                  const isFailed = video.status === 'failed';
+                  const isInlinePlaying = inlinePlayingVideoId === video.id;
 
                   return (
                     <Card
@@ -1844,49 +1477,107 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                       className="overflow-hidden rounded-2xl border-border bg-surface hover:border-border-focus transition flex flex-col justify-between"
                     >
                       <div>
-                        {/* Video Thumbnail with Play overlay */}
-                        <div
-                          className="relative aspect-video bg-black cursor-pointer overflow-hidden group"
-                          onClick={() => {
-                            if (isCompleted) {
-                              setActivePreviewVideo(video);
-                            }
-                          }}
-                        >
-                          <img
-                            src={getGlobalThumbnailUrl(asset.id)}
-                            alt=""
-                            className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-200"
-                            onError={(e) => {
-                              (e.target as HTMLElement).style.display = 'none';
-                            }}
-                          />
-
-                          {isCompleted ? (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition">
-                              <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 text-white group-hover:scale-110 transition">
-                                <Play className="w-5 h-5 fill-current ml-0.5" />
+                        {/* Video Thumbnail or Inline Player Container */}
+                        <div className="relative aspect-video bg-black overflow-hidden group">
+                          {isCompleted && isInlinePlaying ? (
+                            /* INLINE VIDEO PLAYER IN-PLACE (No scroll to top!) */
+                            <div className="relative w-full h-full">
+                              <video
+                                ref={(el) => {
+                                  inlineVideoRefs.current[video.id] = el;
+                                }}
+                                src={getExportVideoUrl(asset.project_id || projectId || 'default', video.id)}
+                                controls
+                                autoPlay
+                                playsInline
+                                preload="none"
+                                className="w-full h-full object-contain"
+                                onEnded={() => setInlinePlayingVideoId(null)}
+                              />
+                              <div className="absolute top-2 right-2 flex items-center gap-1.5 z-20">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const el = inlineVideoRefs.current[video.id];
+                                    if (el) {
+                                      if (el.requestFullscreen) {
+                                        void el.requestFullscreen();
+                                      } else if ((el as any).webkitRequestFullscreen) {
+                                        (el as any).webkitRequestFullscreen();
+                                      }
+                                    }
+                                  }}
+                                  className="p-1.5 rounded-md bg-black/80 hover:bg-black text-white text-[10px] border border-white/20 transition"
+                                  title="Enter Fullscreen"
+                                >
+                                  <Maximize2 className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setInlinePlayingVideoId(null);
+                                  }}
+                                  className="p-1.5 rounded-md bg-black/80 hover:bg-black text-white text-[10px] border border-white/20 transition"
+                                  title="Close Inline Playback"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </button>
                               </div>
                             </div>
-                          ) : isRendering ? (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-indigo-400 gap-2">
-                              <Loader2 className="w-6 h-6 animate-spin" />
-                              <span className="text-[11px] font-medium font-mono text-white">Rendering MP4...</span>
-                            </div>
                           ) : (
-                            <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-red-400 gap-1 p-3 text-center">
-                              <AlertCircle className="w-5 h-5" />
-                              <span className="text-[10px] text-red-300 line-clamp-2">{video.error_message || 'Render failed'}</span>
+                            /* THUMBNAIL WITH PLAY BUTTON OVERLAY */
+                            <div
+                              className="relative w-full h-full cursor-pointer"
+                              onClick={() => {
+                                if (isCompleted) {
+                                  setInlinePlayingVideoId(video.id);
+                                }
+                              }}
+                            >
+                              <img
+                                src={getGlobalThumbnailUrl(asset.id)}
+                                alt=""
+                                loading="lazy"
+                                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition duration-200"
+                                onError={(e) => {
+                                  (e.target as HTMLElement).style.display = 'none';
+                                }}
+                              />
+
+                              {isCompleted ? (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition">
+                                  <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-xs flex items-center justify-center border border-white/30 text-white group-hover:scale-110 transition shadow-lg">
+                                    <Play className="w-5 h-5 fill-current ml-0.5" />
+                                  </div>
+                                </div>
+                              ) : isRendering ? (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-indigo-400 gap-2">
+                                  <Loader2 className="w-6 h-6 animate-spin" />
+                                  <span className="text-[11px] font-medium font-mono text-white">
+                                    Rendering MP4...
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/70 text-red-400 gap-1.5 p-3 text-center">
+                                  <AlertCircle className="w-5 h-5 text-red-400" />
+                                  <span className="text-[11px] font-semibold text-red-300">Rendering Failed</span>
+                                  <span className="text-[10px] text-text-muted line-clamp-2">
+                                    {video.error_message || 'Video export could not be finalized'}
+                                  </span>
+                                </div>
+                              )}
+
+                              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-mono text-text-primary border border-white/10">
+                                {video.target_aspect_ratio}
+                              </div>
+
+                              <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[10px] text-white">
+                                {formatSeconds(video.duration_seconds)}
+                              </div>
                             </div>
                           )}
-
-                          <div className="absolute top-2 left-2 px-2 py-0.5 rounded-full bg-black/80 text-[10px] font-mono text-text-primary border border-white/10">
-                            {video.target_aspect_ratio}
-                          </div>
-
-                          <div className="absolute bottom-2 right-2 px-2 py-0.5 rounded bg-black/80 font-mono text-[10px] text-white">
-                            {formatSeconds(video.duration_seconds)}
-                          </div>
                         </div>
 
                         {/* Video Metadata */}
@@ -1912,15 +1603,21 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           <div className="text-[11px] text-text-muted font-mono space-y-0.5">
                             <div className="flex justify-between">
                               <span>Dimensions:</span>
-                              <span className="text-text-secondary">{video.target_width}x{video.target_height}</span>
+                              <span className="text-text-secondary">
+                                {video.target_width}x{video.target_height}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Size:</span>
-                              <span className="text-text-secondary">{formatBytes(video.file_size_bytes)}</span>
+                              <span className="text-text-secondary">
+                                {formatBytes(video.file_size_bytes)}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Codec:</span>
-                              <span className="text-text-secondary">{video.video_codec} / {video.audio_codec}</span>
+                              <span className="text-text-secondary">
+                                {video.video_codec} / {video.audio_codec}
+                              </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Verified:</span>
@@ -1932,28 +1629,60 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                         </div>
                       </div>
 
-                      {/* Video Actions: Play, Download, Delete */}
+                      {/* Video Actions: Play Inline, Expand, Download, Retry, Delete */}
                       <div className="p-3 bg-surface-subtle border-t border-border flex items-center justify-between gap-2">
                         {isCompleted && (
                           <>
                             <Button
-                              variant="outline"
+                              variant={isInlinePlaying ? 'secondary' : 'outline'}
                               size="sm"
                               className="flex-1 text-xs"
-                              onClick={() => setActivePreviewVideo(video)}
-                              leftIcon={<Play className="w-3.5 h-3.5 fill-current text-indigo-400" />}
+                              onClick={() => {
+                                setInlinePlayingVideoId(isInlinePlaying ? null : video.id);
+                              }}
+                              leftIcon={
+                                isInlinePlaying ? (
+                                  <Pause className="w-3.5 h-3.5 text-indigo-400" />
+                                ) : (
+                                  <Play className="w-3.5 h-3.5 fill-current text-indigo-400" />
+                                )
+                              }
                             >
-                              Play
+                              {isInlinePlaying ? 'Pause' : 'Play'}
                             </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-xs text-text-muted hover:text-text-primary px-2"
+                              onClick={() => setActivePreviewVideo(video)}
+                              title="Expand Modal Preview"
+                              aria-label="Expand Modal Preview"
+                            >
+                              <Maximize2 className="w-3.5 h-3.5" />
+                            </Button>
+
                             <a
                               href={getExportDownloadUrl(asset.project_id || projectId || 'default', video.id)}
                               download={video.output_filename}
-                              className="flex-1 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-surface border border-border hover:bg-surface-hover text-xs font-medium text-text-primary transition"
+                              className="inline-flex items-center justify-center p-2 rounded-lg bg-surface border border-border hover:bg-surface-hover text-text-muted hover:text-text-primary transition"
+                              title="Download MP4"
                             >
-                              <Download className="w-3.5 h-3.5 text-text-muted" />
-                              <span>Download</span>
+                              <Download className="w-3.5 h-3.5" />
                             </a>
                           </>
+                        )}
+
+                        {isFailed && (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="flex-1 text-xs"
+                            onClick={() => handleRetryRender(video)}
+                            leftIcon={<RotateCcw className="w-3.5 h-3.5" />}
+                          >
+                            Retry Render
+                          </Button>
                         )}
 
                         <Button
@@ -1961,7 +1690,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           size="sm"
                           className="text-xs text-text-muted hover:text-red-400 px-2"
                           onClick={() => handleDeleteRenderedVideo(video.id)}
-                          title="Delete MP4 File"
+                          title="Delete MP4 File (Keeps script and source video safe)"
                         >
                           Delete
                         </Button>
@@ -1969,6 +1698,38 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                     </Card>
                   );
                 })}
+              </div>
+            )}
+
+            {/* Pagination Controls for Large Libraries */}
+            {totalVideoPages > 1 && (
+              <div className="p-3 border-t border-border flex items-center justify-between text-xs text-text-muted">
+                <span>
+                  Showing page {videoPage} of {totalVideoPages} ({filteredAndSortedRenderedVideos.length} videos)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={videoPage <= 1}
+                    onClick={() => setVideoPage((p) => Math.max(1, p - 1))}
+                    leftIcon={<ChevronLeft className="w-3.5 h-3.5" />}
+                  >
+                    Previous
+                  </Button>
+                  <span className="px-3 py-1 font-mono font-medium text-text-primary bg-surface-subtle border border-border rounded-lg">
+                    {videoPage} / {totalVideoPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={videoPage >= totalVideoPages}
+                    onClick={() => setVideoPage((p) => Math.min(totalVideoPages, p + 1))}
+                    rightIcon={<ChevronRight className="w-3.5 h-3.5" />}
+                  >
+                    Next
+                  </Button>
+                </div>
               </div>
             )}
           </div>
@@ -2030,25 +1791,94 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex justify-end pt-2 border-t border-border">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          const candMatch = candidates.find((c) => c.id === scr.candidateId);
-                          if (candMatch) {
-                            setEditingCandidate(candMatch);
-                            setEditorModalOpen(true);
-                          } else {
-                            handleSeek(scr.startTime);
-                            setActiveTab('home');
-                          }
-                        }}
-                        leftIcon={<Scissors className="w-3.5 h-3.5 text-text-secondary" />}
-                      >
-                        Edit Candidate Clip
-                      </Button>
-                    </div>
+                    {(() => {
+                      const matchedExport = renderedVideos.find(
+                        (v) => v.candidate_id === scr.candidateId && v.status === 'completed'
+                      );
+                      const isRendering = renderedVideos.some(
+                        (v) =>
+                          v.candidate_id === scr.candidateId &&
+                          (v.status === 'rendering' || v.status === 'queued')
+                      );
+
+                      return (
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-3 border-t border-border">
+                          <div className="flex items-center gap-2">
+                            {matchedExport ? (
+                              <Badge variant="success" className="text-[10px] font-mono">
+                                Video Rendered (Ready)
+                              </Badge>
+                            ) : isRendering ? (
+                              <span className="flex items-center gap-1.5 text-xs text-indigo-400 font-medium">
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                <span>Rendering MP4...</span>
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-text-muted">
+                                Script ready for 1-click video render
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => {
+                                const candMatch = candidates.find((c) => c.id === scr.candidateId);
+                                if (candMatch) {
+                                  setEditingCandidate(candMatch);
+                                  setEditorModalOpen(true);
+                                } else {
+                                  handleSeek(scr.startTime);
+                                  setActiveTab('home');
+                                }
+                              }}
+                              leftIcon={<Scissors className="w-3.5 h-3.5 text-text-secondary" />}
+                            >
+                              Edit Clip
+                            </Button>
+
+                            {matchedExport ? (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                onClick={() => {
+                                  setActiveTab('rendered_videos');
+                                  setInlinePlayingVideoId(matchedExport.id);
+                                }}
+                                leftIcon={<Play className="w-3.5 h-3.5 fill-current text-white" />}
+                              >
+                                View Video
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                disabled={isRendering || exportingCandidateId === scr.candidateId}
+                                onClick={() => {
+                                  const candMatch = candidates.find((c) => c.id === scr.candidateId);
+                                  if (candMatch) {
+                                    void handleExportCandidate(candMatch);
+                                  } else {
+                                    alert('No candidate moment linked for this segment.');
+                                  }
+                                }}
+                                leftIcon={
+                                  exportingCandidateId === scr.candidateId ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <Film className="w-3.5 h-3.5" />
+                                  )
+                                }
+                              >
+                                {exportingCandidateId === scr.candidateId ? 'Submitting...' : 'Render Video'}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </Card>
                 ))}
               </div>
@@ -2461,6 +2291,68 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             setTimeout(() => setExportSuccessToast(null), 4000);
           }}
         />
+      )}
+
+      {/* ==================== UNIFIED GENERATE SHORT MODAL ==================== */}
+      <GenerateShortModal
+        isOpen={isGenerateModalOpen}
+        onClose={() => setIsGenerateModalOpen(false)}
+        onGenerate={handleGenerateFromModal}
+        isGenerating={generatingShorts}
+        generationStage={generationStage}
+        isGenerateMore={isGenerateMoreModal}
+      />
+
+      {/* ==================== EXPANDED PREVIEW MODAL ==================== */}
+      {activePreviewVideo && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs animate-in fade-in duration-150"
+          onClick={() => setActivePreviewVideo(null)}
+        >
+          <div
+            className="max-w-3xl w-full bg-surface border border-border rounded-2xl overflow-hidden shadow-2xl p-4 space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div>
+                <h3 className="text-xs font-bold text-text-primary">
+                  {activePreviewVideo.title || activePreviewVideo.output_filename}
+                </h3>
+                <p className="text-[11px] text-text-muted font-mono mt-0.5">
+                  {activePreviewVideo.target_aspect_ratio} · {activePreviewVideo.target_width}x
+                  {activePreviewVideo.target_height} · {formatSeconds(activePreviewVideo.duration_seconds)} ·{' '}
+                  {formatBytes(activePreviewVideo.file_size_bytes)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={getExportDownloadUrl(asset?.project_id || projectId || 'default', activePreviewVideo.id)}
+                  download={activePreviewVideo.output_filename}
+                  className="px-2.5 py-1 text-xs rounded-lg bg-surface-subtle border border-border hover:bg-surface-hover text-text-primary transition"
+                >
+                  Download MP4
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setActivePreviewVideo(null)}
+                  className="p-1 rounded-md text-text-muted hover:text-text-primary transition"
+                  title="Close Player"
+                  aria-label="Close Player"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+            <div className="flex justify-center bg-black rounded-xl p-2 max-h-[60vh] overflow-hidden">
+              <video
+                src={getExportVideoUrl(asset?.project_id || projectId || 'default', activePreviewVideo.id)}
+                controls
+                autoPlay
+                className="max-h-[58vh] object-contain rounded"
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

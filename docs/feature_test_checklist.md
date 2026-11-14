@@ -4,6 +4,35 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 11 — Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library
+- [x] Diagnosed recurring job failure on `job_8ffbeff442f1` (`Visionquest S01E08.mkv`): watchdog `check_stalled_jobs(timeout_seconds=60.0)` prematurely marked status as `failed` during heavy Whisper CPU transcription, while worker finished later and marked stage `completed` with `100%`.
+- [x] Diagnosed frontend alert error (`Failed to generate shorts: Request timed out after 15s`): `discoverHighlights` and `generateMoreHighlights` in `apiClient.ts` defaulted to 15,000ms AbortController timeout.
+- [x] Extended `apiClient.ts` timeout for highlight discovery and generate more to 180,000ms (3 minutes).
+- [x] Hardened backend `check_stalled_jobs`:
+  - Increased default stall timeout from 60s to 600s (10 minutes).
+  - Added OS process liveness check via `psutil.pid_exists(pid)`: active worker OS processes allowed up to 1800s (30 minutes) without premature abortion.
+  - Added guard preventing jobs with `current_stage == 'completed'` or `progress_pct >= 100.0` from ever being marked stalled.
+  - Added self-healing in `save_checkpoint` and `complete_job` to clear premature stalled errors if worker successfully completes.
+- [x] Implemented periodic heartbeat ticker in `VideoAnalysisPipeline`: pulses heartbeat updates every 8.0s during heavy CPU stages (Whisper transcription, FFmpeg scene detection, keyframe extraction).
+- [x] Simplified Video Edit Dashboard: removed redundant/duplicate inline Short Video Generator tab; streamlined navigation to 8 clean tabs (`Home`, `Generated Shorts`, `Generated Videos`, `Generated Scripts`, `Analyzed Frames`, `Voice & Transcript Analysis`, `Scene Analysis`, `Video Analysis Details`).
+- [x] Home tab enhanced with Technical Video Specifications table, Reusable Video Intelligence status card, and two clear primary CTAs: "Generate Videos" and "Generate Shorts" (both open the unified generator modal).
+- [x] Created `GenerateShortModal.tsx`:
+  - Quantity selector presets: 1, 3, 5, AI Auto, Custom (1-20).
+  - 7 creative directions: Best Overall, Action & High Energy, Dialogue & Conversational, Emotional Moments, Educational & Explainer, Dramatic Suspense, Humor & Entertainment.
+  - Aspect ratio selector: 9:16, 1:1, 16:9.
+  - Duration preference options: AI Best Duration, Short (15-30s), Medium (30-60s), Long (60-90s), Custom Range.
+  - Expandable Advanced Settings: Novelty Mode (Strict, Balanced, Relaxed) and Subject Tracking Mode (Saliency, Center, Multi-Subject, Speaker).
+- [x] Decoupled Generated Scripts and Generated Videos: deleting a rendered video only unlinks the MP4 export record; candidate scripts and source video remain safe and reusable. Failed renders display "Rendering Failed" with an immediate "Retry Render" option.
+- [x] Inline thumbnail playback implemented: clicking a video card thumbnail flips that card into an inline HTML5 player in-place without scrolling to top; single active inline player; fullscreen and expand modal preview supported.
+- [x] Scalable Generated Videos Library: live search input, aspect ratio filter pills (9:16, 1:1, 16:9), status filter pills (Completed, Rendering, Failed), multi-field sorting, and 12-item pagination controls with lazy loading.
+- [x] Automated test suites verified:
+  - Backend: 186/186 tests passed (100% pass rate) with new `test_job_lifecycle_stall_and_recovery.py`.
+  - Frontend: 120/120 tests passed (100% pass rate) across all 26 test files.
+  - TypeScript build: 0 errors (`npx tsc --noEmit`).
+  - Vite production build: succeeded cleanly (`npm run build`).
+
+---
+
 ## Session 9 — Critical Performance Diagnostics, Stuck Analysis Repair & Complete Short-Video Generation Validation
 - [x] Pre-implementation audit performed on real test video `D:\videos\Ek Mota Hathi Ghumne Chala.mp4` (70.0 MB, 302.40s duration, 1920x1080 @ 25fps).
 - [x] Root cause 1 diagnosed and fixed: Starlette background task event-loop blocking resolved by AnyIO worker thread offloading (`_run_analysis_worker`).
