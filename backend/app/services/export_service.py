@@ -378,10 +378,20 @@ class ExportService:
 
     def execute_render_job(self, job_id: str) -> Dict[str, Any]:
         """Execute the 15-stage export render synchronously, reporting progress to JobOrchestrator."""
+        with _PROCESS_LOCK:
+            if job_id in _ACTIVE_JOB_IDS:
+                logger.info("Job %s is already actively being rendered by another worker; skipping duplicate execution.", job_id)
+                return {"status": "already_running"}
+            _ACTIVE_JOB_IDS.add(job_id)
+
         job = self.jobs.get_job(job_id)
         if job.status == "completed":
+            with _PROCESS_LOCK:
+                _ACTIVE_JOB_IDS.discard(job_id)
             return {"status": "completed"}
         if job.status in ("failed", "cancelled"):
+            with _PROCESS_LOCK:
+                _ACTIVE_JOB_IDS.discard(job_id)
             return {"status": job.status}
 
         cfg = job.input_config
@@ -662,7 +672,7 @@ class ExportService:
             # Stage 14 & 15: Publish completed export and persist metadata
             self.jobs.transition_job_state(job_id, "running", progress_pct=98.0, stage="publishing_export")
 
-            final_dir = self.layout.exports / project_id
+            final_dir = (self.layout.exports / project_id).resolve()
             final_dir.mkdir(parents=True, exist_ok=True)
             final_output_path = final_dir / cfg["output_filename"]
 
@@ -671,15 +681,22 @@ class ExportService:
                 stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%H%M%S")
                 final_output_path = final_dir / f"{final_output_path.stem}_{stamp}.mp4"
 
-            # Safe move with transient file-lock retry on Windows
-            for attempt in range(5):
-                try:
-                    shutil.move(str(temp_rendered_mp4), str(final_output_path))
-                    break
-                except (PermissionError, FileNotFoundError):
-                    if attempt == 4:
-                        raise
-                    time.sleep(0.2)
+            final_output_path.parent.mkdir(parents=True, exist_ok=True)
+            if not temp_rendered_mp4.exists():
+                if final_output_path.exists():
+                    logger.info("Export file %s already published", final_output_path)
+                else:
+                    raise ProcessingError(f"Temporary render file not found: {temp_rendered_mp4}")
+            else:
+                # Safe move with transient file-lock retry on Windows
+                for attempt in range(5):
+                    try:
+                        shutil.move(str(temp_rendered_mp4), str(final_output_path))
+                        break
+                    except (PermissionError, FileNotFoundError):
+                        if attempt == 4:
+                            raise
+                        time.sleep(0.2)
             final_size = final_output_path.stat().st_size
 
             now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
@@ -771,6 +788,8 @@ class ExportService:
                     logger.warning("Could not transition job %s to failed: %s", job_id, j_exc)
                 raise
         finally:
+            with _PROCESS_LOCK:
+                _ACTIVE_JOB_IDS.discard(job_id)
             # Clean up scratch files
             if job_temp_dir.exists():
                 shutil.rmtree(job_temp_dir, ignore_errors=True)

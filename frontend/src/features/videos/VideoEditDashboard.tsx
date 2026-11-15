@@ -22,6 +22,7 @@ import {
   Search,
   Sliders,
   Sparkles,
+  Trash2,
   Volume2,
   VolumeX,
   X,
@@ -33,6 +34,7 @@ import { EmptyState, Skeleton } from '../../components/ui/States';
 import { GenerateShortModal, GenerateShortsModalConfig } from './GenerateShortModal';
 import {
   cancelJob,
+  deleteCandidate,
   deleteExport,
   discoverHighlights,
   fetchAnalysisCacheInfo,
@@ -396,6 +398,8 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   // Generate Shorts from the Unified GenerateShortModal
   const handleGenerateFromModal = async (config: GenerateShortsModalConfig) => {
     if (!asset) return;
+    // Dismiss modal immediately so user can navigate dashboard tabs while work runs in background
+    setIsGenerateModalOpen(false);
     setGeneratingShorts(true);
     setGenerationStage(
       isGenerateMoreModal ? 'Discovering Additional Unique Highlights...' : 'Discovering Highlights with AI...'
@@ -406,7 +410,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
       // If not yet analyzed, run analysis and await completion
       if (!isVideoAnalyzed) {
-        setGenerationStage('Analyzing Source Video...');
+        setGenerationStage('Analyzing Source Video (Step 1/3: Deep AI analysis)...');
         const initialRun = await startMediaAnalysis(effPid, asset.id, 'balanced', {}, false, false);
         currentRunId = initialRun.id;
         setAnalysisRuns((prev) => [initialRun, ...prev.filter((p) => p.id !== initialRun.id)]);
@@ -432,7 +436,9 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       }
 
       setGenerationStage(
-        isGenerateMoreModal ? 'Filtering Novelty & Generating More...' : 'Discovering Best Highlights...'
+        isGenerateMoreModal
+          ? 'Step 2/3: Filtering Novelty & Discovering More Unique Clips...'
+          : 'Step 2/3: Discovering Best Highlights & Synthesizing Scripts...'
       );
 
       const opts: DiscoverHighlightsOptions = {
@@ -447,14 +453,38 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         run_synchronously: true,
       };
 
+      let discovered: CandidateItem[] = [];
       if (isGenerateMoreModal) {
-        await generateMoreHighlights(effPid, asset.id, opts);
+        discovered = await generateMoreHighlights(effPid, asset.id, opts);
       } else {
-        await discoverHighlights(effPid, asset.id, opts);
+        discovered = await discoverHighlights(effPid, asset.id, opts);
       }
 
       await loadIntelligenceData();
-      setIsGenerateModalOpen(false);
+
+      // Step 3: Automatically Render Discovered Candidates into MP4 Short Videos
+      const newlyDiscovered = Array.isArray(discovered) && discovered.length > 0 ? discovered : [];
+      if (newlyDiscovered.length > 0) {
+        setGenerationStage(
+          `Step 3/3: Auto-rendering ${newlyDiscovered.length} Short Video${newlyDiscovered.length > 1 ? 's' : ''} in Background...`
+        );
+        try {
+          await submitBatchExport(effPid, {
+            candidate_ids: newlyDiscovered.map((c) => c.id),
+          });
+          await loadIntelligenceData();
+          setExportSuccessToast(
+            `Discovered ${newlyDiscovered.length} shorts! Rendering MP4 videos in background. Track progress in Generated Videos.`
+          );
+          setTimeout(() => setExportSuccessToast(null), 6000);
+        } catch (batchErr: any) {
+          console.warn('Batch render submission error:', batchErr);
+        }
+      } else {
+        setExportSuccessToast('Candidate discovery complete. Reusable scripts updated.');
+        setTimeout(() => setExportSuccessToast(null), 4000);
+      }
+
       setActiveTab('generated_shorts');
     } catch (err: any) {
       alert(`Failed to generate shorts: ${err.message || 'Unknown error'}`);
@@ -588,6 +618,22 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       await loadIntelligenceData();
     } catch (err: any) {
       alert(`Delete error: ${err.message || 'Failed to delete export'}`);
+    }
+  };
+
+  // Delete Candidate Script (preserves rendered export and novelty ledger)
+  const handleDeleteScript = async (candidateId: string) => {
+    if (!window.confirm('Delete this script recipe? Source video, rendered videos, and novelty protection will remain preserved.')) {
+      return;
+    }
+    const effPid = asset?.project_id || projectId || 'default';
+    try {
+      await deleteCandidate(effPid, candidateId);
+      setExportSuccessToast('Script recipe deleted.');
+      setTimeout(() => setExportSuccessToast(null), 4000);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      alert(`Delete error: ${err.message || 'Failed to delete script'}`);
     }
   };
 
@@ -1333,16 +1379,38 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                         >
                           Edit Clip
                         </Button>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="flex-1 text-xs"
-                          isLoading={isExporting}
-                          onClick={() => handleExportCandidate(cand)}
-                          leftIcon={<Download className="w-3.5 h-3.5" />}
-                        >
-                          {isRendered ? 'Re-render MP4' : 'Render MP4'}
-                        </Button>
+                        {isRendered && matchedExport ? (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="flex-1 text-xs"
+                            onClick={() => {
+                              setActiveTab('rendered_videos');
+                              setInlinePlayingVideoId(matchedExport.id);
+                            }}
+                            leftIcon={<Play className="w-3.5 h-3.5 fill-current text-white" />}
+                          >
+                            Watch Video
+                          </Button>
+                        ) : (
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            className="flex-1 text-xs"
+                            isLoading={isExporting || isRendering}
+                            disabled={isRendering}
+                            onClick={() => handleExportCandidate(cand)}
+                            leftIcon={
+                              isRendering ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Download className="w-3.5 h-3.5" />
+                              )
+                            }
+                          >
+                            {isRendering ? 'Rendering...' : 'Render MP4'}
+                          </Button>
+                        )}
                       </div>
                     </Card>
                   );
@@ -1856,6 +1924,19 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2">
+                            {scr.candidateId && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleDeleteScript(scr.candidateId!)}
+                                leftIcon={<Trash2 className="w-3.5 h-3.5 text-rose-400" />}
+                                className="text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-500/10"
+                                title="Delete Script Recipe (Keeps video and novelty safe)"
+                              >
+                                Delete
+                              </Button>
+                            )}
+
                             {scr.candidateId && (
                               <Button
                                 variant="secondary"

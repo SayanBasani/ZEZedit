@@ -4,6 +4,34 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 20 — Multimodal Video Intelligence, Automatic Short Generation & Permanent Novelty Management
+- [x] Immediate Modal Dismissal & Non-Blocking Progress:
+  - Fixed modal hanging on submit; dismisses instantly (`onClose()`) allowing unblocked navigation.
+  - Multi-step non-blocking progress banner displays active stage and progress percentage.
+- [x] Automatic Export Rendering Pipeline:
+  - Candidate discovery automatically enqueues batch export render jobs when `auto_render=True`.
+  - Rendered MP4 videos appear automatically in `Generated Videos`.
+- [x] Decoupled Video & Script Lifecycle:
+  - Deleting an MP4 export removes the physical file and DB record while strictly preserving the source video, candidate, script, and novelty ledger.
+  - Re-rendering from `Generated Scripts` successfully recreates the deleted video.
+  - Deleting a script removes the candidate from `shorts_candidates` while preserving rendered MP4 and novelty ledger history.
+- [x] User-Friendly Content-Derived Download Filenames:
+  - Download endpoint emits `Content-Disposition: attachment; filename="<SanitizedTitle>.mp4"`.
+- [x] Quality Gates & Authoritative Regression:
+  - Backend acceptance tests (`backend/tests/test_session20_multimodal_workflow.py`): **4 passed, 0 failed** in 54.85s.
+  - Export and pipeline regression tests: **17 passed, 0 failed** in 46.97s.
+  - Frontend Vitest suite: **26 test files passed, 120 tests passed** in 21.37s.
+  - TypeScript compiler: **0 errors** (`npx tsc --noEmit`).
+  - Production build: Clean build in 7.11s (`npm run build`).
+- [x] Interactive E2E Browser Acceptance Verification:
+  - Subagent `a80d6c72-6482-416a-846a-e2482ffa22a1` verified live application on `http://127.0.0.1:5173`.
+  - Verified immediate modal close, auto-rendering, tabs populated, video deletion, script re-rendering, and script deletion.
+  - Captured 8 evidence screenshots under `docs/reports/session_20/evidence/`.
+
+---
+
+---
+
 ## Session 19 — Final Product Acceptance Audit & Remaining Work Inventory
 - [x] Full-System Evidence-Based Product Audit:
   - Audited all 8 workflow areas: Media Library, Video Analysis, Candidate Discovery, Video Editing & Rendering, Generated Videos, Queue & Process Manager, Reliability & Storage, UI & Usability.

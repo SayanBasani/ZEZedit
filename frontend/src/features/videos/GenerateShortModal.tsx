@@ -153,7 +153,7 @@ export const GenerateShortModal: React.FC<GenerateShortModalProps> = ({
     e.preventDefault();
     if (isGenerating) return;
 
-    await onGenerate({
+    const cfg: GenerateShortsModalConfig = {
       targetClipCount: effectiveCount,
       creativeDirection,
       aspectRatio,
@@ -162,7 +162,10 @@ export const GenerateShortModal: React.FC<GenerateShortModalProps> = ({
       maxDurationSec: durationPref === 'custom' ? maxDurationSec : undefined,
       noveltyMode,
       trackingMode,
-    });
+    };
+    // Close modal immediately so user is never blocked and can navigate tabs freely
+    onClose();
+    void onGenerate(cfg);
   };
 
   return (
@@ -188,8 +191,7 @@ export const GenerateShortModal: React.FC<GenerateShortModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            disabled={isGenerating}
-            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition disabled:opacity-50"
+            className="p-1.5 rounded-lg text-text-muted hover:text-text-primary hover:bg-surface-hover transition"
             title="Close"
           >
             <X className="w-4 h-4" />
@@ -502,7 +504,6 @@ export const GenerateShortModal: React.FC<GenerateShortModalProps> = ({
               variant="outline"
               size="sm"
               onClick={onClose}
-              disabled={isGenerating}
               className="text-xs"
             >
               Cancel

@@ -3,6 +3,7 @@
 import logging
 import os
 from pathlib import Path
+import re
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
@@ -354,7 +355,12 @@ def download_export_video(
     if not video_path.exists():
         raise HTTPException(status_code=404, detail=f"Export video file missing from disk: {video_path.name}")
 
-    filename = exp.output_filename or video_path.name
+    title_source = exp.title or video_path.stem
+    clean_title = re.sub(r'[^\w\s-]', '', title_source).strip()
+    clean_title = re.sub(r'[-\s]+', '-', clean_title)
+    if not clean_title:
+        clean_title = f"Short_{export_id[-6:]}"
+    filename = f"{clean_title}.mp4"
     return FileResponse(
         path=str(video_path),
         media_type="video/mp4",

@@ -55,6 +55,8 @@ class DiscoverHighlightsRequest(BaseModel):
     run_synchronously: bool = Field(default=True)
     selected_scene_ids: Optional[List[str]] = None
     excluded_scene_ids: Optional[List[str]] = None
+    auto_render: bool = Field(default=True)
+    tracking_mode: Optional[str] = Field(default="saliency")
 
 
 class UpdateCandidateRequest(BaseModel):
@@ -205,6 +207,8 @@ def _run_discovery_background(
     job_id: str,
     payload: DiscoverHighlightsRequest,
     job_orchestrator: JobOrchestrator,
+    db_path: Optional[Path] = None,
+    settings: Optional[Any] = None,
 ):
     try:
         engine.discover_highlights(
@@ -224,6 +228,37 @@ def _run_discovery_background(
             selected_scene_ids=payload.selected_scene_ids,
             excluded_scene_ids=payload.excluded_scene_ids,
         )
+        if getattr(payload, "auto_render", True) and db_path:
+            try:
+                from app.services.export_service import ExportService
+                from app.models.export import RenderExportRequest
+                exp_svc = ExportService(settings=settings, db_path=db_path)
+                preset_map = {
+                    "9:16": "shorts_reels_9_16",
+                    "1:1": "square_1_1",
+                    "16:9": "landscape_16_9",
+                    "4:5": "portrait_4_5",
+                }
+                target_preset = preset_map.get(payload.aspect_ratio, "shorts_reels_9_16")
+                with sqlite_session(db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    c_rows = conn.execute(
+                        "SELECT id FROM shorts_candidates WHERE project_id = ? AND media_asset_id = ? AND job_id = ?",
+                        (project_id, media_asset_id, job_id),
+                    ).fetchall()
+                    for cr in c_rows:
+                        try:
+                            exp_svc.submit_export_job(
+                                project_id=project_id,
+                                request=RenderExportRequest(
+                                    candidate_id=cr["id"],
+                                    preset_id=target_preset,
+                                ),
+                            )
+                        except Exception as sub_err:
+                            logger.warning("Could not auto-enqueue export render for %s: %s", cr["id"], sub_err)
+            except Exception as auto_err:
+                logger.warning("Auto-render background pipeline submission encountered error: %s", auto_err)
         job_orchestrator.complete_job(job_id=job_id, result_summary={"status": "completed"})
     except Exception as exc:
         logger.exception("Candidate discovery background task failed: %s", exc)
@@ -330,6 +365,33 @@ def start_highlight_discovery(
                     (project_id, media_asset_id, gen_run_id),
                 ).fetchall()
                 candidates_list = [_row_to_candidate_dict(r) for r in rows]
+                if payload.auto_render and candidates_list:
+                    try:
+                        from app.services.export_service import ExportService
+                        from app.models.export import RenderExportRequest
+                        exp_svc = ExportService(settings=settings, db_path=db_path)
+                        preset_map = {
+                            "9:16": "shorts_reels_9_16",
+                            "1:1": "square_1_1",
+                            "16:9": "landscape_16_9",
+                            "4:5": "portrait_4_5",
+                        }
+                        target_preset = preset_map.get(payload.aspect_ratio, "shorts_reels_9_16")
+                        for c_item in candidates_list:
+                            cid = c_item.get("id")
+                            if cid:
+                                try:
+                                    exp_svc.submit_export_job(
+                                        project_id=project_id,
+                                        request=RenderExportRequest(
+                                            candidate_id=cid,
+                                            preset_id=target_preset,
+                                        ),
+                                    )
+                                except Exception as sub_err:
+                                    logger.warning("Could not auto-enqueue export render for %s: %s", cid, sub_err)
+                    except Exception as auto_err:
+                        logger.warning("Auto-render pipeline submission encountered error: %s", auto_err)
                 job_orchestrator.complete_job(job.id, result_summary={"status": "completed", "count": len(candidates_list)})
                 return candidates_list
         except Exception as exc:
@@ -638,6 +700,31 @@ def update_candidate(
             (candidate_id,),
         ).fetchone()
         return _row_to_candidate_dict(updated_row)
+
+
+@router.delete("/highlights/{candidate_id}", status_code=status.HTTP_200_OK)
+def delete_candidate(
+    project_id: str,
+    candidate_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Delete a shorts candidate / script recipe record.
+    
+    Preserves source media, rendered exports, and novelty ledger history.
+    """
+    with sqlite_session(db_path) as conn:
+        cand = conn.execute(
+            "SELECT id FROM shorts_candidates WHERE id = ? AND project_id = ?",
+            (candidate_id, project_id),
+        ).fetchone()
+        if not cand:
+            raise HTTPException(status_code=404, detail="Shorts candidate script not found.")
+
+        conn.execute(
+            "DELETE FROM shorts_candidates WHERE id = ? AND project_id = ?",
+            (candidate_id, project_id),
+        )
+        return {"status": "deleted", "candidate_id": candidate_id}
 
 
 @router.post("/highlights/{candidate_id}/approve", response_model=CandidateResponse)

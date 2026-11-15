@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-15  
-**Active Milestone:** Session 19 Completed — Final Product Acceptance Audit & Remaining Work Inventory (250 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate, 100% Active Scope Parity Verified)
+**Active Milestone:** Session 20 Completed — Multimodal Video Intelligence, Automatic Short Generation & Permanent Novelty Management (254 Backend Tests, 120 Frontend Tests, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,22 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Multimodal Video Intelligence, Automatic Short Generation & Permanent Novelty Management (Session 20)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S20-01 | Immediate Modal Dismissal & Non-Blocking Progress | Studio UI | Implemented | `frontend/src/features/videos/GenerateShortModal.tsx` | Fixed modal hanging on submit; dismisses instantly and shows non-blocking header progress banner |
+| S20-02 | Automatic Export Rendering Pipeline | Highlights API & Export Service | Implemented | `backend/app/api/v1/highlights.py` | Automatically enqueues batch 9:16 export render jobs on candidate discovery, populating `Generated Videos` |
+| S20-03 | Decoupled Script & Video Lifecycle | Highlights & Export APIs | Implemented | `backend/app/api/v1/` | Deleting an MP4 removes video while strictly preserving script and novelty history; re-renders from script anytime |
+| S20-04 | Independent Script Deletion | Highlights API | Implemented | `backend/app/api/v1/highlights.py` | Added `DELETE /highlights/{candidate_id}`; deletes script while preserving rendered MP4 and novelty history |
+| S20-05 | Content-Derived Download Filenames | Exports API | Implemented | `backend/app/api/v1/exports.py` | Generates sanitized filename from content title (e.g. `Elephant-Dance.mp4`) in `Content-Disposition` |
+| S20-06 | Concurrent Export Worker Lock Guard | Export Service | Implemented | `backend/app/services/export_service.py` | Added `_ACTIVE_JOB_IDS` in-memory lock preventing concurrent execution race condition between queue poller and background tasks |
+| S20-07 | Session 20 Acceptance Test Suite | Test Suite | Implemented | `backend/tests/test_session20_multimodal_workflow.py` | 4/4 tests passed covering auto-render, deletion preservation, re-render, and filename sanitization |
+
+---
 
 ---
 

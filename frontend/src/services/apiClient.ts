@@ -849,6 +849,16 @@ export function restoreCandidate(projectId: string, candidateId: string): Promis
   });
 }
 
+export function deleteCandidate(
+  projectId: string,
+  candidateId: string
+): Promise<{ status: string; candidate_id: string }> {
+  return request<{ status: string; candidate_id: string }>(
+    `/projects/${projectId}/highlights/${candidateId}`,
+    { method: 'DELETE' }
+  );
+}
+
 export function queueCandidateRender(
   projectId: string,
   candidateId: string,
