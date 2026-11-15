@@ -31,10 +31,11 @@ def sample_analysis_frames(
     max_dimension: int = 640,
     interval_seconds: float = 10.0,
     max_frames: int = 60,
+    focus_timestamps: Optional[List[float]] = None,
 ) -> List[SampledFrame]:
     """Sample key visual frames across video scenes, downscaled for fast inference.
     
-    Extracts frames at scene midpoints plus regular intervals for extended scenes.
+    Supports coarse-to-fine sampling: scene midpoints, interior intervals, and fine context frames around focus moments.
     """
     settings = get_settings()
     ffmpeg_bin = settings.ffmpeg_path or "ffmpeg"
@@ -47,6 +48,7 @@ def sample_analysis_frames(
     # Determine target sample timestamps
     timestamps_with_scene: List[tuple[float, Optional[int]]] = []
 
+    # 1. Coarse layer: Scene representative midpoints & extended intervals
     for scene in scenes:
         # Scene midpoint is primary representative frame
         timestamps_with_scene.append((scene.representative_timestamp, scene.scene_index))
@@ -59,6 +61,23 @@ def sample_analysis_frames(
             while t < (scene.end_time - 1.0):
                 timestamps_with_scene.append((round(t, 2), scene.scene_index))
                 t += step
+
+    # 2. Fine layer: Context frames around promising / focus timestamps
+    if focus_timestamps:
+        for ft in focus_timestamps:
+            if 0.0 <= ft <= duration_seconds:
+                # Find matching scene
+                sc_idx = None
+                for sc in scenes:
+                    if sc.start_time <= ft <= sc.end_time:
+                        sc_idx = sc.scene_index
+                        break
+                timestamps_with_scene.append((round(ft, 2), sc_idx))
+                # Add context frames before and after
+                if ft - 1.2 >= 0.0:
+                    timestamps_with_scene.append((round(ft - 1.2, 2), sc_idx))
+                if ft + 1.2 <= duration_seconds:
+                    timestamps_with_scene.append((round(ft + 1.2, 2), sc_idx))
 
     # Sort and deduplicate timestamps that are closer than 1.5s
     timestamps_with_scene.sort(key=lambda x: x[0])

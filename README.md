@@ -327,6 +327,8 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 - [Session 6B Completion Report: Central Process Manager & Storage Reclamation](docs/reports/session_6b/SESSION_6B_COMPLETION_REPORT.md)
 - [Central Process Manager Architecture Design](docs/architecture/PROCESS_MANAGER_DESIGN.md)
 - [Session 16 Product Acceptance, Short-Form Quality & Workflow Completion Report](docs/reports/session_16/SESSION_16_PRODUCT_ACCEPTANCE_REPORT.md)
+- [Session 23 Real-Media AI Quality Validation & Professional Video Acceptance Report](docs/reports/session_23/SESSION_23_PROFESSIONAL_QUALITY_ACCEPTANCE.md)
+- [Session 22 End-to-End Generation Repair & Real Video Export Acceptance Report](docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md)
 - [Session 15 Long-Video Endurance, Job Recovery & Production Workflow Report](docs/reports/session_15/SESSION_15_ENDURANCE_REPORT.md)
 - [User Data Storage Inventory & Retention Specification](docs/architecture/USER_DATA_STORAGE_INVENTORY.md)
 - [Session 6A Completion Report: Reusable Intelligence & Non-Repeating Generate More](docs/reports/session_6a/SESSION_6A_COMPLETION_REPORT.md)

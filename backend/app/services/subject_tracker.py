@@ -72,6 +72,7 @@ class SubjectTracker:
         temp_dir: Path,
     ) -> List[Tuple[float, Path]]:
         """Extract frame samples at sample_fps using a single fast batched FFmpeg pass."""
+        temp_dir.mkdir(parents=True, exist_ok=True)
         samples: List[Tuple[float, Path]] = []
         duration = max(0.5, end_time - start_time)
         step = 1.0 / self.sample_fps

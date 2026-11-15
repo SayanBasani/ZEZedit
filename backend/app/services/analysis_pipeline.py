@@ -708,6 +708,7 @@ class VideoAnalysisPipeline:
             if media_type == "video" and duration > 0.5:
                 max_frames = 20 if profile == "fast" else (50 if profile == "balanced" else 100)
                 sample_timeout = max(300.0, float(duration) * 0.5)
+                promising_focus = [t.start_time for t in turns[:12]] if turns else None
                 async with _heartbeat_ticker(
                     effective_job_id, "sampling_frames", self.job_orchestrator, max_stage_seconds=sample_timeout
                 ):
@@ -718,6 +719,7 @@ class VideoAnalysisPipeline:
                         scenes,
                         duration_seconds=duration,
                         max_frames=max_frames,
+                        focus_timestamps=promising_focus,
                     )
             sample_time = round(time.monotonic() - t_sample_start, 2)
             logger.info("Sampled %d frames for %s in %.2fs", len(sampled_frames), media_path.name, sample_time)
@@ -797,28 +799,63 @@ class VideoAnalysisPipeline:
                         )
                     )
 
-            # Compute timeline coverage metrics
+            # Compute honest multi-tier coverage metrics
+            total_duration = round(duration, 2)
+            scene_duration = round(min(duration, sum(s.end_time - s.start_time for s in scenes)), 2) if scenes else 0.0
+            scene_cov_pct = round(min(100.0, (scene_duration / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
+
+            fps = 25.0
+            total_decoded_frames = int(duration * fps) if duration > 0 else len(sampled_frames)
+
+            sampled_frames_count = len(sampled_frames)
+            vision_model_frames_count = len(target_frames)
+            cv_frames_count = max(0, len(sampled_frames) - len(target_frames))
+
+            inspected_scene_indices = {f.scene_index for f in target_frames if f.scene_index is not None}
+            semantically_inspected_scenes = len(inspected_scene_indices)
+            total_scenes_count = len(scenes)
+
             if scenes:
-                vis_span = min(duration, sum(s.end_time - s.start_time for s in scenes))
-                vis_cov_pct = round(min(100.0, (vis_span / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
-            elif sampled_frames:
-                vis_first = sampled_frames[0].timestamp
-                vis_last = sampled_frames[-1].timestamp
-                frame_margin = (duration / max(1, len(sampled_frames)))
-                vis_span = min(duration, max(0.0, (vis_last - vis_first) + frame_margin))
-                vis_cov_pct = round(min(100.0, (vis_span / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
+                semantic_visual_span = round(sum(s.end_time - s.start_time for s in scenes if s.scene_index in inspected_scene_indices), 2)
             else:
-                vis_span = 0.0
-                vis_cov_pct = 0.0
+                semantic_visual_span = round(min(duration, vision_model_frames_count * 10.0), 2)
+            semantic_cov_pct = round(min(100.0, (semantic_visual_span / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
+
+            sampling_density_fpm = round((sampled_frames_count / max(duration / 60.0, 0.01)), 2)
+            unprocessed_intervals = [
+                {"start": round(s.start_time, 2), "end": round(s.end_time, 2), "reason": "semantic_model_skipped"}
+                for s in scenes if s.scene_index not in inspected_scene_indices
+            ]
+
             aud_cov_pct = 100.0 if audio_meta.has_audio else 0.0
 
             coverage_metrics = {
-                "visual_coverage_pct": vis_cov_pct,
-                "visual_span_seconds": round(vis_span, 2),
+                "visual_coverage_pct": scene_cov_pct if scenes else semantic_cov_pct,
+                "visual_span_seconds": scene_duration if scenes else semantic_visual_span,
                 "audio_coverage_pct": aud_cov_pct,
                 "audio_duration_seconds": round(audio_meta.duration_seconds, 2),
-                "is_complete_timeline": bool(vis_cov_pct >= 85.0 and (aud_cov_pct >= 85.0 or not audio_meta.has_audio)),
-                "uncovered_intervals": [] if vis_cov_pct >= 85.0 else [{"start": round(vis_span, 1), "end": round(duration, 1), "reason": "tail_boundary"}],
+                "is_complete_timeline": bool((scene_cov_pct if scenes else semantic_cov_pct) >= 80.0 and (aud_cov_pct >= 80.0 or not audio_meta.has_audio)),
+                "uncovered_intervals": [] if scene_cov_pct >= 85.0 else [{"start": round(scene_duration, 1), "end": round(duration, 1), "reason": "tail_boundary"}],
+                "total_source_duration_seconds": total_duration,
+                "scene_detection_coverage_pct": scene_cov_pct,
+                "scene_detection_duration_seconds": scene_duration,
+                "total_decoded_frames_approx": total_decoded_frames,
+                "sampled_frames_count": sampled_frames_count,
+                "vision_model_analyzed_frames_count": vision_model_frames_count,
+                "local_cv_analyzed_frames_count": cv_frames_count,
+                "semantically_inspected_scenes_count": semantically_inspected_scenes,
+                "total_scenes_count": total_scenes_count,
+                "semantic_visual_span_seconds": semantic_visual_span,
+                "semantic_coverage_pct": semantic_cov_pct,
+                "sampling_density_frames_per_minute": sampling_density_fpm,
+                "semantic_unprocessed_intervals": unprocessed_intervals,
+                "semantic_unprocessed_intervals_count": len(unprocessed_intervals),
+                "analysis_limitations": [
+                    f"Full timeline scanned by scene detection ({scene_cov_pct}% duration covered across {total_scenes_count} scenes).",
+                    f"Deep semantic vision model (Ollama / Qwen3-VL) inspected {vision_model_frames_count} sampled keyframes ({semantic_cov_pct}% semantic duration coverage).",
+                    f"Remaining {cv_frames_count} keyframes analyzed using local CPU computer vision (face/motion differencing).",
+                    "Semantic sound-event classification is not installed (speech density & FFmpeg silence detection used).",
+                ],
             }
             models_info = {
                 "transcription": "faster-whisper-tiny-int8 (CPU)",

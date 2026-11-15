@@ -4,6 +4,33 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 23 — Real-Media AI Quality Validation & Professional Video Acceptance
+- [x] Honest Multi-Tier Visual Analysis Coverage Model:
+  - Transparently differentiates between total duration, contiguous scene detection coverage, total decoded frames, sampled frames count, frames analyzed by deep vision LLM (Ollama Qwen3-VL), frames processed by local CV (Haar/MIL), semantically inspected scenes count, and semantic visual span.
+  - Transparently calculates sampling density (frames/min) and documents semantic unprocessed intervals.
+  - Implemented coarse-to-fine sampling prioritizing interior scene midpoints and fine dialogue/motion focus frames.
+- [x] Full-Duration Audio Intelligence & Truthful Handling:
+  - Validated Faster-Whisper int8 transcription, language detection probability, word timestamps, and silence detection.
+  - Truthfully handles unsupported audio classifiers (Sound Event Recognition reported as `Not Installed` rather than mocked).
+- [x] Moving Subject Tracking & 9:16 Portrait Crop Quality:
+  - Verified across 6 controlled movement scenarios: left-to-right, right-to-left, two crossing people, temporary pillar occlusion, scene cut, and leave & re-enter.
+  - Verified subject visibility $\ge 85\%$ in rendered 9:16 portrait video crops.
+- [x] Multimodal Timeline Consistency & Permanent Novelty:
+  - Verified causal temporal context linking Timestamp -> Scene -> Visual Observation -> Face/Person -> Speech Turn.
+  - Verified novelty ledger rejects exact and nested intervals across multiple generation batches.
+- [x] Real-Media Qualitative Acceptance (10 Criteria Evaluation):
+  - Evaluated real 9:16 vertical exports rendered on disk across 3 media: `Ek Mota Hathi Ghumne Chala.mp4`, `BLACK TORCH S01E02.mkv`, and `Visionquest S01E08.mkv`.
+  - All 10 qualitative criteria evaluated and documented in `docs/reports/session_23/SESSION_23_PROFESSIONAL_QUALITY_ACCEPTANCE.md`.
+- [x] Full Regression Suite Pass:
+  - Backend full pytest suite: **268 passed, 0 failures** in 714.38s.
+  - Session 23 test suite (`backend/tests/test_session23_real_media_ai_quality.py`): **6/6 passed** in 40.83s.
+  - Frontend Vitest suite: **26 test files passed, 120 passed** in 21.20s.
+  - TypeScript compiler (`npx tsc --noEmit`): **0 errors**.
+  - Production build (`npm run build`): **Clean build** in 6.62s.
+- [x] Final Acceptance Verdict: `BETA READY WITH DOCUMENTED LIMITATIONS`.
+
+---
+
 ## Session 22 — End-to-End Generation Repair, Multimodal Acceptance & Real Video Export Verification
 - [x] Automatic End-to-End Generation & Render Guarantee:
   - Generate Shorts automatically discovers candidates, persists reusable scripts, and renders physical MP4 files.
