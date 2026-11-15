@@ -108,6 +108,21 @@ class FramingEngine:
                             target_y = max(0.0, closest.box_y - (self.headroom_factor * source_h)) + (closest.box_h / 2.0)
                             return target_x, target_y, "single_subject", 1, warnings
 
+        # Fixed center crop preference
+        if preferred_strategy in ("center", "centered"):
+            return (source_w / 2.0, source_h / 2.0, "center", 0, warnings)
+
+        # Speaker focused framing (heuristic fallback with warning)
+        if preferred_strategy in ("speaker", "speaker_focused"):
+            if not active_dets:
+                warnings.append("Speaker tracking experimental: no visual subjects detected, using center fallback.")
+                return (source_w / 2.0, source_h / 2.0, "speaker_fallback", 0, warnings)
+            warnings.append("Speaker tracking experimental: tracking prominent detected subject as active speaker estimate.")
+            d = max(active_dets, key=lambda x: (x.confidence, x.box_w * x.box_h))
+            target_x = d.center_x
+            target_y = max(0.0, d.box_y - (self.headroom_factor * source_h * 0.5)) + (d.box_h / 2.0)
+            return target_x, target_y, "speaker_focused", 1, warnings
+
         subject_count = len(active_dets)
 
         # Fallback if no subjects detected

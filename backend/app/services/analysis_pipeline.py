@@ -583,6 +583,8 @@ class VideoAnalysisPipeline:
                     "transcribing_speech",
                     self.job_orchestrator,
                     last_progress_check=lambda: last_cb_time[0],
+                    max_inactive_seconds=180.0,
+                    max_stage_seconds=1800.0,
                 ):
                     transcription = await asyncio.to_thread(
                         self.transcriber.transcribe,
@@ -648,7 +650,9 @@ class VideoAnalysisPipeline:
             t_scene_start = time.monotonic()
             scenes: List[DetectedScene] = []
             if media_type == "video" and duration > 0.5:
-                async with _heartbeat_ticker(effective_job_id, "detecting_scenes", self.job_orchestrator):
+                async with _heartbeat_ticker(
+                    effective_job_id, "detecting_scenes", self.job_orchestrator, max_stage_seconds=180.0
+                ):
                     scenes = await asyncio.to_thread(
                         detect_scenes_ffmpeg,
                         media_path,
@@ -684,7 +688,9 @@ class VideoAnalysisPipeline:
             sampled_frames: List[SampledFrame] = []
             if media_type == "video" and duration > 0.5:
                 max_frames = 20 if profile == "fast" else (50 if profile == "balanced" else 100)
-                async with _heartbeat_ticker(effective_job_id, "sampling_frames", self.job_orchestrator):
+                async with _heartbeat_ticker(
+                    effective_job_id, "sampling_frames", self.job_orchestrator, max_stage_seconds=120.0
+                ):
                     sampled_frames = await asyncio.to_thread(
                         sample_analysis_frames,
                         media_path,

@@ -262,15 +262,21 @@ All features MUST comply with these baseline constraints:
   - Verified Central Process Manager lifecycle tracking for upload, analysis, discovery, and rendering.
   - Full regression pass: 181/181 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript compilation errors, production build verified.
   - Graphify updated: 3,266 nodes, 8,940 edges, 175 communities.
-- **Session 11 (Completed):** Recurring Job Failure Repair, Video Dashboard Simplification & Inline Video Library:
-  - Diagnosed and permanently fixed recurring job failure (`job_8ffbeff442f1`): watchdog `check_stalled_jobs(timeout_seconds=60.0)` prematurely aborted long jobs (Whisper CPU transcription on 69-min video) before worker thread finished and saved checkpoint at 100%. Increased default timeout to 600s, added OS process liveness check via `psutil.pid_exists(pid)` allowing up to 1800s, prevented completed/100% jobs from ever being marked stalled, and added self-healing on checkpoint saves.
-  - Fixed frontend 15s timeout: extended `discoverHighlights` and `generateMoreHighlights` in `apiClient.ts` to 180,000ms.
-  - Added periodic heartbeat ticker in `VideoAnalysisPipeline` pulsing every 8.0s during heavy CPU stages (Whisper transcription, scene detection, keyframe extraction).
-  - Simplified Video Edit Dashboard: removed redundant duplicate inline Short Video Generator tab; streamlined navigation to 8 clean tabs (`Home`, `Generated Shorts`, `Generated Videos`, `Generated Scripts`, `Analyzed Frames`, `Voice & Transcript Analysis`, `Scene Analysis`, `Video Analysis Details`).
-  - Home tab upgraded with Technical Video Specifications, Reusable Video Intelligence status card, and two clear primary CTAs: "Generate Videos" and "Generate Shorts" (both trigger the unified generator modal).
-  - Built unified `GenerateShortModal.tsx` with explicit quantity selection (1, 3, 5, AI Auto, Custom), 7 creative directions, 3 aspect ratios (9:16, 1:1, 16:9), duration preferences, and expandable Advanced Settings (Novelty Mode: Strict/Balanced/Relaxed; Tracking Mode: Saliency/Center/Multi-Subject/Speaker).
-  - Decoupled Generated Scripts from Generated Videos: deleting a rendered video preserves the script and source video; failed renders display "Rendering Failed" with an immediate "Retry Render" option.
-  - Implemented inline thumbnail playback in Generated Videos library: clicking card thumbnail flips into an inline HTML5 player without scrolling to top; single active inline player; fullscreen and expand modal preview supported.
-  - Scalable Generated Videos library: client-side search, aspect ratio filter pills, status filter pills, multi-criteria sorting, and 12-item pagination with lazy loading.
-  - Full automated verification: 186/186 backend pytests passed (100%), 120/120 frontend vitests passed (100%), 0 TypeScript errors (`npx tsc --noEmit`), Vite production build verified.
+- **Session 12 (Completed):** Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair:
+  - Hardened process liveness detection in `JobOrchestrator`: strictly checks `is_dedicated_child_proc = (pid and pid != os.getpid() and psutil.pid_exists(pid))` so in-process worker threads sharing Uvicorn's PID are never falsely granted child-process exemption.
+  - Implemented 16-case job lifecycle stress suite in `test_session12_job_lifecycle_stress.py` covering normal completion, slow stages, thread crashes, deadlocks, restart recovery, cancellation, and race conditions (16/16 passed).
+  - Scalable server-side exports API (`GET /projects/{id}/exports` with pagination, search, status, and aspect filters). Verified sub-15ms response on 1,000 export records.
+  - Browser verification on `Visionquest S01E08.mkv`: verified modal, inline playback, and decoupled script preservation.
+- **Session 13 (Completed):** Video Understanding, Shortlist Quality Audit & Dialogue Grounding:
+  - Replaced turn ID placeholders (`speaker_turn_01`) in generated scripts with Whisper speech transcripts.
+  - Multi-subject framing heuristic audit and speaker tracking fallback evaluation.
+- **Session 14 (Completed):** Reliability, Rendering & Quality Acceptance:
+  - Strictly enforced job lifecycle state invariants: terminal states (`failed`, `cancelled`, `completed`) are strictly immutable in `JobOrchestrator`.
+  - Removed obsolete "stalled heal" backdoor (`is_stalled_heal`), ensuring failed jobs never transition to completed merely upon reaching 100% progress.
+  - Heartbeat ticker inactivity bounds (`max_inactive_seconds=180.0`, `max_stage_seconds=1800.0`) actively prevent deadlock and premature stall abortion during Whisper transcription, scene detection, and frame sampling.
+  - Creative Direction Differentiation: integrated humor vocabulary scoring, witty banter velocity detection, multi-speaker Q&A detection, and educational cues, achieving up to 100% candidate differentiation across all 7 styles on `Visionquest S01E08.mkv` (5,193 candidate intervals).
+  - Full 7-Scenario Rendering Matrix: verified 9:16 portrait static crop, 9:16 moving pan, 9:16 subject-tracking, 9:16 with ASS captions + loudnorm audio transcode, 1:1 square crop, 16:9 landscape letterbox/scale, and 3-audio stream MKV transcode (`BLACK TORCH S01E02.mkv`). 100% clean bitstream decode (`-f null -`) with 0 errors across all outputs.
+  - Frontend timeout verified: 180s API timeout in `apiClient.ts` eliminates the 15s browser abort alert; interactive live UI verification confirmed on `http://localhost:5173/videos/med_290ccbe1f97d`.
+  - Script & Video persistence isolation verified: deleting an export safely removes the rendered MP4 file while strictly preserving the candidate script and source media asset.
+
 

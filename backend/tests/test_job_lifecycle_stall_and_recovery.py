@@ -119,8 +119,8 @@ def test_dead_os_pid_marked_stalled_after_grace(tmp_path: Path):
     assert "Job stalled" in (updated_rec.error_message or "")
 
 
-def test_checkpoint_heals_premature_stalled_status(tmp_path: Path):
-    """If a job was falsely marked stalled, reaching completed stage via save_checkpoint heals the status."""
+def test_checkpoint_never_heals_failed_status(tmp_path: Path):
+    """A failed job must never be healed by late save_checkpoint calls (Session 14 invariant)."""
     settings, orchestrator = _setup_test_orchestrator(tmp_path)
     job = orchestrator.create_job("media_analysis", "default", input_config={})
     orchestrator.start_job(job.id, stage="transcribing_speech")
@@ -145,14 +145,14 @@ def test_checkpoint_heals_premature_stalled_status(tmp_path: Path):
         intermediate_artifacts={"output": "ready.mp4"},
     )
 
-    healed = orchestrator.get_job(job.id)
-    assert healed.status == "completed"
-    assert healed.error_message is None
-    assert healed.progress_pct == 100.0
+    rec = orchestrator.get_job(job.id)
+    assert rec.status == "failed"
+    assert "Job stalled" in (rec.error_message or "")
 
 
-def test_complete_job_heals_premature_stalled_status(tmp_path: Path):
-    """Calling complete_job on a job previously marked stalled heals status cleanly."""
+def test_complete_job_rejects_failed_status(tmp_path: Path):
+    """Calling complete_job on a job in failed status is rejected (Session 14 invariant)."""
+    from app.core.errors import AppError
     settings, orchestrator = _setup_test_orchestrator(tmp_path)
     job = orchestrator.create_job("candidate_generation", "default", input_config={})
     orchestrator.start_job(job.id, stage="analyzing")
@@ -167,11 +167,7 @@ def test_complete_job_heals_premature_stalled_status(tmp_path: Path):
             (job.id,),
         )
 
-    # Call complete_job
-    orchestrator.complete_job(job.id, result_summary={"candidates_count": 5})
-
-    healed = orchestrator.get_job(job.id)
-    assert healed.status == "completed"
-    assert healed.error_message is None
-    assert healed.progress_pct == 100.0
-    assert healed.current_stage == "completed"
+    # Call complete_job must be rejected with INVALID_JOB_TRANSITION
+    with pytest.raises(AppError) as exc_info:
+        orchestrator.complete_job(job.id, result_summary={"candidates_count": 5})
+    assert exc_info.value.code == "INVALID_JOB_TRANSITION"

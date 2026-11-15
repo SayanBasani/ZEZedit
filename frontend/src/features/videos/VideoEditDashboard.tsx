@@ -588,8 +588,13 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         title: c.suggested_title || c.title || `Short Script #${idx + 1}`,
         hook: c.ai_explanation?.hook || `Watch what happens in this intense moment!`,
         dialogue:
-          c.transcript_references?.join(' ') ||
           c.description ||
+          (c.transcript_references && c.transcript_references.length > 0 && transcript?.segments
+            ? transcript.segments
+                .filter((s) => s.start_time >= c.start_time - 0.5 && s.end_time <= c.end_time + 0.5)
+                .map((s) => s.text)
+                .join(' ')
+            : undefined) ||
           'Engaging narrative dialogue from source video moment.',
         narrativeArc: [
           { phase: 'Hook (0-3s)', text: c.ai_explanation?.hook || 'Immediate visual/audio punch' },
@@ -599,7 +604,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         startTime: c.start_time,
         endTime: c.end_time,
         duration: c.duration,
-        score: Math.round(c.quality_score * 100),
+        score: Math.round(c.quality_score > 1 ? c.quality_score : c.quality_score * 100),
       }));
     }
 

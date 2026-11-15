@@ -462,7 +462,7 @@ export const GenerateShortModal: React.FC<GenerateShortModalProps> = ({
                       { id: 'saliency', label: 'Intelligent Saliency', desc: 'Visual attention weights' },
                       { id: 'center', label: 'Fixed Center Crop', desc: 'Standard geometric crop' },
                       { id: 'multi_subject', label: 'Multi-Subject Union', desc: 'Keep all subjects in frame' },
-                      { id: 'speaker', label: 'Speaker Focused', desc: 'Dynamic speaker tracking' },
+                      { id: 'speaker', label: 'Speaker Focused (Experimental)', desc: 'Speech-presence heuristic fallback' },
                     ].map((trk) => (
                       <button
                         type="button"

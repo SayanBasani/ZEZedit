@@ -13,8 +13,11 @@ from app.models.reframing import CropKeyframe
 logger = logging.getLogger("zezedit.reframing.renderer")
 
 
-def _simplify_keyframes(keyframes: List[CropKeyframe], min_delta_x: float = 3.0) -> List[CropKeyframe]:
-    """Reduce keyframe count by pruning redundant collinear frames while keeping boundaries and scene cuts."""
+def _simplify_keyframes(keyframes: List[CropKeyframe], min_delta_x: float = 6.0, max_budget: int = 16) -> List[CropKeyframe]:
+    """Reduce keyframe count by pruning redundant collinear frames while keeping boundaries and scene cuts.
+    
+    Caps total keyframes to max_budget to prevent FFmpeg filtergraph expression parser stack overflow.
+    """
     if len(keyframes) <= 3:
         return keyframes
 
@@ -35,6 +38,17 @@ def _simplify_keyframes(keyframes: List[CropKeyframe], min_delta_x: float = 3.0)
             simplified.append(cur_k)
 
     simplified.append(keyframes[-1])
+
+    # If keyframe count exceeds budget, downsample non-boundary frames
+    if len(simplified) > max_budget:
+        essential = [k for k in simplified if k.is_scene_boundary or k.is_manual_override]
+        step = max(1, len(simplified) // max_budget)
+        subsampled = [simplified[idx] for idx in range(0, len(simplified), step)]
+        if simplified[-1] not in subsampled:
+            subsampled.append(simplified[-1])
+        combined = {k.timestamp: k for k in (subsampled + essential)}
+        simplified = sorted(combined.values(), key=lambda k: k.timestamp)
+
     return simplified
 
 
@@ -50,6 +64,7 @@ def build_crop_filter_expression(
     """Generate dynamic FFmpeg filtergraph string using piecewise-linear interpolation.
 
     Uses `t` (relative timestamp in clip) to evaluate smooth camera pan.
+    Optimizes static dimensions (e.g. constant Y or stationary X) into simple scalar constants.
     """
     if not keyframes:
         # Fallback centered portrait crop
@@ -70,40 +85,46 @@ def build_crop_filter_expression(
         k = simplified[0]
         return f"crop={ref_cw}:{ref_ch}:{k.crop_x}:{k.crop_y},scale={output_w}:{output_h}", ref_cw, ref_ch
 
-    # Build nested if expressions for time-dependent X and Y coordinates:
-    # relative_t = t - start_time
-    expr_x_parts = []
-    expr_y_parts = []
-
     # Work in relative timestamps inside the trimmed clip
     rel_keyframes = [
         (round(k.timestamp - start_time, 3), k.crop_x, k.crop_y, k.is_scene_boundary)
         for k in simplified
     ]
 
-    # Construct backwards nested if(lt(t, t_next), linear_interp, ...)
-    # Base fallback is the last keyframe position
-    last_t, last_x, last_y, _ = rel_keyframes[-1]
-    curr_expr_x = f"{last_x}"
-    curr_expr_y = f"{last_y}"
+    all_x_same = all(k.crop_x == simplified[0].crop_x for k in simplified)
+    all_y_same = all(k.crop_y == simplified[0].crop_y for k in simplified)
 
-    for i in range(len(rel_keyframes) - 2, -1, -1):
-        t0, x0, y0, _ = rel_keyframes[i]
-        t1, x1, y1, is_cut = rel_keyframes[i + 1]
+    # Build X expression
+    if all_x_same:
+        curr_expr_x = f"{simplified[0].crop_x}"
+    else:
+        last_t, last_x, _, _ = rel_keyframes[-1]
+        curr_expr_x = f"{last_x}"
+        for i in range(len(rel_keyframes) - 2, -1, -1):
+            t0, x0, _, _ = rel_keyframes[i]
+            t1, x1, _, is_cut = rel_keyframes[i + 1]
+            dt = max(0.001, t1 - t0)
+            if is_cut or x0 == x1:
+                interp_x = f"{x0}"
+            else:
+                interp_x = f"({x0}+({x1}-{x0})*(t-{t0:.3f})/{dt:.3f})"
+            curr_expr_x = f"if(lt(t,{t1:.3f}),{interp_x},{curr_expr_x})"
 
-        dt = max(0.001, t1 - t0)
-
-        if is_cut:
-            # Step jump across scene cut
-            interp_x = f"{x0}"
-            interp_y = f"{y0}"
-        else:
-            # Smooth linear interpolation between keyframes
-            interp_x = f"({x0}+({x1}-{x0})*(t-{t0:.3f})/{dt:.3f})"
-            interp_y = f"({y0}+({y1}-{y0})*(t-{t0:.3f})/{dt:.3f})"
-
-        curr_expr_x = f"if(lt(t,{t1:.3f}),{interp_x},{curr_expr_x})"
-        curr_expr_y = f"if(lt(t,{t1:.3f}),{interp_y},{curr_expr_y})"
+    # Build Y expression
+    if all_y_same:
+        curr_expr_y = f"{simplified[0].crop_y}"
+    else:
+        last_t, _, last_y, _ = rel_keyframes[-1]
+        curr_expr_y = f"{last_y}"
+        for i in range(len(rel_keyframes) - 2, -1, -1):
+            t0, _, y0, _ = rel_keyframes[i]
+            t1, _, y1, is_cut = rel_keyframes[i + 1]
+            dt = max(0.001, t1 - t0)
+            if is_cut or y0 == y1:
+                interp_y = f"{y0}"
+            else:
+                interp_y = f"({y0}+({y1}-{y0})*(t-{t0:.3f})/{dt:.3f})"
+            curr_expr_y = f"if(lt(t,{t1:.3f}),{interp_y},{curr_expr_y})"
 
     filter_graph = f"crop=w={ref_cw}:h={ref_ch}:x='{curr_expr_x}':y='{curr_expr_y}',scale={output_w}:{output_h}"
     return filter_graph, ref_cw, ref_ch

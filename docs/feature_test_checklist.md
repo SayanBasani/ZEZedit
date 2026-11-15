@@ -4,6 +4,40 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 14 — Reliability, Rendering & Quality Acceptance
+- [x] Strictly enforced job lifecycle state invariants in `backend/app/services/jobs.py`:
+  - `VALID_TRANSITIONS` forbids transitions out of `failed`, `cancelled`, and `completed`.
+  - Removed `is_stalled_heal` backdoor in `save_checkpoint`: terminal jobs can never be modified by late checkpoints.
+  - In `complete_job`, attempting to complete a cancelled or failed job raises `AppError(code="INVALID_JOB_TRANSITION")`.
+  - In `record_heartbeat`, late heartbeats on terminal jobs are dropped silently.
+  - In `check_stalled_jobs`, string PIDs like `"local"` are safely treated as in-process threads without crashing `psutil`.
+- [x] Hardened heartbeat ticker in `backend/app/services/analysis_pipeline.py`:
+  - Bound `_heartbeat_ticker` during `transcribing_speech` to `max_inactive_seconds=180.0` and `max_stage_seconds=1800.0`.
+  - Bound `detecting_scenes` ticker to `max_stage_seconds=180.0`.
+  - Bound `sampling_frames` ticker to `max_stage_seconds=120.0`.
+- [x] Verified full 10-case job lifecycle acceptance suite in `backend/tests/test_session14_job_lifecycle_acceptance.py` (10/10 passed).
+- [x] Completed 7 Creative Direction evaluation matrix on real video `Visionquest S01E08.mkv` (`med_290ccbe1f97d`, 5,193 candidate intervals):
+  - Verified differentiation across all 7 directions (up to 100% distinct candidate intervals, e.g., `emotional_sad` vs `humorous` 0/3 overlap).
+  - Saved full empirical score matrix to `scratch/seven_directions_matrix.json`.
+- [x] Completed 7-scenario video rendering matrix:
+  - Scenario 1: 9:16 portrait static crop (`render_01_portrait_static.mp4`, 1080x1920, 5.04s, h264/aac, decode_success: True).
+  - Scenario 2: 9:16 moving pan crop (`render_02_portrait_moving.mp4`, 1080x1920, 5.04s, h264/aac, decode_success: True).
+  - Scenario 3: 9:16 subject tracking (`render_03_portrait_subject_tracking.mp4`, 1080x1920, 5.04s, h264/aac, decode_success: True).
+  - Scenario 4: 9:16 ASS captions + loudnorm audio (`S14_Captions_Audio_Test_9x16_64e5ee.mp4`, 1080x1920, 33.5s, h264/aac, decode_success: True).
+  - Scenario 5: 1:1 square crop (`S14_Square_1_1_Test_1x1_12a5e5.mp4`, 1080x1080, 33.5s, h264/aac, decode_success: True).
+  - Scenario 6: 16:9 landscape (`S14_Landscape_16_9_Test_16x9_e03578.mp4`, 1920x1080, 33.4s, h264/aac, decode_success: True).
+  - Scenario 7: Multi-audio stream MKV transcode on `BLACK TORCH S01E02.mkv` (`render_07_black_torch_multiaudio.mp4`, 1080x1920, 6.0s, h264/aac, decode_success: True).
+  - Probed streams via FFprobe and verified 100% clean bitstream decode via FFmpeg null-sink (`-f null -`). Saved matrix to `scratch/rendering_matrix_summary.json`.
+- [x] Script & Video deletion isolation verified in `backend/scratch/verify_script_and_video_persistence.py`: deleting an export safely unlinks the rendered MP4 while strictly preserving the candidate script in `shorts_candidates` and source media in `storage/media/default_p/`.
+- [x] Live browser acceptance verified via Browser Subagent on `http://localhost:5173/videos/med_290ccbe1f97d`:
+  - Verified Generate Short modal opening, 7 creative directions, 3 aspect ratios, duration modes, and selection.
+  - Verified Generated Scripts tab: dialogue fields contain natural transcribed speech from Whisper (not placeholder IDs like `speaker_turn_01`).
+  - Verified Generated Videos tab: inline HTML5 playback with Play/Pause, fullscreen, and download MP4 link.
+  - Verified Discovered Shorts / Candidates tab: candidate cards display quality scores, cut boundaries, genre classifications, and batch render actions.
+- [x] Zero timeout alerts: 180s API timeout in `frontend/src/services/apiClient.ts` confirmed with zero false alerts.
+
+---
+
 ## Session 12 — Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair
 - [x] Verified commit `7cbaed2` preserves all earlier working capabilities with zero test weakening.
 - [x] Independently reproduced and verified root cause of `job_8ffbeff442f1`: Whisper CPU transcription on 69m video exceeded 60s stall threshold while worker thread remained alive and completed 14.7 minutes later.

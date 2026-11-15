@@ -480,19 +480,10 @@ class JobOrchestrator:
         now = datetime.now(timezone.utc).isoformat()
 
         # Terminal state protection:
-        # A completed or cancelled job must never be mutated by a late checkpoint
-        if job.status == "completed":
+        # A completed, cancelled, or failed job must never be mutated by a late checkpoint.
+        # Strict state machine invariant: A failed job must not become completed merely because its progress reached 100%.
+        if job.status in ("completed", "cancelled", "failed"):
             return job
-        if job.status == "cancelled":
-            return job
-        if job.status == "failed":
-            is_stalled_heal = (
-                job.error_message
-                and job.error_message.startswith("Job stalled")
-                and (stage == "completed" or completed_units >= total_units)
-            )
-            if not is_stalled_heal:
-                return job
 
         total = max(total_units, 1)
         max_pct = 100.0 if stage == "completed" or job.status == "completed" else 99.0
@@ -522,7 +513,7 @@ class JobOrchestrator:
                         completed_at = COALESCE(completed_at, ?),
                         checkpoint_data_json = ?,
                         updated_at = ?
-                    WHERE id = ? AND (status = 'running' OR (status = 'failed' AND error_message LIKE 'Job stalled%'))
+                    WHERE id = ? AND status = 'running'
                     """,
                     (stage, now, cp_json, now, job_id),
                 )
@@ -718,7 +709,12 @@ class JobOrchestrator:
         stage: Optional[str] = None,
         stage_details: Optional[Dict[str, Any]] = None,
     ) -> JobRecord:
-        """Record periodic worker heartbeat, updating updated_at and optional checkpoint data."""
+        """Record periodic worker heartbeat, updating updated_at and optional checkpoint data for running jobs only."""
+        job = self.get_job(job_id)
+        if job.status in ("completed", "cancelled", "failed"):
+            # Terminal states must never be mutated by late worker heartbeats
+            return job
+
         now = datetime.now(timezone.utc).isoformat()
         with sqlite_session(self.db_path) as conn:
             if stage_details is not None:
@@ -742,7 +738,7 @@ class JobOrchestrator:
                         progress_pct = COALESCE(?, progress_pct),
                         current_stage = COALESCE(?, current_stage),
                         checkpoint_data_json = ?
-                    WHERE id = ?
+                    WHERE id = ? AND status = 'running'
                     """,
                     (now, progress_pct, stage, json.dumps(existing_cp), job_id),
                 )
@@ -753,7 +749,7 @@ class JobOrchestrator:
                     SET updated_at = ?,
                         progress_pct = COALESCE(?, progress_pct),
                         current_stage = COALESCE(?, current_stage)
-                    WHERE id = ?
+                    WHERE id = ? AND status = 'running'
                     """,
                     (now, progress_pct, stage, job_id),
                 )
@@ -768,26 +764,12 @@ class JobOrchestrator:
         job = self.get_job(job_id)
         if job.status == "completed":
             return job
-        if job.status == "cancelled":
+        if job.status in ("cancelled", "failed"):
             raise AppError(
                 code="INVALID_JOB_TRANSITION",
-                message=f"Cannot transition job {job_id} from 'cancelled' to 'completed'.",
+                message=f"Cannot transition job {job_id} from terminal '{job.status}' to 'completed'.",
                 status_code=400,
             )
-        # If job was prematurely marked failed by stall detector, allow completing it cleanly
-        if job.status == "failed":
-            if job.error_message and "Job stalled" in job.error_message:
-                with sqlite_session(self.db_path) as conn:
-                    conn.execute(
-                        "UPDATE jobs SET status = 'running', error_message = NULL WHERE id = ?",
-                        (job_id,),
-                    )
-            else:
-                raise AppError(
-                    code="INVALID_JOB_TRANSITION",
-                    message=f"Cannot transition job {job_id} from 'failed' to 'completed'.",
-                    status_code=400,
-                )
         return self.transition_job_state(
             job_id, "completed", progress_pct=100.0, stage="completed", result_metadata=result_summary, error_message=None
         )
@@ -837,10 +819,18 @@ class JobOrchestrator:
                     except Exception:
                         pass
 
-                # 2. Check worker process liveness ONLY if worker_pid is a dedicated external/child process (pid != current_backend_pid)
-                if pid and pid != current_backend_pid and psutil is not None:
+                # Normalize pid to integer if possible
+                numeric_pid: Optional[int] = None
+                if pid is not None:
                     try:
-                        if psutil.pid_exists(pid):
+                        numeric_pid = int(pid)
+                    except (ValueError, TypeError):
+                        numeric_pid = None
+
+                # 2. Check worker process liveness ONLY if worker_pid is a dedicated external/child process (pid != current_backend_pid)
+                if numeric_pid is not None and numeric_pid != current_backend_pid and psutil is not None:
+                    try:
+                        if psutil.pid_exists(numeric_pid):
                             # Dedicated child worker process (e.g. ffmpeg.exe) is still actively running in OS
                             # Only stall if completely silent for over 30 minutes
                             if age > 1800.0:
@@ -853,7 +843,7 @@ class JobOrchestrator:
                     except Exception:
                         pass
                 else:
-                    # In-process worker thread (pid == current_backend_pid or pid is None)
+                    # In-process worker thread (pid == current_backend_pid or non-numeric/None like 'local')
                     # Governed by timeout_seconds (default 600s / 10 min)
                     if age > timeout_seconds:
                         is_stalled = True

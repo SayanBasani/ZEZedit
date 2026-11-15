@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-15  
-**Active Milestone:** Session 12 Completed — Independent Acceptance Testing, Job Reliability Stress Testing & Session 11 Defect Repair (209 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
+**Active Milestone:** Session 14 Completed — Reliability, Rendering & Quality Acceptance (224 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,20 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Reliability, Rendering & Quality Acceptance (Session 14)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S14-01 | Strict Job State Invariant Enforcement | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Terminal states (`failed`, `cancelled`, `completed`) are strictly immutable; illegal transitions raise `INVALID_JOB_TRANSITION`; removed `is_stalled_heal` backdoor |
+| S14-02 | Inactivity-Bounded Heartbeat Tickers | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Background tickers pulse every 10s during Whisper, scene detection, and frame sampling (`max_inactive_seconds=180.0`, `max_stage_seconds=1800.0`), preventing premature stall false-positives |
+| S14-03 | 7-Creative-Direction Scoring Differentiation | Highlight Discovery | Implemented | `backend/app/services/highlight_discovery.py` | Integrated humor vocabulary scoring, dialogue Q&A velocity, and educational cues; verified up to 100% candidate differentiation across all 7 styles on `Visionquest S01E08.mkv` |
+| S14-04 | 7-Scenario Video Rendering Matrix | Reframing & Export | Implemented | `backend/app/services/reframing_renderer.py` | Verified 9:16 portrait static, 9:16 moving pan, 9:16 subject tracking, 9:16 ASS captions + loudnorm audio, 1:1 square, 16:9 landscape, and 3-audio MKV transcode with 100% clean bitstream decode (`-f null -`) |
+| S14-05 | 180s API Timeout & Zero-Alert Verification | Frontend API Client | Implemented | `frontend/src/services/apiClient.ts` | Discovers highlights on 69-minute MKV without client-side aborts; interactive live browser verification confirmed zero false alerts |
+| S14-06 | Script & Video Deletion Isolation | Export Service & UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Deleting rendered MP4 exports preserves narrative scripts and candidate discovery intervals |
+| S14-07 | 10-Case Job Lifecycle Acceptance Suite | Test Suite | Implemented | `backend/tests/test_session14_job_lifecycle_acceptance.py` | 10/10 acceptance tests verifying terminal state immutability, complete_job rejection, checkpoint isolation, and ticker bounds |
 
 ---
 

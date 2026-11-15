@@ -27,6 +27,35 @@ SUPPORTED_CREATIVE_DIRECTIONS = {
     "emotional_sad": "Prioritizes emotional speech, reflective pauses, and sustained shot continuity.",
     "engaging_dialogue": "Prioritizes multi-turn conversational exchanges, questions, and replies.",
     "humorous": "Prioritizes punchlines, snappy conversational exchanges, and expressive turns.",
+    "educational": "Prioritizes informative speech turns, structured explanation, and clear concepts.",
+}
+
+# Aliases mapping UI / alternative names to canonical internal creative direction keys
+CREATIVE_DIRECTION_ALIASES = {
+    "best_overall": "best_overall",
+    "best": "best_overall",
+    "auto": "best_overall",
+    "viral_punchy": "viral_punchy",
+    "viral": "viral_punchy",
+    "quote_hook": "viral_punchy",
+    "dramatic": "dramatic",
+    "drama": "dramatic",
+    "action_motion": "action_motion",
+    "action": "action_motion",
+    "motion": "action_motion",
+    "emotional_sad": "emotional_sad",
+    "emotional": "emotional_sad",
+    "sad": "emotional_sad",
+    "engaging_dialogue": "engaging_dialogue",
+    "dialogue": "engaging_dialogue",
+    "conversational": "engaging_dialogue",
+    "humorous": "humorous",
+    "humor": "humorous",
+    "funny": "humorous",
+    "comedy": "humorous",
+    "educational": "educational",
+    "informative": "educational",
+    "explainer": "educational",
 }
 
 # Creative direction component weight matrices (normalized to sum to 1.0)
@@ -86,6 +115,14 @@ DIRECTION_WEIGHTS: Dict[str, Dict[str, float]] = {
         "action_motion": 0.15,
         "visual": 0.05,
         "narrative": 0.10,
+    },
+    "educational": {
+        "hook": 0.15,
+        "dialogue": 0.35,
+        "emotional": 0.05,
+        "action_motion": 0.05,
+        "visual": 0.10,
+        "narrative": 0.30,
     },
 }
 
@@ -184,8 +221,9 @@ class HighlightDiscoveryEngine:
         generation_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Main highlight discovery workflow with persistent novelty and natural boundaries."""
-        if creative_direction not in SUPPORTED_CREATIVE_DIRECTIONS:
-            creative_direction = "best_overall"
+        creative_direction = CREATIVE_DIRECTION_ALIASES.get(
+            str(creative_direction).lower().strip(), "best_overall"
+        )
 
         # Apply duration bounds based on duration_preference
         if duration_preference == "short":
@@ -916,6 +954,38 @@ class HighlightDiscoveryEngine:
         if len(clip_turns) >= 2:
             narrative_raw += 10.0
         narrative_score = max(0.0, min(100.0, narrative_raw))
+
+        # Educational direction boost for explanatory terms
+        if creative_direction == "educational":
+            educational_keywords = (
+                "why", "how", "because", "step", "learn", "understand", "reason",
+                "guide", "means", "remember", "definition", "technique", "process",
+                "result", "formula", "important", "fact", "study", "analysis"
+            )
+            if any(w in lower_text for w in educational_keywords):
+                dialogue_score = min(100.0, dialogue_score + 25.0)
+                narrative_score = min(100.0, narrative_score + 20.0)
+
+        # Humorous direction boost for witty dialogue, punchlines, and snappy banter
+        if creative_direction == "humorous":
+            humor_keywords = (
+                "laugh", "funny", "joke", "kidding", "hilarious", "crazy", "ridiculous",
+                "haha", "chuckle", "smile", "mess", "silly", "fool", "prank", "mad", "weird",
+                "fun", "entertaining", "teasing"
+            )
+            if any(w in lower_text for w in humor_keywords):
+                hook_score = min(100.0, hook_score + 25.0)
+                emotional_score = min(100.0, emotional_score + 25.0)
+            if len(clip_turns) >= 3:
+                dialogue_score = min(100.0, dialogue_score + 20.0)
+
+        # Engaging dialogue direction boost for multi-speaker conversational Q&A
+        if creative_direction == "engaging_dialogue":
+            if len(speakers) >= 2 and any(t.get("turn_type") == "question" for t in clip_turns):
+                dialogue_score = min(100.0, dialogue_score + 30.0)
+                narrative_score = min(100.0, narrative_score + 15.0)
+            elif len(speakers) >= 2:
+                dialogue_score = min(100.0, dialogue_score + 20.0)
 
         # 3. Apply Creative Direction Weight Matrix
         weights = DIRECTION_WEIGHTS.get(creative_direction, DIRECTION_WEIGHTS["best_overall"])
