@@ -66,8 +66,8 @@ describe('Milestone 24: AIProviderManager Component Verification (ZEZ-099)', () 
 
     render(<AIProviderManager />);
 
-    expect(await screen.findByText('AI Provider Manager')).toBeInTheDocument();
-    expect(screen.getByText('Ollama (Local LLM & Vision)')).toBeInTheDocument();
+    expect(await screen.findByText('Ollama (Local LLM & Vision)')).toBeInTheDocument();
+    expect(screen.getByText('AI Provider Manager')).toBeInTheDocument();
     expect(screen.getByText('Faster-Whisper (CPU Speech-to-Text)')).toBeInTheDocument();
     expect(screen.getByText('Built-in Heuristic Engine (Offline)')).toBeInTheDocument();
     expect(screen.getByText('18.5 ms')).toBeInTheDocument();

@@ -4,36 +4,6 @@ ZezEdit 2.0 is a modular, CPU-first, local-first AI-assisted video editor for Wi
 
 ---
 
-## Quick Start: Windows PowerShell Commands
-
-### Backend Commands (FastAPI + Uvicorn)
-Start FastAPI server at `http://127.0.0.1:8000`:
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Run backend automated test suite (Pytest):
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m pytest -v
-```
-
-### Frontend Commands (React + Vite + Tailwind)
-Start frontend development server at `http://localhost:5173`:
-```powershell
-cd D:\ZezEdit\frontend
-npm run dev
-```
-
-Run frontend unit tests (Vitest via npm, never pnpm):
-```powershell
-cd D:\ZezEdit\frontend
-npm test -- --run
-```
-
----
-
 ## 1. Prerequisites
 
 - **Operating System:** Windows 11 (64-bit)
@@ -65,7 +35,7 @@ npm install
 
 ---
 
-## 3. Environment and setup steps
+## 3. Environment setup
 
 1. Copy `.env.example` to `.env` in `D:\ZezEdit`:
 
@@ -86,6 +56,36 @@ Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
 ```powershell
 cd D:\ZezEdit\backend
 .\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+```
+
+Run backend automated test suite (Pytest):
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m pytest -q
+```
+
+---
+
+## 5. Exact Windows PowerShell frontend startup commands
+
+Start frontend development server via Vite (`http://localhost:5173`):
+
+```powershell
+cd D:\ZezEdit\frontend
+npm run dev
+```
+
+Run frontend unit tests (Vitest via npm, never pnpm):
+```powershell
+cd D:\ZezEdit\frontend
+npm test -- --run
+```
+
+Compile TypeScript and build for production:
+```powershell
+cd D:\ZezEdit\frontend
+npx tsc --noEmit
+npm run build
 ```
 
 Run backend automated test suite (Pytest):
@@ -347,6 +347,8 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 - [Rendering Pipeline Audit](docs/architecture/RENDERING_PIPELINE_AUDIT.md)
 - [Session 6B Completion Report: Central Process Manager & Storage Reclamation](docs/reports/session_6b/SESSION_6B_COMPLETION_REPORT.md)
 - [Central Process Manager Architecture Design](docs/architecture/PROCESS_MANAGER_DESIGN.md)
+- [Session 16 Product Acceptance, Short-Form Quality & Workflow Completion Report](docs/reports/session_16/SESSION_16_PRODUCT_ACCEPTANCE_REPORT.md)
+- [Session 15 Long-Video Endurance, Job Recovery & Production Workflow Report](docs/reports/session_15/SESSION_15_ENDURANCE_REPORT.md)
 - [User Data Storage Inventory & Retention Specification](docs/architecture/USER_DATA_STORAGE_INVENTORY.md)
 - [Session 6A Completion Report: Reusable Intelligence & Non-Repeating Generate More](docs/reports/session_6a/SESSION_6A_COMPLETION_REPORT.md)
 - [Product Restructure & Video-Centric Architecture Plan](docs/architecture/ZEZEDIT_PRODUCT_RESTRUCTURE_PLAN.md)

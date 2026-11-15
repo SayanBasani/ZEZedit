@@ -9,6 +9,7 @@ import shutil
 import sqlite3
 import subprocess
 import threading
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -39,6 +40,7 @@ logger = logging.getLogger("zezedit.export.service")
 
 # Global thread-safe map of active render subprocesses for clean cancellation
 _ACTIVE_RENDER_PROCESSES: Dict[str, subprocess.Popen] = {}
+_ACTIVE_JOB_IDS: set = set()
 _PROCESS_LOCK = threading.Lock()
 
 
@@ -377,6 +379,11 @@ class ExportService:
     def execute_render_job(self, job_id: str) -> Dict[str, Any]:
         """Execute the 15-stage export render synchronously, reporting progress to JobOrchestrator."""
         job = self.jobs.get_job(job_id)
+        if job.status == "completed":
+            return {"status": "completed"}
+        if job.status in ("failed", "cancelled"):
+            return {"status": job.status}
+
         cfg = job.input_config
         export_id = cfg["export_id"]
         project_id = cfg["project_id"]
@@ -664,7 +671,15 @@ class ExportService:
                 stamp = datetime.datetime.now(datetime.timezone.utc).strftime("%H%M%S")
                 final_output_path = final_dir / f"{final_output_path.stem}_{stamp}.mp4"
 
-            shutil.move(str(temp_rendered_mp4), str(final_output_path))
+            # Safe move with transient file-lock retry on Windows
+            for attempt in range(5):
+                try:
+                    shutil.move(str(temp_rendered_mp4), str(final_output_path))
+                    break
+                except (PermissionError, FileNotFoundError):
+                    if attempt == 4:
+                        raise
+                    time.sleep(0.2)
             final_size = final_output_path.stat().st_size
 
             now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()

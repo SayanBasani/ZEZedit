@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-15  
-**Active Milestone:** Session 14 Completed — Reliability, Rendering & Quality Acceptance (224 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
+**Active Milestone:** Session 18 Completed — Queue Architecture Repair, Regression Stabilization & Integration Acceptance (250 Backend Tests Passed, 120 Frontend Tests Passed, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,32 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## Queue Architecture Repair, Regression Stabilization & Integration Acceptance (Session 18)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S18-01 | Full Dispatcher Lifecycle & True Worker Execution | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Verified deterministic execution across `media_analysis`, `candidate_generation`, and `export_render` with atomic FIFO dispatching, capacity management, and automatic worker release on completion |
+| S18-02 | Startup Job & Orphan Reconciliation Repair | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Fixed startup orphan query in `recover_interrupted_jobs` to safely preserve legitimate queued analysis runs and queued exports whose jobs are active in SQLite |
+| S18-03 | Self-Termination Cancellation Guard | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Overhauled `_terminate_pid_tree` to strictly safeguard `os.getpid()`, terminating only child worker processes (FFmpeg) and dedicated subprocesses without killing the host runner |
+| S18-04 | Asynchronous Discovery Contract Unification | Highlights API | Implemented | `backend/app/api/v1/highlights.py` | Fixed missing `response` parameter in `generate_more_highlights`, unified `start_highlight_discovery` to emit `X-Job-Id`, and verified asynchronous background candidate discovery |
+| S18-05 | Full Regression Stabilization (100% Pass Rate) | Test Suites | Implemented | `backend/tests/` & `frontend/src/test/` | Resolved all 5 failing backend tests and 2 failing frontend race conditions; full automated suites: 250/250 backend passed, 120/120 frontend passed, 0 errors in TypeScript |
+| S18-06 | Real Multimodal Queue Integration | Export & Discovery Engines | Implemented | `backend/app/services/` | Executed real background candidate generation (`job_bedad53ef5d2`) and real 9:16 vertical render (`job_0af7b48be499`, 17.1 MB valid MP4 inspected via FFprobe) |
+
+---
+
+## Product Acceptance, Short-Form Quality & Workflow Completion (Session 16)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S16-01 | Automatic Queued Job Dispatcher & Atomic Claiming | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Implemented `claim_next_queued_job` with atomic SQL UPDATE preventing duplicate worker claims, background thread dispatching loop, and stale queue timeout cleanup |
+| S16-02 | Stale Queued Job Timeout Reclamation | Job Orchestrator | Implemented | `backend/app/services/jobs.py` | Automatically reclaims jobs queued >1800s without worker pickup, marking them `failed` (`queue_timeout`) and keeping the Process Manager truthful |
+| S16-03 | Dynamic Thumbnail Resolution & Serving | Media API | Implemented | `backend/app/api/v1/media.py` | Fixed 500 error on global media thumbnails; dynamically generates missing JPEG thumbnails and serves directly from storage |
+| S16-04 | Persistent Script Editing Workflow | Highlights API & Studio UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Added Edit Script modal on Generated Scripts tab; allows editing Title, Hook, and Dialogue; persists to SQLite via PATCH and survives full page refreshes |
+| S16-05 | Truthful AI Capability Labeling | Frontend UI | Implemented | `frontend/src/features/videos/` | Replaced speculative marketing claims ("viral", "neural" for heuristics) with precise technical labels ("Local CPU execution (Neural & CV)") |
+| S16-06 | Product Acceptance Regression Suite | Test Suite | Implemented | `backend/tests/test_session16_product_acceptance.py` | Verified atomic claiming under 5 concurrent threads, stale queue cleanup, persistent script updating, and thumbnail endpoints |
 
 ---
 

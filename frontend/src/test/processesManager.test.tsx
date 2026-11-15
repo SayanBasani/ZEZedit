@@ -143,11 +143,10 @@ describe('ProcessesManagerView / WorkingQueueView', () => {
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Processes' })).toBeInTheDocument();
       expect(screen.getByText('Central Process Manager')).toBeInTheDocument();
+      expect(screen.getByText('Total Processes')).toBeInTheDocument();
+      expect(screen.getByText('3')).toBeInTheDocument(); // total jobs
     });
 
-    // Metric Summary Cards
-    expect(screen.getByText('Total Processes')).toBeInTheDocument();
-    expect(screen.getByText('3')).toBeInTheDocument(); // total jobs
     expect(screen.getAllByText('analyze video').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Keynote_Presentation.mp4').length).toBeGreaterThan(0);
   });

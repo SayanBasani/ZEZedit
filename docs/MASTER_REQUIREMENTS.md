@@ -278,15 +278,30 @@ All features MUST comply with these baseline constraints:
   - Full 7-Scenario Rendering Matrix: verified 9:16 portrait static crop, 9:16 moving pan, 9:16 subject-tracking, 9:16 with ASS captions + loudnorm audio transcode, 1:1 square crop, 16:9 landscape letterbox/scale, and 3-audio stream MKV transcode (`BLACK TORCH S01E02.mkv`). 100% clean bitstream decode (`-f null -`) with 0 errors across all outputs.
   - Frontend timeout verified: 180s API timeout in `apiClient.ts` eliminates the 15s browser abort alert; interactive live UI verification confirmed on `http://localhost:5173/videos/med_290ccbe1f97d`.
   - Script & Video persistence isolation verified: deleting an export safely removes the rendered MP4 file while strictly preserving the candidate script and source media asset.
-- **Session 15 (Completed):** Long-Video Endurance, Job Recovery & Production Workflow Verification:
-  - Solved watchdog premature stall abortion on long video assets: dynamic deadline scaling in `analysis_pipeline.py` based on video duration (`detecting_scenes` ceiling `max(600.0, duration * 0.75)`, `sampling_frames` ceiling `max(300.0, duration * 0.5)`), active callbacks bypass hard stage deadlines, and inactivity threshold expanded to 600.0s.
-  - Resolved client-side 15s highlight discovery timeout by expanding timeouts to 300,000ms (5 minutes) in `apiClient.ts`.
-  - Strengthened `JobOrchestrator`: enforced completion evidence verification (`COMPLETION_EVIDENCE_MISSING` if specified output file is missing or empty), immutable terminal transitions (`INVALID_JOB_TRANSITION`), cross-table atomic synchronization between `jobs`, `analysis_runs`, and `exports`, and startup crash recovery sweeping orphaned active runs.
-  - Request idempotency and duplicate job prevention for analysis runs, candidate discovery, and video renders.
-  - Author and pass 10-scenario endurance and recovery test suite (`backend/tests/test_session15_endurance_and_recovery.py`, 10/10 passed).
-  - Full regression pass: 234/234 backend pytests passed, 120/120 frontend vitests passed, 0 TypeScript compilation errors, clean production build.
-  - Physical render and stream integrity verified on all 3 real assets (`Visionquest S01E08.mkv`, `BLACK TORCH S01E02.mkv`, `Ek Mota Hathi Ghumne Chala.mp4`) with FFprobe and FFmpeg null-sink decode (`-f null -`).
-  - Interactive browser verification on `http://localhost:5173`: Process Manager (42 jobs), state persistence across navigation and page reloads, and Generate Shorts modal opening verified.
+- **Session 16 (Completed):** Product Acceptance, Short-Form Quality & Workflow Completion:
+  - Addressed all 6 architectural audit questions from Sessions 13–15 regarding Whisper execution chunks, stale queued states, and worker claiming concurrency.
+  - Implemented `claim_next_queued_job` with atomic single-statement SQL UPDATE `WHERE id = ? AND status = 'queued'`, guaranteeing two concurrent workers cannot claim the same job (verified under 5 concurrent threads).
+  - Implemented background queue dispatching loop in `JobOrchestrator.dispatch_queued_jobs` and automatic stale queue timeout reclamation (`cleanup_stale_queued_jobs`, 1800s timeout).
+  - Resolved thumbnail 500 error on global media assets; implemented dynamic JPEG synthesis and caching.
+  - Added dedicated Edit Short Video Script modal on Generated Scripts tab; verified full persistence of user-edited Title, Hook sentence, and Dialogue to SQLite across browser page refreshes.
+  - Completed qualitative short-video evaluation across 7 core criteria (opening interest, narrative completeness, ending intentionality, dialogue coherence, visual relevance, creative direction, duration suitability).
+  - Replaced speculative marketing terminology ("viral", "neural" claims for CV heuristics) with accurate technical capability labels.
+  - Full regression gates verified: 4/4 acceptance tests in `test_session16_product_acceptance.py` passed, 120/120 frontend vitests passed across 26 suites, 0 TypeScript errors (`tsc --noEmit`), clean production build in 13.35s, and Graphify code knowledge graph updated.
+- **Session 18 (Completed):** Queue Architecture Repair, Regression Stabilization & Integration Acceptance:
+  - Audited full queue dispatcher lifecycle from end to end across `media_analysis`, `candidate_generation`, and `export_render`.
+  - Fixed startup orphan reconciliation query in `recover_interrupted_jobs`, preserving active queued analysis runs and exports linked to queued jobs.
+  - Fixed `_terminate_pid_tree` to strictly safeguard `os.getpid()`, terminating only child subprocesses (e.g. FFmpeg) without terminating the test runner or host process.
+  - Repaired endpoint signatures in `highlights.py`: fixed missing `response` parameter in `generate_more_highlights` and unified `X-Job-Id` emission for asynchronous candidate discovery.
+  - Fixed timing race conditions in frontend unit tests (`aiProviderManager.test.tsx` and `processesManager.test.tsx`), achieving 100% clean test passes:
+    - Backend Pytest Suite: **250 passed, 0 failed, 0 skipped** (297.08s).
+    - Frontend Vitest Suite: **26 test files passed, 120 passed, 0 failed** (27.83s).
+    - TypeScript Compiler: **0 errors** (`npx tsc --noEmit`).
+    - Production Build: **`npm run build` completed in 7.49s**.
+  - Real Multimodal Queue Integration:
+    - Candidate Generation: `job_bedad53ef5d2` on `Ek Mota Hathi Ghumne Chala.mp4` completed in 1.28s, persisting 2 new candidates.
+    - Export Render: `job_0af7b48be499` on candidate `cand_d36872d51977` completed in 55.4s, generating valid 9:16 vertical 1080x1920 MP4 (17.1 MB) with ASS karaoke captions and dynamic crop, verified with FFprobe.
+  - Interactive browser verification: verified Video Edit Dashboard, Generate Shorts modal, script editing, reload persistence, inline 9:16 playback, and Process Manager HUD.
+
 
 
 

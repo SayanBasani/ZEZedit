@@ -33,6 +33,9 @@ VALID_TRANSITIONS: Dict[str, set[str]] = {
 }
 
 
+DISPATCHABLE_JOB_TYPES = {"export_render", "candidate_generation", "media_analysis"}
+
+
 class JobOrchestrator:
     """Manages persistent job records, state machines, retries, and startup recovery."""
 
@@ -49,6 +52,7 @@ class JobOrchestrator:
         max_attempts: int = 2,
         media_asset_id: Optional[str] = None,
         parent_job_id: Optional[str] = None,
+        auto_dispatch: bool = False,
     ) -> JobRecord:
         """Create a new queued job record."""
         # Backward compatibility for positional input_config: create_job(job_type, input_config_dict)
@@ -103,7 +107,13 @@ class JobOrchestrator:
                     ),
                 )
 
-        return self.get_job(job_id)
+        job_rec = self.get_job(job_id)
+        if auto_dispatch and job_type in DISPATCHABLE_JOB_TYPES:
+            try:
+                self.dispatch_queued_jobs()
+            except Exception:
+                pass
+        return job_rec
 
     def list_jobs(
         self,
@@ -333,6 +343,13 @@ class JobOrchestrator:
                 except Exception:
                     pass
 
+        # Terminal state releases worker capacity: trigger dispatch for next waiting queued jobs
+        if new_status in ("completed", "cancelled", "failed", "interrupted"):
+            try:
+                self.dispatch_queued_jobs()
+            except Exception:
+                pass
+
         return self.get_job(job_id)
 
     def request_cancellation(self, job_id: str) -> JobRecord:
@@ -367,28 +384,36 @@ class JobOrchestrator:
         return job
 
     def _terminate_pid_tree(self, pid: int) -> bool:
-        """Safely terminate a worker process tree (e.g. Python worker and child FFmpeg)."""
+        """Safely terminate a worker process tree (e.g. child FFmpeg or dedicated external worker)."""
         try:
+            current_pid = os.getpid()
             if psutil is not None:
-                if psutil.pid_exists(pid):
-                    proc = psutil.Process(pid)
+                numeric_pid = int(pid)
+                if psutil.pid_exists(numeric_pid):
+                    proc = psutil.Process(numeric_pid)
                     children = proc.children(recursive=True)
                     for child in children:
                         try:
                             child.terminate()
                         except (psutil.NoSuchProcess, psutil.AccessDenied):
                             pass
-                    proc.terminate()
-                    _, alive = psutil.wait_procs(children + [proc], timeout=1.5)
-                    for p in alive:
-                        try:
-                            p.kill()
-                        except (psutil.NoSuchProcess, psutil.AccessDenied):
-                            pass
+                    # NEVER terminate the current running backend or test runner process itself!
+                    if numeric_pid != current_pid:
+                        proc.terminate()
+                        _, alive = psutil.wait_procs(children + [proc], timeout=1.5)
+                        for p in alive:
+                            try:
+                                p.kill()
+                            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                                pass
+                    else:
+                        if children:
+                            psutil.wait_procs(children, timeout=1.5)
                     return True
             else:
-                os.kill(pid, 15)
-                return True
+                if int(pid) != os.getpid():
+                    os.kill(pid, 15)
+                    return True
         except Exception as exc:
             logger.warning("Could not terminate PID %s: %s", pid, exc)
         return False
@@ -512,10 +537,11 @@ class JobOrchestrator:
         self,
         job_id: str,
         stage: str,
-        completed_units: int,
-        total_units: int,
+        completed_units: int = 0,
+        total_units: int = 100,
         intermediate_artifacts: Optional[Dict[str, Any]] = None,
         checkpoint_payload: Optional[Dict[str, Any]] = None,
+        progress_pct: Optional[float] = None,
     ) -> JobRecord:
         """Persist granular execution checkpoint with completed units and intermediate files."""
         job = self.get_job(job_id)
@@ -529,7 +555,10 @@ class JobOrchestrator:
 
         total = max(total_units, 1)
         max_pct = 100.0 if stage == "completed" or job.status == "completed" else 99.0
-        pct = round(min(max_pct, max(0.0, (completed_units / total) * 100.0)), 1)
+        if progress_pct is not None:
+            pct = round(min(max_pct, max(0.0, float(progress_pct))), 1)
+        else:
+            pct = round(min(max_pct, max(0.0, (completed_units / total) * 100.0)), 1)
 
         checkpoint = {
             "job_id": job_id,
@@ -616,11 +645,11 @@ class JobOrchestrator:
         if psutil is not None:
             try:
                 vm = psutil.virtual_memory()
-                if vm.percent > 92.0:
-                    return False, f"Host memory pressure ({vm.percent:.1f}% used > 92%), holding new jobs."
+                if vm.percent > 98.0 and vm.available < 256 * 1024 * 1024:
+                    return False, f"Host memory pressure ({vm.percent:.1f}% used, {vm.available // (1024 * 1024)}MB available), holding new jobs."
                 cpu = psutil.cpu_percent(interval=None)
-                if cpu > 96.0:
-                    return False, f"Host CPU saturated ({cpu:.1f}% used > 96%), holding new jobs."
+                if cpu > 98.0:
+                    return False, f"Host CPU saturated ({cpu:.1f}% used > 98%), holding new jobs."
             except Exception as e:
                 logger.warning("Resource check failed: %s", e)
 
@@ -634,6 +663,144 @@ class JobOrchestrator:
             ).fetchone()
             return self._row_to_record(row) if row else None
 
+    def cleanup_stale_queued_jobs(self, max_queued_age_seconds: float = 1800.0) -> List[str]:
+        """Detect and mark any jobs that remained in 'queued' without worker dispatch beyond timeout."""
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        stale_ids: List[str] = []
+        with sqlite_session(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, created_at, job_type FROM jobs WHERE status = 'queued'"
+            ).fetchall()
+            for r in rows:
+                jid = r["id"]
+                cat = r["created_at"]
+                age = 0.0
+                if cat:
+                    try:
+                        cat_dt = datetime.fromisoformat(cat.replace("Z", "+00:00"))
+                        age = (now_dt - cat_dt).total_seconds()
+                    except Exception:
+                        pass
+                if age > max_queued_age_seconds:
+                    timeout_msg = f"Job timed out in queue: no worker claimed this task within {int(max_queued_age_seconds)}s."
+                    conn.execute(
+                        """
+                        UPDATE jobs
+                        SET status = 'failed',
+                            error_message = ?,
+                            current_stage = 'queue_timeout',
+                            updated_at = ?,
+                            completed_at = ?
+                        WHERE id = ? AND status = 'queued'
+                        """,
+                        (timeout_msg, now, now, jid),
+                    )
+                    stale_ids.append(jid)
+        return stale_ids
+
+    def claim_next_queued_job(self, worker_id: str = "worker_default") -> Optional[JobRecord]:
+        """Atomically claim the highest-priority, oldest queued job whose capacity is available."""
+        now = datetime.now(timezone.utc).isoformat()
+        current_pid = os.getpid()
+        with sqlite_session(self.db_path) as conn:
+            rows = conn.execute(
+                """
+                SELECT id, job_type FROM jobs 
+                WHERE status = 'queued' AND job_type IN ('export_render', 'candidate_generation', 'media_analysis')
+                ORDER BY priority DESC, created_at ASC
+                """
+            ).fetchall()
+            for r in rows:
+                jid = r["id"]
+                jtype = r["job_type"]
+                can_dispatch, _ = self.can_dispatch_job(jtype)
+                if not can_dispatch:
+                    continue
+                cur = conn.execute(
+                    """
+                    UPDATE jobs
+                    SET status = 'running',
+                        started_at = COALESCE(started_at, ?),
+                        worker_id = ?,
+                        worker_pid = ?,
+                        current_stage = 'running',
+                        updated_at = ?
+                    WHERE id = ? AND status = 'queued'
+                    """,
+                    (now, worker_id, current_pid, now, jid),
+                )
+                if cur.rowcount == 1:
+                    return self.get_job(jid)
+        return None
+
+    def dispatch_queued_jobs(self) -> List[JobRecord]:
+        """Process queue: cleans up stale jobs, checks stalls, and claims available queued jobs."""
+        self.cleanup_stale_queued_jobs(max_queued_age_seconds=1800.0)
+        dispatched: List[JobRecord] = []
+        while True:
+            job = self.claim_next_queued_job()
+            if not job:
+                break
+            dispatched.append(job)
+            self._execute_claimed_job_async(job)
+        return dispatched
+
+    def _execute_claimed_job_async(self, job: JobRecord) -> None:
+        """Spawn background execution thread for a claimed job."""
+        import threading
+
+        def _worker():
+            try:
+                if job.job_type == "export_render":
+                    from app.services.export_service import ExportService
+                    svc = ExportService(settings=self.settings, db_path=self.db_path)
+                    svc.execute_render_job(job.id)
+                elif job.job_type == "candidate_generation":
+                    from app.services.highlight_discovery import HighlightDiscoveryEngine
+                    engine = HighlightDiscoveryEngine(settings=self.settings, db_path=self.db_path)
+                    cfg = job.input_config
+                    engine.discover_highlights(
+                        project_id=job.project_id or "default",
+                        media_asset_id=cfg.get("media_asset_id", job.media_asset_id or ""),
+                        analysis_run_id=cfg.get("analysis_run_id"),
+                        job_id=job.id,
+                        creative_direction=cfg.get("creative_direction", "best_overall"),
+                        aspect_ratio=cfg.get("aspect_ratio", "9:16"),
+                        min_duration=cfg.get("min_duration") or 12.0,
+                        max_duration=cfg.get("max_duration") or 60.0,
+                        target_clip_count=cfg.get("target_clip_count"),
+                        duration_preference=cfg.get("duration_preference", "ai_best_duration"),
+                        novelty_mode=cfg.get("novelty_mode", "strict"),
+                        generation_type=cfg.get("generation_type"),
+                    )
+                    self.complete_job(job.id, result_summary={"status": "completed"})
+                elif job.job_type == "media_analysis":
+                    from app.services.analysis_pipeline import VideoAnalysisPipeline
+                    pipeline = VideoAnalysisPipeline(settings=self.settings, db_path=self.db_path)
+                    run_id = job.input_config.get("run_id")
+                    if run_id:
+                        import asyncio
+                        asyncio.run(pipeline.execute_analysis(run_id, job_id=job.id))
+                    else:
+                        raise ValueError(f"Job {job.id} missing run_id in input_config.")
+                else:
+                    raise ValueError(f"Unsupported job type for background execution: '{job.job_type}'")
+            except Exception as exc:
+                logger.exception("Background execution of claimed job %s failed: %s", job.id, exc)
+                try:
+                    self.fail_job(job.id, str(exc))
+                except Exception:
+                    pass
+            finally:
+                try:
+                    self.dispatch_queued_jobs()
+                except Exception:
+                    pass
+
+        t = threading.Thread(target=_worker, name=f"worker-{job.id}", daemon=True)
+        t.start()
+
     def recover_interrupted_jobs(self) -> List[str]:
         """Detect and mark any jobs left 'running' or 'cancelling' from an unclean backend crash.
         
@@ -641,6 +808,9 @@ class JobOrchestrator:
         """
         now = datetime.now(timezone.utc).isoformat()
         recovered_ids: List[str] = []
+        # First cleanup any jobs left queued beyond stale timeout across sessions
+        stale_queued = self.cleanup_stale_queued_jobs(max_queued_age_seconds=1800.0)
+        recovered_ids.extend(stale_queued)
         with sqlite_session(self.db_path) as conn:
             rows = conn.execute(
                 "SELECT id, status, checkpoint_data_json, job_type FROM jobs WHERE status IN ('running', 'cancelling')"
@@ -701,8 +871,8 @@ class JobOrchestrator:
                         current_stage = 'interrupted',
                         updated_at = ?,
                         completed_at = COALESCE(completed_at, ?)
-                    WHERE status IN ('running', 'pending', 'queued')
-                      AND (job_id IS NULL OR job_id NOT IN (SELECT id FROM jobs WHERE status = 'running'))
+                    WHERE (status = 'running')
+                       OR (status IN ('pending', 'queued') AND (job_id IS NULL OR job_id NOT IN (SELECT id FROM jobs WHERE status = 'queued')))
                     """,
                     (now, now),
                 )
@@ -712,8 +882,8 @@ class JobOrchestrator:
                     SET status = 'failed',
                         error_message = 'Render process was interrupted during previous session.',
                         completed_at = COALESCE(completed_at, ?)
-                    WHERE status IN ('rendering', 'queued')
-                      AND (render_job_id IS NULL OR render_job_id NOT IN (SELECT id FROM jobs WHERE status = 'running'))
+                    WHERE (status = 'rendering')
+                       OR (status = 'queued' AND (render_job_id IS NULL OR render_job_id NOT IN (SELECT id FROM jobs WHERE status = 'queued')))
                     """,
                     (now,),
                 )
@@ -849,6 +1019,10 @@ class JobOrchestrator:
                     """,
                     (now, progress_pct, stage, job_id),
                 )
+        try:
+            self.dispatch_queued_jobs()
+        except Exception:
+            pass
         return self.get_job(job_id)
 
     def start_job(self, job_id: str, stage: str = "running", worker_pid: Optional[int] = None) -> JobRecord:
@@ -879,6 +1053,8 @@ class JobOrchestrator:
                 message=f"Cannot transition job {job_id} from 'completed' to 'failed'.",
                 status_code=400,
             )
+        if job.status in ("failed", "cancelled"):
+            return job
         return self.transition_job_state(job_id, "failed", error_message=error_message, stage="failed")
 
     def check_stalled_jobs(self, timeout_seconds: float = 600.0) -> List[str]:
@@ -887,6 +1063,9 @@ class JobOrchestrator:
         now = now_dt.isoformat()
         current_backend_pid = os.getpid()
         stalled_ids: List[str] = []
+        # Also clean up any jobs that remained queued beyond stale threshold
+        stale_queued = self.cleanup_stale_queued_jobs(max_queued_age_seconds=1800.0)
+        stalled_ids.extend(stale_queued)
         with sqlite_session(self.db_path) as conn:
             rows = conn.execute(
                 """

@@ -181,7 +181,7 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
             </h1>
           </div>
           <p className="text-xs text-text-secondary mt-1">
-            Central video library. Upload or pick any source video to analyze moments, frame scenes, and generate viral shorts.
+            Central video library. Upload or pick any source video to analyze moments, frame scenes, and generate engaging short clips.
           </p>
         </div>
 

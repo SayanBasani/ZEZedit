@@ -6,7 +6,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response, status
 from pydantic import BaseModel, Field
 
 from app.core.config import Settings, get_settings
@@ -60,6 +60,7 @@ class DiscoverHighlightsRequest(BaseModel):
 class UpdateCandidateRequest(BaseModel):
     title: Optional[str] = None
     description: Optional[str] = None
+    hook: Optional[str] = None
     category: Optional[str] = None
     start_time: Optional[float] = None
     end_time: Optional[float] = None
@@ -240,90 +241,102 @@ def start_highlight_discovery(
     project_id: str,
     media_asset_id: str,
     payload: DiscoverHighlightsRequest,
+    response: Response,
     background_tasks: BackgroundTasks,
     request: Request,
     engine: HighlightDiscoveryEngine = Depends(get_discovery_engine),
     db_path: Path = Depends(get_db_path),
 ):
     """Trigger AI Highlight Discovery for an analyzed media asset."""
-    settings = getattr(request.app.state, "settings", None) or get_settings()
+    settings = None
+    if request is not None and hasattr(request, "app"):
+        settings = getattr(request.app.state, "settings", None)
+    if settings is None:
+        settings = get_settings()
     job_orchestrator = JobOrchestrator(settings=settings, db_path=db_path)
 
-    if payload.run_synchronously:
-        results = engine.discover_highlights(
-            project_id=project_id,
-            media_asset_id=media_asset_id,
-            analysis_run_id=payload.analysis_run_id,
-            creative_direction=payload.creative_direction,
-            aspect_ratio=payload.aspect_ratio,
-            min_duration=payload.min_duration or 12.0,
-            max_duration=payload.max_duration or 60.0,
-            target_clip_count=payload.target_clip_count,
-            duration_preference=payload.duration_preference,
-            novelty_mode=payload.novelty_mode,
-            generation_type=payload.generation_type,
-            use_ai_explanations=payload.use_ai_explanations,
-            selected_scene_ids=payload.selected_scene_ids,
-            excluded_scene_ids=payload.excluded_scene_ids,
-        )
-        if not results:
-            return []
-        gen_run_id = results[0].get("generation_run_id")
-        with sqlite_session(db_path) as conn:
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT * FROM shorts_candidates
-                WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
-                ORDER BY quality_score DESC
-                """,
-                (project_id, media_asset_id, gen_run_id),
-            ).fetchall()
-            return [_row_to_candidate_dict(r) for r in rows]
-    else:
-        # Background execution tracked via JobOrchestrator
-        # Check for existing active candidate_generation job for this media asset
-        with sqlite_session(db_path) as conn:
-            existing_job = conn.execute(
-                """
-                SELECT id FROM jobs
-                WHERE job_type = 'candidate_generation' AND project_id = ? AND status IN ('running', 'queued')
-                  AND (media_asset_id = ? OR input_config_json LIKE ?)
-                ORDER BY created_at DESC LIMIT 1
-                """,
-                (project_id, media_asset_id, f'%"{media_asset_id}"%'),
-            ).fetchone()
-            if existing_job:
-                logger.info("Reusing existing active candidate_generation job %s for asset %s", existing_job[0], media_asset_id)
-                return []
+    # Check for existing active candidate_generation job for this media asset to prevent duplicate work
+    with sqlite_session(db_path) as conn:
+        existing_job = conn.execute(
+            """
+            SELECT id FROM jobs
+            WHERE job_type = 'candidate_generation' AND project_id = ? AND status IN ('running', 'queued')
+              AND (media_asset_id = ? OR input_config_json LIKE ?)
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (project_id, media_asset_id, f'%"{media_asset_id}"%'),
+        ).fetchone()
 
-        job = job_orchestrator.create_job(
-            job_type="candidate_generation",
-            project_id=project_id,
-            priority=120,
-            input_config={
-                "media_asset_id": media_asset_id,
-                "creative_direction": payload.creative_direction,
-                "aspect_ratio": payload.aspect_ratio,
-                "target_clip_count": payload.target_clip_count,
-                "duration_preference": payload.duration_preference,
-                "novelty_mode": payload.novelty_mode,
-                "generation_type": payload.generation_type,
-                "min_duration": payload.min_duration,
-                "max_duration": payload.max_duration,
-                "analysis_run_id": payload.analysis_run_id,
-            },
-        )
-        job_orchestrator.start_job(job.id)
-        background_tasks.add_task(
-            _run_discovery_background,
-            engine=engine,
-            project_id=project_id,
-            media_asset_id=media_asset_id,
-            job_id=job.id,
-            payload=payload,
-            job_orchestrator=job_orchestrator,
-        )
+    if existing_job and not payload.run_synchronously:
+        logger.info("Reusing existing active candidate_generation job %s for asset %s", existing_job[0], media_asset_id)
+        if response is not None:
+            response.headers["X-Job-Id"] = existing_job[0]
+        return []
+
+    # Always create a tracked job record in SQLite for operational visibility
+    job = job_orchestrator.create_job(
+        job_type="candidate_generation",
+        project_id=project_id,
+        priority=120,
+        media_asset_id=media_asset_id,
+        input_config={
+            "media_asset_id": media_asset_id,
+            "creative_direction": payload.creative_direction,
+            "aspect_ratio": payload.aspect_ratio,
+            "target_clip_count": payload.target_clip_count,
+            "duration_preference": payload.duration_preference,
+            "novelty_mode": payload.novelty_mode,
+            "generation_type": payload.generation_type,
+            "min_duration": payload.min_duration,
+            "max_duration": payload.max_duration,
+            "analysis_run_id": payload.analysis_run_id,
+        },
+    )
+    if response is not None:
+        response.headers["X-Job-Id"] = job.id
+
+    if payload.run_synchronously:
+        job_orchestrator.start_job(job.id, stage="loading_analysis")
+        try:
+            results = engine.discover_highlights(
+                project_id=project_id,
+                media_asset_id=media_asset_id,
+                analysis_run_id=payload.analysis_run_id,
+                job_id=job.id,
+                creative_direction=payload.creative_direction,
+                aspect_ratio=payload.aspect_ratio,
+                min_duration=payload.min_duration or 12.0,
+                max_duration=payload.max_duration or 60.0,
+                target_clip_count=payload.target_clip_count,
+                duration_preference=payload.duration_preference,
+                novelty_mode=payload.novelty_mode,
+                generation_type=payload.generation_type,
+                use_ai_explanations=payload.use_ai_explanations,
+                selected_scene_ids=payload.selected_scene_ids,
+                excluded_scene_ids=payload.excluded_scene_ids,
+            )
+            if not results:
+                job_orchestrator.complete_job(job.id, result_summary={"status": "completed", "count": 0})
+                return []
+            gen_run_id = results[0].get("generation_run_id")
+            with sqlite_session(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    """
+                    SELECT * FROM shorts_candidates
+                    WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
+                    ORDER BY quality_score DESC
+                    """,
+                    (project_id, media_asset_id, gen_run_id),
+                ).fetchall()
+                candidates_list = [_row_to_candidate_dict(r) for r in rows]
+                job_orchestrator.complete_job(job.id, result_summary={"status": "completed", "count": len(candidates_list)})
+                return candidates_list
+        except Exception as exc:
+            job_orchestrator.fail_job(job.id, str(exc))
+            raise
+    else:
+        # Asynchronous background execution: job is queued and automatically dispatched
         return []
 
 
@@ -394,6 +407,7 @@ def generate_more_highlights(
     project_id: str,
     media_asset_id: str,
     payload: DiscoverHighlightsRequest,
+    response: Response,
     background_tasks: BackgroundTasks,
     request: Request,
     engine: HighlightDiscoveryEngine = Depends(get_discovery_engine),
@@ -406,6 +420,7 @@ def generate_more_highlights(
         project_id=project_id,
         media_asset_id=media_asset_id,
         payload=payload,
+        response=response,
         background_tasks=background_tasks,
         request=request,
         engine=engine,
@@ -591,16 +606,31 @@ def update_candidate(
         title = payload.title.strip() if payload.title is not None else row["title"]
         description = payload.description.strip() if payload.description is not None else row["description"]
         category = payload.category.strip() if payload.category is not None else row["category"]
-        is_user_modified = 1 if (payload.start_time is not None or payload.end_time is not None) else row["is_user_modified"]
+        is_user_modified = 1 if (
+            payload.start_time is not None
+            or payload.end_time is not None
+            or payload.title is not None
+            or payload.description is not None
+            or payload.hook is not None
+        ) else row["is_user_modified"]
+
+        ai_exp_json = row["ai_explanation_json"]
+        if payload.hook is not None:
+            try:
+                ai_exp = json.loads(ai_exp_json) if ai_exp_json else {}
+            except Exception:
+                ai_exp = {}
+            ai_exp["hook"] = payload.hook.strip()
+            ai_exp_json = json.dumps(ai_exp)
 
         conn.execute(
             """
             UPDATE shorts_candidates
             SET title = ?, description = ?, category = ?, start_time = ?, end_time = ?,
-                duration = ?, is_user_modified = ?, updated_at = datetime('now')
+                duration = ?, is_user_modified = ?, ai_explanation_json = ?, updated_at = datetime('now')
             WHERE id = ? AND project_id = ?
             """,
-            (title, description, category, start_t, end_t, duration, is_user_modified, candidate_id, project_id),
+            (title, description, category, start_t, end_t, duration, is_user_modified, ai_exp_json, candidate_id, project_id),
         )
 
         updated_row = conn.execute(

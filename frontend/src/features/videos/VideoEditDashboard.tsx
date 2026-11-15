@@ -56,6 +56,7 @@ import {
   startMediaAnalysis,
   submitBatchExport,
   submitExportRender,
+  updateCandidate,
 } from '../../services/apiClient';
 import {
   AnalysisRunItem,
@@ -149,6 +150,15 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   // Generate Short Modal State
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState<boolean>(false);
   const [isGenerateMoreModal, setIsGenerateMoreModal] = useState<boolean>(false);
+
+  // Script Editing State
+  const [editingScript, setEditingScript] = useState<{
+    candidateId: string;
+    title: string;
+    hook: string;
+    dialogue: string;
+  } | null>(null);
+  const [savingScript, setSavingScript] = useState(false);
 
   // Inline Video Playback State (Generated Videos Library)
   const [inlinePlayingVideoId, setInlinePlayingVideoId] = useState<string | null>(null);
@@ -454,6 +464,26 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   };
 
+  // Save Script Changes (Title, Hook, Dialogue)
+  const handleSaveScript = async () => {
+    if (!editingScript || !editingScript.candidateId) return;
+    setSavingScript(true);
+    const effPid = asset?.project_id || projectId || 'default';
+    try {
+      await updateCandidate(effPid, editingScript.candidateId, {
+        title: editingScript.title.trim(),
+        hook: editingScript.hook.trim(),
+        description: editingScript.dialogue.trim(),
+      });
+      await loadIntelligenceData();
+      setEditingScript(null);
+    } catch (err: any) {
+      alert(`Failed to save script: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setSavingScript(false);
+    }
+  };
+
   // Retry a Failed Export Render
   const handleRetryRender = async (video: ExportItem) => {
     if (!asset || !video.candidate_id) {
@@ -585,7 +615,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       return candidates.map((c, idx) => ({
         id: `script_${c.id}`,
         candidateId: c.id,
-        title: c.suggested_title || c.title || `Short Script #${idx + 1}`,
+        title: (c.is_user_modified && c.title) ? c.title : (c.suggested_title || c.title || `Short Script #${idx + 1}`),
         hook: c.ai_explanation?.hook || `Watch what happens in this intense moment!`,
         dialogue:
           c.description ||
@@ -810,7 +840,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             </div>
             <div className="flex items-center justify-between text-[11px] text-text-muted">
               <span>{progressDetails.etaText}</span>
-              <span>Local CPU neural execution</span>
+              <span>Local CPU execution (Neural & CV)</span>
             </div>
           </div>
         )}
@@ -1040,7 +1070,7 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   </div>
                   <h3 className="text-sm font-bold text-text-primary">Generate Shorts</h3>
                   <p className="text-xs text-text-secondary leading-relaxed">
-                    Discover viral hook-driven short clips optimized for vertical 9:16 reels, TikTok & YouTube Shorts.
+                    Discover high-engagement hook-driven short clips optimized for vertical 9:16 reels, TikTok & YouTube Shorts.
                   </p>
                 </div>
                 <Button
@@ -1826,6 +1856,24 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                           </div>
 
                           <div className="flex items-center gap-2">
+                            {scr.candidateId && (
+                              <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={() => {
+                                  setEditingScript({
+                                    candidateId: scr.candidateId!,
+                                    title: scr.title,
+                                    hook: scr.hook,
+                                    dialogue: scr.dialogue,
+                                  });
+                                }}
+                                leftIcon={<FileText className="w-3.5 h-3.5 text-text-secondary" />}
+                              >
+                                Edit Script
+                              </Button>
+                            )}
+
                             <Button
                               variant="secondary"
                               size="sm"
@@ -2296,6 +2344,94 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             setTimeout(() => setExportSuccessToast(null), 4000);
           }}
         />
+      )}
+
+      {/* ==================== SCRIPT EDIT MODAL ==================== */}
+      {editingScript && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-surface border border-border rounded-2xl w-full max-w-lg p-6 shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <FileText className="w-5 h-5 text-indigo-400" />
+                <h3 className="text-sm font-semibold text-text-primary">Edit Short Video Script</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingScript(null)}
+                className="text-text-muted hover:text-text-primary p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-text-secondary mb-1">
+                  Script Title
+                </label>
+                <input
+                  type="text"
+                  value={editingScript.title}
+                  onChange={(e) =>
+                    setEditingScript((prev) => (prev ? { ...prev, title: e.target.value } : null))
+                  }
+                  className="w-full px-3 py-2 bg-canvas border border-border rounded-xl text-text-primary focus:outline-none focus:border-indigo-500 font-medium"
+                  placeholder="Catchy Short Title"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-text-secondary mb-1">
+                  Hook Sentence (Opening 0-3s)
+                </label>
+                <textarea
+                  rows={2}
+                  value={editingScript.hook}
+                  onChange={(e) =>
+                    setEditingScript((prev) => (prev ? { ...prev, hook: e.target.value } : null))
+                  }
+                  className="w-full px-3 py-2 bg-canvas border border-border rounded-xl text-text-primary focus:outline-none focus:border-indigo-500 leading-relaxed resize-none"
+                  placeholder="Immediate attention-grabbing sentence"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-text-secondary mb-1">
+                  Dialogue &amp; Narrative Body
+                </label>
+                <textarea
+                  rows={4}
+                  value={editingScript.dialogue}
+                  onChange={(e) =>
+                    setEditingScript((prev) => (prev ? { ...prev, dialogue: e.target.value } : null))
+                  }
+                  className="w-full px-3 py-2 bg-canvas border border-border rounded-xl text-text-primary focus:outline-none focus:border-indigo-500 leading-relaxed resize-none font-mono text-[11px]"
+                  placeholder="Transcribed narrative dialogue and spoken lines"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setEditingScript(null)}
+                disabled={savingScript}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleSaveScript}
+                isLoading={savingScript}
+                leftIcon={<Sparkles className="w-3.5 h-3.5" />}
+              >
+                Save Script Changes
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ==================== UNIFIED GENERATE SHORT MODAL ==================== */}

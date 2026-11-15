@@ -4,6 +4,62 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 18 — Queue Architecture Repair, Regression Stabilization & Integration Acceptance
+- [x] Full End-to-End Queue Dispatcher Lifecycle:
+  - Verified atomic claiming and background thread dispatching for `media_analysis`, `candidate_generation`, and `export_render`.
+  - Dispatches claimed jobs to target service (`VideoAnalysisPipeline.execute_analysis`, `HighlightDiscoveryEngine.discover_highlights`, and `ExportService.execute_render_job`).
+  - Progress and stage checkpoints persist cleanly into SQLite.
+  - Job completion automatically releases capacity and dispatches the next queued job.
+- [x] Unclean Shutdown & Startup Reconciliation:
+  - Repaired startup orphan query in `recover_interrupted_jobs` to preserve legitimate queued analysis runs and queued exports linked to queued jobs.
+  - Reconciles orphaned analysis runs and exports whose jobs crashed or are missing.
+- [x] Process Cancellation & Self-Termination Guard:
+  - Overhauled `_terminate_pid_tree` to strictly safeguard `os.getpid()`, killing only child subprocesses (e.g. FFmpeg) and dedicated worker PIDs without killing the host runner or test suite.
+- [x] API Contract & Signature Unification:
+  - Fixed `start_highlight_discovery` and `generate_more_highlights` signatures and response headers (`X-Job-Id`), resolving 500 error in `generate-more`.
+- [x] Full Regression Test Quality Gates (100% Pass Rate):
+  - Backend Pytest Suite: **250 passed, 0 failed, 0 skipped** (Duration: 297.08s).
+  - Frontend Vitest Suite: **26 test files passed, 120 passed, 0 failed** (Duration: 27.83s).
+  - TypeScript Compiler: **0 errors** (`npx tsc --noEmit`).
+  - Production Build: **`npm run build` completed cleanly in 7.49s**.
+- [x] Real Queue Multimodal Integration Testing:
+  - Real Candidate Generation (`job_bedad53ef5d2` on `Ek Mota Hathi Ghumne Chala.mp4`): queued, dispatched, completed in 1.28s, 2 candidates persisted.
+  - Real Export Render (`job_0af7b48be499`, `exp_f34b7fb391e2`): queued, dispatched, rendered 9:16 vertical 1080x1920 video with dynamic crop and ASS karaoke captions, completed in 55.4s (17.1 MB valid MP4 verified with FFprobe).
+- [x] Interactive Browser Verification:
+  - Verified Video Edit Dashboard, Generate Shorts modal, Script Editing, persistence across reload, inline 9:16 video playback, and Process Manager HUD.
+
+---
+
+## Session 16 — ZEZEdit 2.0 Product Acceptance, Short-Form Quality & Workflow Completion
+- [x] Process Manager & Operational Correctness:
+  - Investigated and answered all 6 architectural questions regarding Whisper timeouts, stale queue states, and worker claiming.
+  - Implemented `claim_next_queued_job` in `JobOrchestrator` with atomic SQL UPDATE `WHERE id = ? AND status = 'queued'`, guaranteeing multiple workers cannot claim the same job.
+  - Implemented background queue dispatcher loop in `JobOrchestrator.dispatch_queued_jobs` and FastAPI lifespan ticking every 2.0s.
+  - Implemented `cleanup_stale_queued_jobs(max_queued_age_seconds=1800.0)`: automatically transitions jobs queued > 30m without worker pickup to `failed` (`queue_timeout`).
+  - Process Manager HUD truthfully displays 0 running, 0 queued when system is idle.
+- [x] Complete End-to-End Workflow Verification on Existing Media:
+  - Verified on `Visionquest S01E08.mkv`, `BLACK TORCH S01E02.mkv`, and `Ek Mota Hathi Ghumne Chala.mp4` without duplicating media.
+  - Audio extraction, Whisper transcription, scene detection, candidate discovery, and multi-aspect ratio rendering verified.
+- [x] Short-Video Quality Evaluation:
+  - Conducted qualitative review against opening interest (0-3s hook), narrative completeness, ending intentionality, dialogue coherence, visual framing & relevance, creative direction match, and duration suitability.
+- [x] Persistent Script Generation & Editing:
+  - Implemented backend PATCH support on `/projects/{pid}/highlights/{cid}` for `hook`, `title`, and `description` with `is_user_modified = 1`.
+  - Built interactive Edit Script modal on Generated Scripts tab; verified persistence across full browser refresh in SQLite.
+- [x] Export Configuration & Video Library:
+  - Verified rendering for 9:16 portrait, 1:1 square, and 16:9 landscape exports with FFprobe and full FFmpeg bitstream decode (`-f null -`).
+  - Fixed thumbnail serving bug (500 Internal Server Error) with dynamic JPEG synthesis and caching.
+  - Verified inline playback, controls, download, search, pagination, and non-destructive deletion in Generated Videos tab.
+- [x] Truthful AI Capability Labeling:
+  - Audited and updated misleading labels ("viral", "neural execution" for CV heuristics) across frontend views.
+- [x] Regression Quality Gates:
+  - Backend regression suite: 4/4 passed in `test_session16_product_acceptance.py`.
+  - Frontend vitest suite: 120/120 passed across 26 test files.
+  - TypeScript compiler: 0 errors (`tsc --noEmit`).
+  - Production build: `npm run build` completed in 13.35s.
+  - Graphify code knowledge graph updated.
+
+---
+
 ## Session 15 — Long-Video Endurance, Job Recovery & Production Workflow Verification
 - [x] Definitively resolved root causes of watchdog false stalls and browser timeouts on long video assets:
   - Fixed `_heartbeat_ticker` in `analysis_pipeline.py`: un-instrumented stages scale deadlines dynamically with video duration (`detecting_scenes` ceiling `max(600.0, duration * 0.75)` and `sampling_frames` ceiling `max(300.0, duration * 0.5)`). Active callback stages (`transcribing_speech`) bypass hard ceiling deadlines and scale inactive threshold to 600.0s (10 min).

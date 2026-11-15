@@ -195,24 +195,32 @@ def delete_media(
 def get_thumbnail_file(
     project_id: str,
     asset_id: str,
+    pipeline: MediaPipelineService = Depends(get_pipeline_service),
     service: MediaService = Depends(get_media_service),
-):
-    """Serve the thumbnail image for a media asset."""
+) -> FileResponse:
+    """Serve the thumbnail image for a media asset with on-demand fallback generation."""
+    from app.services.media_thumbnail import generate_thumbnail
     asset = service.get_media_asset(project_id, asset_id)
-    if not asset.thumbnail_reference_path:
-        raise AppError(
-            code="THUMBNAIL_NOT_AVAILABLE",
-            message=f"No thumbnail available for asset '{asset_id}'.",
-            status_code=404,
-        )
-    p = Path(asset.thumbnail_reference_path)
-    if not p.is_file():
-        raise AppError(
-            code="THUMBNAIL_FILE_MISSING",
-            message="Thumbnail file does not exist on disk.",
-            status_code=404,
-        )
-    return FileResponse(p, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
+    thumb_path = Path(asset.thumbnail_reference_path) if asset.thumbnail_reference_path else pipeline.storage.thumbnails / f"{asset_id}.jpg"
+    if not thumb_path.exists() or thumb_path.stat().st_size == 0:
+        source_path = Path(asset.storage_path) if asset.storage_path else None
+        if source_path and source_path.is_file():
+            try:
+                generate_thumbnail(source_path, thumb_path, media_type=asset.media_type or "video", duration=asset.duration_seconds)
+                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": str(thumb_path)})
+            except Exception as exc:
+                raise AppError(
+                    code="THUMBNAIL_NOT_FOUND",
+                    message=f"Thumbnail for asset '{asset_id}' could not be generated: {exc}",
+                    status_code=404,
+                )
+        else:
+            raise AppError(
+                code="THUMBNAIL_FILE_MISSING",
+                message=f"Thumbnail file for asset '{asset_id}' does not exist on disk and source is missing.",
+                status_code=404,
+            )
+    return FileResponse(thumb_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @router.post("/{asset_id}/thumbnail/regenerate", response_model=MediaAssetResponse)
@@ -464,30 +472,48 @@ def get_media_thumbnail_global(
     service: MediaService = Depends(get_media_service),
 ) -> FileResponse:
     """Serve media thumbnail directly by asset ID."""
+    from app.services.media_thumbnail import generate_thumbnail
     asset = service.get_media_asset("all", asset_id)
-    thumb_path = pipeline.get_media_thumbnail_path(asset.project_id, asset_id)
-    if not thumb_path or not thumb_path.exists():
-        raise AppError(
-            code="THUMBNAIL_NOT_FOUND",
-            message=f"Thumbnail for asset '{asset_id}' not found.",
-            status_code=404,
-        )
-    return FileResponse(thumb_path, media_type="image/jpeg")
+    thumb_path = Path(asset.thumbnail_reference_path) if asset.thumbnail_reference_path else pipeline.storage.thumbnails / f"{asset_id}.jpg"
+    if not thumb_path.exists() or thumb_path.stat().st_size == 0:
+        source_path = Path(asset.storage_path) if asset.storage_path else None
+        if source_path and source_path.is_file():
+            try:
+                generate_thumbnail(source_path, thumb_path, media_type=asset.media_type or "video", duration=asset.duration_seconds)
+                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": str(thumb_path)})
+            except Exception as exc:
+                raise AppError(
+                    code="THUMBNAIL_NOT_FOUND",
+                    message=f"Thumbnail for asset '{asset_id}' could not be generated: {exc}",
+                    status_code=404,
+                )
+        else:
+            raise AppError(
+                code="THUMBNAIL_NOT_FOUND",
+                message=f"Thumbnail for asset '{asset_id}' not found.",
+                status_code=404,
+            )
+    return FileResponse(thumb_path, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400"})
 
 
 @global_media_router.get("/{asset_id}/proxy")
 def get_media_proxy_global(
     asset_id: str,
-    pipeline: MediaPipelineService = Depends(get_pipeline_service),
     service: MediaService = Depends(get_media_service),
 ) -> FileResponse:
     """Serve 480p proxy video directly by asset ID."""
     asset = service.get_media_asset("all", asset_id)
-    proxy_path = pipeline.get_media_proxy_path(asset.project_id, asset_id)
-    if not proxy_path or not proxy_path.exists():
+    if not asset.proxy_reference_path:
         raise AppError(
             code="PROXY_NOT_FOUND",
             message=f"Proxy video for asset '{asset_id}' not found.",
+            status_code=404,
+        )
+    proxy_path = Path(asset.proxy_reference_path)
+    if not proxy_path.is_file():
+        raise AppError(
+            code="PROXY_NOT_FOUND",
+            message=f"Proxy video file for asset '{asset_id}' does not exist on disk.",
             status_code=404,
         )
     return FileResponse(proxy_path, media_type="video/mp4")
@@ -496,7 +522,6 @@ def get_media_proxy_global(
 @global_media_router.get("/{asset_id}/stream")
 def stream_media_global(
     asset_id: str,
-    pipeline: MediaPipelineService = Depends(get_pipeline_service),
     service: MediaService = Depends(get_media_service),
 ) -> FileResponse:
     """Serve source video or proxy with byte-range streaming for HTML5 playback."""
@@ -505,9 +530,10 @@ def stream_media_global(
     if source_path and source_path.is_file():
         return FileResponse(source_path, media_type=asset.mime_type or "video/mp4", headers={"Accept-Ranges": "bytes"})
     
-    proxy_path = pipeline.get_media_proxy_path(asset.project_id, asset_id)
-    if proxy_path and proxy_path.is_file():
-        return FileResponse(proxy_path, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+    if asset.proxy_reference_path:
+        proxy_path = Path(asset.proxy_reference_path)
+        if proxy_path.is_file():
+            return FileResponse(proxy_path, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
 
     raise AppError(
         code="MEDIA_STREAM_NOT_FOUND",

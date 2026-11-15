@@ -153,6 +153,7 @@ export interface DiscoverHighlightsOptions {
 export interface UpdateCandidatePayload {
   title?: string;
   description?: string;
+  hook?: string;
   category?: string;
   start_time?: number;
   end_time?: number;

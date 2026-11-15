@@ -43,15 +43,41 @@ def create_app(settings_override: Optional[Settings] = None) -> FastAPI:
 
         # Detect and recover any jobs left in-flight from an unclean shutdown
         from app.services.jobs import JobOrchestrator
-        recovered = JobOrchestrator(settings=settings, db_path=layout.db_file).recover_interrupted_jobs()
+        orch_startup = JobOrchestrator(settings=settings, db_path=layout.db_file)
+        recovered = orch_startup.recover_interrupted_jobs()
         if recovered:
             logger.warning("Recovered %d interrupted job(s) on startup: %s", len(recovered), recovered)
+        try:
+            orch_startup.dispatch_queued_jobs()
+        except Exception as exc:
+            logger.warning("Startup queue dispatch failed: %s", exc)
 
         app.state.settings = settings
         app.state.storage = layout
         app.state.migration_result = migration_result
 
+        import asyncio
+
+        async def _queue_poller():
+            orch = JobOrchestrator(settings=settings, db_path=layout.db_file)
+            while True:
+                try:
+                    await asyncio.sleep(2.0)
+                    orch.dispatch_queued_jobs()
+                except asyncio.CancelledError:
+                    break
+                except Exception as exc:
+                    logger.debug("Queue poller tick exception: %s", exc)
+
+        poller_task = asyncio.create_task(_queue_poller())
+
         yield
+
+        poller_task.cancel()
+        try:
+            await poller_task
+        except asyncio.CancelledError:
+            pass
 
         logger.info("Shutting down %s gracefully.", settings.app_name)
 
