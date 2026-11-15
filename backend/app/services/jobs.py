@@ -208,6 +208,20 @@ class JobOrchestrator:
                 status_code=400,
             )
 
+        # Enforce completion evidence for completed status
+        if new_status == "completed":
+            effective_res = result_metadata if result_metadata is not None else (job.result_metadata or {})
+            if isinstance(effective_res, dict):
+                out_p = effective_res.get("output_path")
+                if out_p:
+                    p = Path(out_p)
+                    if not p.exists() or (p.is_file() and p.stat().st_size == 0):
+                        raise AppError(
+                            code="COMPLETION_EVIDENCE_MISSING",
+                            message=f"Cannot complete job {job_id}: specified output '{out_p}' does not exist or is empty.",
+                            status_code=400,
+                        )
+
         now = datetime.now(timezone.utc).isoformat()
         started_at = now if new_status == "running" and not job.started_at else job.started_at
         completed_at = now if new_status in {"completed", "failed"} else job.completed_at
@@ -290,6 +304,34 @@ class JobOrchestrator:
                         job_id,
                     ),
                 )
+
+            # Synchronize linked analysis_runs and exports tables on terminal/cancelling status
+            if new_status in ("cancelled", "failed", "interrupted"):
+                try:
+                    conn.execute(
+                        """
+                        UPDATE analysis_runs
+                        SET status = ?,
+                            error_message = COALESCE(?, error_message),
+                            current_stage = ?,
+                            updated_at = ?,
+                            completed_at = COALESCE(completed_at, ?)
+                        WHERE job_id = ? AND status IN ('running', 'pending', 'queued')
+                        """,
+                        (new_status, error_message or f"Job {new_status}", new_status, now, now, job_id),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE exports
+                        SET status = ?,
+                            error_message = COALESCE(?, error_message),
+                            completed_at = COALESCE(completed_at, ?)
+                        WHERE render_job_id = ? AND status IN ('rendering', 'queued')
+                        """,
+                        (new_status if new_status != "interrupted" else "failed", error_message or f"Render job {new_status}", now, job_id),
+                    )
+                except Exception:
+                    pass
 
         return self.get_job(job_id)
 
@@ -622,7 +664,61 @@ class JobOrchestrator:
                     """,
                     (err_msg, now, jid),
                 )
+                try:
+                    conn.execute(
+                        """
+                        UPDATE analysis_runs
+                        SET status = 'interrupted',
+                            error_message = ?,
+                            current_stage = 'interrupted',
+                            updated_at = ?,
+                            completed_at = COALESCE(completed_at, ?)
+                        WHERE job_id = ? AND status IN ('running', 'pending', 'queued')
+                        """,
+                        (err_msg, now, now, jid),
+                    )
+                    conn.execute(
+                        """
+                        UPDATE exports
+                        SET status = 'failed',
+                            error_message = ?,
+                            completed_at = COALESCE(completed_at, ?)
+                        WHERE render_job_id = ? AND status IN ('rendering', 'queued')
+                        """,
+                        (err_msg, now, jid),
+                    )
+                except Exception:
+                    pass
                 recovered_ids.append(jid)
+
+            # Reconcile any orphaned analysis_runs or exports whose jobs are already terminal or missing
+            try:
+                conn.execute(
+                    """
+                    UPDATE analysis_runs
+                    SET status = 'interrupted',
+                        error_message = 'Process was interrupted during previous session.',
+                        current_stage = 'interrupted',
+                        updated_at = ?,
+                        completed_at = COALESCE(completed_at, ?)
+                    WHERE status IN ('running', 'pending', 'queued')
+                      AND (job_id IS NULL OR job_id NOT IN (SELECT id FROM jobs WHERE status = 'running'))
+                    """,
+                    (now, now),
+                )
+                conn.execute(
+                    """
+                    UPDATE exports
+                    SET status = 'failed',
+                        error_message = 'Render process was interrupted during previous session.',
+                        completed_at = COALESCE(completed_at, ?)
+                    WHERE status IN ('rendering', 'queued')
+                      AND (render_job_id IS NULL OR render_job_id NOT IN (SELECT id FROM jobs WHERE status = 'running'))
+                    """,
+                    (now,),
+                )
+            except Exception:
+                pass
         return recovered_ids
 
     def get_queue_stats(self) -> dict:
@@ -850,6 +946,7 @@ class JobOrchestrator:
 
                 if is_stalled:
                     stalled_pct = min(pct, 99.0)
+                    stall_msg = f"Job stalled: no worker heartbeat or progress update for {int(age)}s."
                     conn.execute(
                         """
                         UPDATE jobs
@@ -861,8 +958,33 @@ class JobOrchestrator:
                             completed_at = ?
                         WHERE id = ? AND status = 'running' AND (current_stage != 'completed' AND progress_pct < 100.0)
                         """,
-                        (f"Job stalled: no worker heartbeat or progress update for {int(age)}s.", stalled_pct, now, now, jid),
+                        (stall_msg, stalled_pct, now, now, jid),
                     )
+                    try:
+                        conn.execute(
+                            """
+                            UPDATE analysis_runs
+                            SET status = 'failed',
+                                error_message = ?,
+                                current_stage = 'stalled_timeout',
+                                updated_at = ?,
+                                completed_at = COALESCE(completed_at, ?)
+                            WHERE job_id = ? AND status IN ('running', 'pending', 'queued')
+                            """,
+                            (stall_msg, now, now, jid),
+                        )
+                        conn.execute(
+                            """
+                            UPDATE exports
+                            SET status = 'failed',
+                                error_message = ?,
+                                completed_at = COALESCE(completed_at, ?)
+                            WHERE render_job_id = ? AND status IN ('rendering', 'queued')
+                            """,
+                            (stall_msg, now, jid),
+                        )
+                    except Exception:
+                        pass
                     stalled_ids.append(jid)
         return stalled_ids
 

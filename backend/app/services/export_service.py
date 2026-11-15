@@ -130,6 +130,29 @@ class ExportService:
             if not preset:
                 preset = STANDARD_EXPORT_PRESETS["shorts_reels_9_16"]
 
+            # Check for existing queued/rendering export for this candidate to prevent duplicate jobs
+            existing_active = conn.execute(
+                """
+                SELECT id, render_job_id, output_filename FROM exports
+                WHERE candidate_id = ? AND project_id = ? AND status IN ('rendering', 'queued')
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (request.candidate_id, project_id),
+            ).fetchone()
+            if existing_active:
+                logger.info(
+                    "Reusing active export job %s (export %s) for candidate %s",
+                    existing_active["render_job_id"],
+                    existing_active["id"],
+                    request.candidate_id,
+                )
+                return {
+                    "export_id": existing_active["id"],
+                    "job_id": existing_active["render_job_id"],
+                    "status": "queued",
+                    "output_filename": existing_active["output_filename"],
+                }
+
             export_id = f"exp_{uuid.uuid4().hex[:12]}"
             title = request.title or cand["title"] or cand["suggested_title"] or f"Short_{cand['id'][:8]}"
             clean_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', title)[:40]

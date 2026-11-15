@@ -278,5 +278,15 @@ All features MUST comply with these baseline constraints:
   - Full 7-Scenario Rendering Matrix: verified 9:16 portrait static crop, 9:16 moving pan, 9:16 subject-tracking, 9:16 with ASS captions + loudnorm audio transcode, 1:1 square crop, 16:9 landscape letterbox/scale, and 3-audio stream MKV transcode (`BLACK TORCH S01E02.mkv`). 100% clean bitstream decode (`-f null -`) with 0 errors across all outputs.
   - Frontend timeout verified: 180s API timeout in `apiClient.ts` eliminates the 15s browser abort alert; interactive live UI verification confirmed on `http://localhost:5173/videos/med_290ccbe1f97d`.
   - Script & Video persistence isolation verified: deleting an export safely removes the rendered MP4 file while strictly preserving the candidate script and source media asset.
+- **Session 15 (Completed):** Long-Video Endurance, Job Recovery & Production Workflow Verification:
+  - Solved watchdog premature stall abortion on long video assets: dynamic deadline scaling in `analysis_pipeline.py` based on video duration (`detecting_scenes` ceiling `max(600.0, duration * 0.75)`, `sampling_frames` ceiling `max(300.0, duration * 0.5)`), active callbacks bypass hard stage deadlines, and inactivity threshold expanded to 600.0s.
+  - Resolved client-side 15s highlight discovery timeout by expanding timeouts to 300,000ms (5 minutes) in `apiClient.ts`.
+  - Strengthened `JobOrchestrator`: enforced completion evidence verification (`COMPLETION_EVIDENCE_MISSING` if specified output file is missing or empty), immutable terminal transitions (`INVALID_JOB_TRANSITION`), cross-table atomic synchronization between `jobs`, `analysis_runs`, and `exports`, and startup crash recovery sweeping orphaned active runs.
+  - Request idempotency and duplicate job prevention for analysis runs, candidate discovery, and video renders.
+  - Author and pass 10-scenario endurance and recovery test suite (`backend/tests/test_session15_endurance_and_recovery.py`, 10/10 passed).
+  - Full regression pass: 234/234 backend pytests passed, 120/120 frontend vitests passed, 0 TypeScript compilation errors, clean production build.
+  - Physical render and stream integrity verified on all 3 real assets (`Visionquest S01E08.mkv`, `BLACK TORCH S01E02.mkv`, `Ek Mota Hathi Ghumne Chala.mp4`) with FFprobe and FFmpeg null-sink decode (`-f null -`).
+  - Interactive browser verification on `http://localhost:5173`: Process Manager (42 jobs), state persistence across navigation and page reloads, and Generate Shorts modal opening verified.
+
 
 

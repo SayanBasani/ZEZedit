@@ -733,7 +733,7 @@ export function discoverHighlights(
       method: 'POST',
       body: JSON.stringify(options),
     },
-    180000
+    300000
   );
 }
 
@@ -748,7 +748,7 @@ export function generateMoreHighlights(
       method: 'POST',
       body: JSON.stringify(options),
     },
-    180000
+    300000
   );
 }
 

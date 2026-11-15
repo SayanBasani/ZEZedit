@@ -282,6 +282,21 @@ def start_highlight_discovery(
             return [_row_to_candidate_dict(r) for r in rows]
     else:
         # Background execution tracked via JobOrchestrator
+        # Check for existing active candidate_generation job for this media asset
+        with sqlite_session(db_path) as conn:
+            existing_job = conn.execute(
+                """
+                SELECT id FROM jobs
+                WHERE job_type = 'candidate_generation' AND project_id = ? AND status IN ('running', 'queued')
+                  AND (media_asset_id = ? OR input_config_json LIKE ?)
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (project_id, media_asset_id, f'%"{media_asset_id}"%'),
+            ).fetchone()
+            if existing_job:
+                logger.info("Reusing existing active candidate_generation job %s for asset %s", existing_job[0], media_asset_id)
+                return []
+
         job = job_orchestrator.create_job(
             job_type="candidate_generation",
             project_id=project_id,

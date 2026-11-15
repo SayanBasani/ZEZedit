@@ -66,9 +66,9 @@
     "semantic_hash": "ae03d5eab45a6aa34a2c0165936c8e5b"
   },
   "backend/app/api/v1/highlights.py": {
-    "mtime": 1794667783.409968,
-    "seen": 1794671986.2673202,
-    "ast_hash": "cfc272cebd92fe846543b2de586a8a70",
+    "mtime": 1794711628.4257162,
+    "seen": 1794712838.6631806,
+    "ast_hash": "2d8d91287ae848d673c70995e801c35d",
     "semantic_hash": ""
   },
   "backend/app/api/v1/jobs.py": {
@@ -258,9 +258,9 @@
     "semantic_hash": ""
   },
   "backend/app/services/analysis_pipeline.py": {
-    "mtime": 1794709111.220831,
-    "seen": 1794710409.3489523,
-    "ast_hash": "19a79b05102d4fcbc52f8bc7840944c1",
+    "mtime": 1794711606.490941,
+    "seen": 1794712838.6785097,
+    "ast_hash": "8e6acda2964e2af13f5c60e4eafbcb1c",
     "semantic_hash": ""
   },
   "backend/app/services/audio_extractor.py": {
@@ -294,9 +294,9 @@
     "semantic_hash": "20516a791c26fa609ca29b9bfacd4071"
   },
   "backend/app/services/export_service.py": {
-    "mtime": 1794683572.276168,
-    "seen": 1794684244.642956,
-    "ast_hash": "8d1c104f6d83dbfb98f1b21a87f5186b",
+    "mtime": 1794711619.2426145,
+    "seen": 1794712838.6808865,
+    "ast_hash": "39db6cb1176eca0d60ff86e1d257d760",
     "semantic_hash": ""
   },
   "backend/app/services/frame_sampler.py": {
@@ -318,9 +318,9 @@
     "semantic_hash": ""
   },
   "backend/app/services/jobs.py": {
-    "mtime": 1794709091.2919617,
-    "seen": 1794710409.3511038,
-    "ast_hash": "1be7de1d7bccc218c50b9f6bb0347b68",
+    "mtime": 1794712553.3379915,
+    "seen": 1794712838.6818619,
+    "ast_hash": "0af62faddd05bcf418cdfc704b9d12a4",
     "semantic_hash": ""
   },
   "backend/app/services/media.py": {
@@ -648,9 +648,9 @@
     "semantic_hash": ""
   },
   "frontend/src/services/apiClient.ts": {
-    "mtime": 1794683696.473044,
-    "seen": 1794684244.6710386,
-    "ast_hash": "8ed6a4dc26cae044f8d329b69af6b758",
+    "mtime": 1794711645.6372974,
+    "seen": 1794712838.70929,
+    "ast_hash": "d43fd44c35959a2f1a08017623e61982",
     "semantic_hash": ""
   },
   "frontend/src/test/analysis.test.tsx": {
@@ -846,15 +846,15 @@
     "semantic_hash": ""
   },
   "README.md": {
-    "mtime": 1794710228.6905422,
-    "seen": 1794710409.3957756,
-    "ast_hash": "00f472e05c01816ae89eaf3a950473f4",
+    "mtime": 1794712810.3650916,
+    "seen": 1794712838.724916,
+    "ast_hash": "ecc2a3e7d5e98cd4e1f84b0488e18ba9",
     "semantic_hash": ""
   },
   "docs/MASTER_REQUIREMENTS.md": {
-    "mtime": 1794710193.2420657,
-    "seen": 1794710409.3957798,
-    "ast_hash": "4f9a463d0f73dac58577181dd44ce372",
+    "mtime": 1794712793.5156443,
+    "seen": 1794712838.7249212,
+    "ast_hash": "3492d409cc6ed1440cd95116a21aa899",
     "semantic_hash": ""
   },
   "docs/architecture/API_DESIGN.md": {
@@ -918,15 +918,15 @@
     "semantic_hash": ""
   },
   "docs/feature_status.md": {
-    "mtime": 1794710205.8708398,
-    "seen": 1794710409.4025261,
-    "ast_hash": "a880e28a4a6baa91774231a9443bc76e",
+    "mtime": 1794712699.4864097,
+    "seen": 1794712838.7358842,
+    "ast_hash": "73229f9b3b8d82b68e8a6444eab2e9ef",
     "semantic_hash": ""
   },
   "docs/feature_test_checklist.md": {
-    "mtime": 1794710221.39343,
-    "seen": 1794710409.4025307,
-    "ast_hash": "be1f184d091d8aa221f6476fc5dd3141",
+    "mtime": 1794712774.5713751,
+    "seen": 1794712838.7358902,
+    "ast_hash": "f65c99af7316868a969aa9addea6a4b6",
     "semantic_hash": ""
   },
   "frontend/index.html": {
@@ -1989,6 +1989,18 @@
     "mtime": 1794710271.2990875,
     "seen": 1794710409.409913,
     "ast_hash": "16161bc9bc5dc32970d2c36a30e3fb13",
+    "semantic_hash": ""
+  },
+  "backend/tests/test_session15_endurance_and_recovery.py": {
+    "mtime": 1794712034.9521468,
+    "seen": 1794712838.6989303,
+    "ast_hash": "84d311606c661749cdc3a4a1f7e4745b",
+    "semantic_hash": ""
+  },
+  "docs/reports/session_15/SESSION_15_ENDURANCE_REPORT.md": {
+    "mtime": 1794712676.863604,
+    "seen": 1794712838.7463226,
+    "ast_hash": "78ba3b5d0bb81acadb3f3ad044b70fb4",
     "semantic_hash": ""
   },
   "frontend/package-lock.json": {

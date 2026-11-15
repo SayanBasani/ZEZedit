@@ -58,13 +58,6 @@ async def _heartbeat_ticker(
                 if stop_event.is_set():
                     break
                 elapsed = time.monotonic() - start_mono
-                if elapsed > max_stage_seconds:
-                    logger.warning(
-                        "Stage '%s' exceeded max duration limit of %.0fs; halting heartbeat ticker to allow watchdog detection.",
-                        stage_name,
-                        max_stage_seconds,
-                    )
-                    break
                 if last_progress_check is not None:
                     last_act = last_progress_check()
                     # Only check inactivity if at least one callback was received or after initial grace period
@@ -76,6 +69,14 @@ async def _heartbeat_ticker(
                             silence_dur,
                             max_inactive_seconds,
                             stage_name,
+                        )
+                        break
+                else:
+                    if elapsed > max_stage_seconds:
+                        logger.warning(
+                            "Stage '%s' exceeded max duration limit of %.0fs; halting heartbeat ticker to allow watchdog detection.",
+                            stage_name,
+                            max_stage_seconds,
                         )
                         break
                 orchestrator.record_heartbeat(
@@ -186,6 +187,23 @@ class VideoAnalysisPipeline:
                             media_asset_id,
                         )
                         return existing_run[0]
+
+            # Check for existing active (running, pending, queued) run to prevent duplicate executions
+            active_run = conn.execute(
+                """
+                SELECT id FROM analysis_runs
+                WHERE media_asset_id = ? AND project_id = ? AND status IN ('running', 'pending', 'queued')
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (media_asset_id, project_id),
+            ).fetchone()
+            if active_run:
+                logger.info(
+                    "Reusing existing active analysis run %s for asset %s",
+                    active_run[0],
+                    media_asset_id,
+                )
+                return active_run[0]
 
             # Create persistent job in JobOrchestrator
             job_record = self.jobs.create_job(
@@ -583,8 +601,8 @@ class VideoAnalysisPipeline:
                     "transcribing_speech",
                     self.job_orchestrator,
                     last_progress_check=lambda: last_cb_time[0],
-                    max_inactive_seconds=180.0,
-                    max_stage_seconds=1800.0,
+                    max_inactive_seconds=600.0,
+                    max_stage_seconds=7200.0,
                 ):
                     transcription = await asyncio.to_thread(
                         self.transcriber.transcribe,
@@ -650,8 +668,9 @@ class VideoAnalysisPipeline:
             t_scene_start = time.monotonic()
             scenes: List[DetectedScene] = []
             if media_type == "video" and duration > 0.5:
+                scene_timeout = max(600.0, float(duration) * 0.75)
                 async with _heartbeat_ticker(
-                    effective_job_id, "detecting_scenes", self.job_orchestrator, max_stage_seconds=180.0
+                    effective_job_id, "detecting_scenes", self.job_orchestrator, max_stage_seconds=scene_timeout
                 ):
                     scenes = await asyncio.to_thread(
                         detect_scenes_ffmpeg,
@@ -688,8 +707,9 @@ class VideoAnalysisPipeline:
             sampled_frames: List[SampledFrame] = []
             if media_type == "video" and duration > 0.5:
                 max_frames = 20 if profile == "fast" else (50 if profile == "balanced" else 100)
+                sample_timeout = max(300.0, float(duration) * 0.5)
                 async with _heartbeat_ticker(
-                    effective_job_id, "sampling_frames", self.job_orchestrator, max_stage_seconds=120.0
+                    effective_job_id, "sampling_frames", self.job_orchestrator, max_stage_seconds=sample_timeout
                 ):
                     sampled_frames = await asyncio.to_thread(
                         sample_analysis_frames,

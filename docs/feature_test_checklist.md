@@ -4,6 +4,37 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 15 — Long-Video Endurance, Job Recovery & Production Workflow Verification
+- [x] Definitively resolved root causes of watchdog false stalls and browser timeouts on long video assets:
+  - Fixed `_heartbeat_ticker` in `analysis_pipeline.py`: un-instrumented stages scale deadlines dynamically with video duration (`detecting_scenes` ceiling `max(600.0, duration * 0.75)` and `sampling_frames` ceiling `max(300.0, duration * 0.5)`). Active callback stages (`transcribing_speech`) bypass hard ceiling deadlines and scale inactive threshold to 600.0s (10 min).
+  - Increased client-side timeouts in `frontend/src/services/apiClient.ts` for `discoverHighlights` and `generateMoreHighlights` to 300,000ms (5 minutes).
+- [x] Strengthened `JobOrchestrator` in `backend/app/services/jobs.py`:
+  - Enforced completion evidence: verifying `result_metadata["output_path"]` exists on disk with `st_size > 0` before transitioning to `completed` (`COMPLETION_EVIDENCE_MISSING`).
+  - Terminal state transition immutability: late worker completion attempts after cancellation or failure fail cleanly with `INVALID_JOB_TRANSITION`.
+  - Atomic cross-table synchronization: cancelling, failing, or stalling a job immediately synchronizes linked records in `analysis_runs` and `exports`.
+  - Startup crash recovery: `recover_interrupted_jobs()` sweeps orphan active runs/exports whose jobs are terminal or missing.
+- [x] Implemented duplicate job protection and request idempotency:
+  - `create_analysis_run` in `analysis_pipeline.py` reuses active runs.
+  - `submit_export_job` in `export_service.py` reuses active renders.
+  - `start_highlight_discovery` in `highlights.py` reuses active discovery jobs.
+- [x] Verified full 10-scenario endurance and recovery test suite in `backend/tests/test_session15_endurance_and_recovery.py` (10/10 passed).
+- [x] Verified all existing test suites without regressions:
+  - Pytest full backend suite: 234/234 passed.
+  - Frontend vitest suite: 120/120 passed across 26 test files.
+  - TypeScript type check (`tsc --noEmit`): clean exit 0.
+  - Production build (`npm run build`): clean exit 0.
+- [x] Physical export and render verification on 3 real test videos:
+  - `Visionquest S01E08.mkv` (1.29 GB, 69.36m, 808 speech segments, 438 cut scenes, 21 short candidates, 5 rendered MP4s).
+  - `BLACK TORCH S01E02.mkv` (247.8 MB, 23.83m, 401 speech segments, 246 cut scenes, 3 short candidates).
+  - `Ek Mota Hathi Ghumne Chala.mp4` (73.4 MB, 5.04m, 115 speech segments, 46 cut scenes, 3 short candidates).
+  - All rendered MP4s verified with FFprobe and FFmpeg null-sink decode (`-f null -`).
+- [x] Interactive browser acceptance verified on `http://localhost:5173`:
+  - Process Manager displays truthful statuses across 42 processes.
+  - Video Dashboard preserves all state across navigation, tab switches, and page reloads.
+  - Generate Shorts modal opens with full controls (clip count, 7 creative directions, 3 aspect ratios, duration modes) without hangs or timeouts.
+
+---
+
 ## Session 14 — Reliability, Rendering & Quality Acceptance
 - [x] Strictly enforced job lifecycle state invariants in `backend/app/services/jobs.py`:
   - `VALID_TRANSITIONS` forbids transitions out of `failed`, `cancelled`, and `completed`.
