@@ -225,19 +225,20 @@ class HighlightDiscoveryEngine:
             str(creative_direction).lower().strip(), "best_overall"
         )
 
-        # Apply duration bounds based on duration_preference
-        if duration_preference == "short":
-            min_duration = 15.0
-            max_duration = 30.0
-        elif duration_preference == "medium":
-            min_duration = 30.0
-            max_duration = 60.0
-        elif duration_preference == "long":
-            min_duration = 60.0
-            max_duration = 90.0
-        elif duration_preference in ("ai_best_duration", "ai_best"):
-            min_duration = 15.0
-            max_duration = 65.0
+        # Apply duration bounds based on duration_preference only if caller did not provide custom min/max
+        if min_duration is None or max_duration is None:
+            if duration_preference == "short":
+                min_duration = min_duration if min_duration is not None else 15.0
+                max_duration = max_duration if max_duration is not None else 30.0
+            elif duration_preference == "medium":
+                min_duration = min_duration if min_duration is not None else 30.0
+                max_duration = max_duration if max_duration is not None else 60.0
+            elif duration_preference == "long":
+                min_duration = min_duration if min_duration is not None else 60.0
+                max_duration = max_duration if max_duration is not None else 90.0
+            elif duration_preference in ("ai_best_duration", "ai_best"):
+                min_duration = min_duration if min_duration is not None else 15.0
+                max_duration = max_duration if max_duration is not None else 65.0
 
         generation_run_id = f"cgr_{uuid.uuid4().hex[:12]}"
         now = _now_utc()

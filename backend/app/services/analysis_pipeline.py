@@ -22,7 +22,7 @@ from app.services.scene_detector import detect_scenes_ffmpeg, DetectedScene
 from app.services.speech_segmentation import segment_dialogue_turns
 from app.services.subject_tracker import SubjectTracker
 from app.services.transcription import TranscriptionResult, WhisperTranscriber
-from app.services.visual_understanding import OllamaVisionAnalyzer
+from app.services.visual_understanding import OllamaVisionAnalyzer, VisualObservation
 from app.services.jobs import JobOrchestrator
 
 logger = logging.getLogger("zezedit.analysis_pipeline")
@@ -726,9 +726,15 @@ class VideoAnalysisPipeline:
                 self.update_run_progress(run_id, "cancelled", 80.0, "cancelled", job_id=effective_job_id)
                 return {"status": "cancelled"}
 
-            # Stage 8: Visual Understanding and Subject Tracking
-            sample_count = 5 if profile == "fast" else (12 if profile == "balanced" else 25)
-            target_frames = sampled_frames[:sample_count]
+            # Stage 8: Visual Understanding and Subject Tracking (Full-duration uniform coverage)
+            sample_count = 5 if profile == "fast" else (15 if profile == "balanced" else 30)
+            if len(sampled_frames) <= sample_count:
+                target_frames = list(sampled_frames)
+            else:
+                stride = (len(sampled_frames) - 1) / float(sample_count - 1)
+                chosen_indices = sorted(set(int(round(i * stride)) for i in range(sample_count)))
+                target_frames = [sampled_frames[idx] for idx in chosen_indices]
+
             stage_details["stage"] = "analyzing_visuals"
             stage_details["stage_status"] = "in_progress"
             stage_details["overall_pct"] = 85.0
@@ -738,7 +744,7 @@ class VideoAnalysisPipeline:
             stage_details["units_label"] = "frames"
             stage_details["elapsed_seconds"] = round(time.monotonic() - start_mono, 2)
             stage_details["last_heartbeat"] = _now_utc()
-            stage_details["operation_description"] = f"Analyzing visual keyframes (0 / {len(target_frames)})"
+            stage_details["operation_description"] = f"Analyzing visual keyframes across full duration (0 / {len(target_frames)})"
             self.update_run_progress(
                 run_id, "running", 85.0, "analyzing_visuals", stage_details=stage_details, job_id=effective_job_id
             )
@@ -770,6 +776,58 @@ class VideoAnalysisPipeline:
                     timestamp=frame.timestamp,
                 )
                 observations.extend(frame_obs)
+
+            # Generate lightweight local CV observations for remaining frames to guarantee 100% visual timeline coverage
+            target_frame_paths = {f.frame_path for f in target_frames}
+            for fr in sampled_frames:
+                if fr.frame_path not in target_frame_paths:
+                    obs_dets = self.subject_tracker.detect_subjects_in_frame(
+                        fr.frame_path, fr.timestamp, fr.width, fr.height
+                    )
+                    sub_count = len([d for d in obs_dets if d.category in ("person", "face")])
+                    desc = f"Visual keyframe at {fr.timestamp:.1f}s: {sub_count} subject(s) detected via local CV." if sub_count > 0 else f"Visual keyframe at {fr.timestamp:.1f}s: scenic/ambient shot."
+                    observations.append(
+                        VisualObservation(
+                            timestamp=fr.timestamp,
+                            frame_id=None,
+                            category="subjects" if sub_count > 0 else "scene_setting",
+                            description=desc,
+                            provider_model="local_cv_detector",
+                            confidence=0.80,
+                        )
+                    )
+
+            # Compute timeline coverage metrics
+            if scenes:
+                vis_span = min(duration, sum(s.end_time - s.start_time for s in scenes))
+                vis_cov_pct = round(min(100.0, (vis_span / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
+            elif sampled_frames:
+                vis_first = sampled_frames[0].timestamp
+                vis_last = sampled_frames[-1].timestamp
+                frame_margin = (duration / max(1, len(sampled_frames)))
+                vis_span = min(duration, max(0.0, (vis_last - vis_first) + frame_margin))
+                vis_cov_pct = round(min(100.0, (vis_span / max(duration, 0.01)) * 100.0), 1) if duration > 0 else 100.0
+            else:
+                vis_span = 0.0
+                vis_cov_pct = 0.0
+            aud_cov_pct = 100.0 if audio_meta.has_audio else 0.0
+
+            coverage_metrics = {
+                "visual_coverage_pct": vis_cov_pct,
+                "visual_span_seconds": round(vis_span, 2),
+                "audio_coverage_pct": aud_cov_pct,
+                "audio_duration_seconds": round(audio_meta.duration_seconds, 2),
+                "is_complete_timeline": bool(vis_cov_pct >= 85.0 and (aud_cov_pct >= 85.0 or not audio_meta.has_audio)),
+                "uncovered_intervals": [] if vis_cov_pct >= 85.0 else [{"start": round(vis_span, 1), "end": round(duration, 1), "reason": "tail_boundary"}],
+            }
+            models_info = {
+                "transcription": "faster-whisper-tiny-int8 (CPU)",
+                "vision": "ollama/qwen3-vl:4b-instruct (with local CV fallback)",
+                "subject_tracking": "OpenCV TrackerMIL + motion differencing + skin chrominance",
+                "sound_event_classification": "Not Installed (Semantic sound-event models such as AudioSet/YAMNet are unavailable without dedicated weights; using FFmpeg silence detection and speech density)",
+            }
+            stage_details["coverage"] = coverage_metrics
+            stage_details["models"] = models_info
 
             if self.is_cancelled(run_id, effective_job_id):
                 self.update_run_progress(run_id, "cancelled", 95.0, "cancelled", job_id=effective_job_id)
@@ -976,6 +1034,8 @@ class VideoAnalysisPipeline:
                 },
                 "cached_stages": stage_details.get("cached_stages", []),
                 "warnings": stage_details.get("warnings", []),
+                "coverage": stage_details.get("coverage", {}),
+                "models": stage_details.get("models", {}),
             }
 
             self.update_run_progress(

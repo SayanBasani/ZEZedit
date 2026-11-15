@@ -240,28 +240,40 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     }
   }, [assetId, asset?.project_id, projectId]);
 
-  // Poll for Active Jobs & Analysis Telemetry (Progress Bar Telemetry)
+  const hadActiveJobRef = useRef(false);
+
+  // Poll for Active Jobs & Analysis Telemetry (Progress Bar Telemetry) & Live Video Exports
   useEffect(() => {
     let timer: any;
     const pollJobs = async () => {
       try {
-        const [jobsRes, runsRes] = await Promise.all([
+        const effPid = asset?.project_id || projectId || 'default';
+        const [jobsRes, runsRes, exportsRes] = await Promise.all([
           fetchJobs({ mediaAssetId: assetId }).catch(() => ({ items: [] })),
-          fetchAnalysisRuns(asset?.project_id || projectId || 'default', assetId).catch(() => []),
+          fetchAnalysisRuns(effPid, assetId).catch(() => []),
+          (fetchProjectExports ? fetchProjectExports(effPid, undefined, assetId) : Promise.resolve({ items: [], count: 0 })).catch(() => ({ items: [], count: 0 })),
         ]);
         const items = jobsRes.items || [];
         setVideoJobs(items);
         if (runsRes && runsRes.length > 0) {
           setAnalysisRuns(runsRes);
         }
+        if (exportsRes && Array.isArray(exportsRes.items)) {
+          setRenderedVideos(exportsRes.items);
+        }
 
         const runningJob = items.find((j: JobItem) => j.status === 'running' && j.media_asset_id === assetId);
         const queuedJob = items.find((j: JobItem) => j.status === 'queued' && j.media_asset_id === assetId);
+        const hasActiveJob = Boolean(runningJob || queuedJob);
         setActiveJob(runningJob || queuedJob || null);
 
-        if (runningJob || (runsRes[0] && runsRes[0].status === 'running')) {
+        // Terminal state detection: trigger immediate reload upon job completion/failure
+        if (hadActiveJobRef.current && !hasActiveJob) {
+          void loadIntelligenceData();
+        } else if (runningJob || (runsRes[0] && runsRes[0].status === 'running')) {
           void loadIntelligenceData();
         }
+        hadActiveJobRef.current = hasActiveJob;
       } catch (err) {
         // silent
       }
@@ -597,6 +609,54 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
     setSelectedCandidateIds(new Set(visibleCands.map((c) => c.id)));
   };
 
+  // Batch Render All Missing Candidate Shorts (Recovery capability)
+  const [isBatchRenderingMissing, setIsBatchRenderingMissing] = useState(false);
+
+  const completedExportCandIds = useMemo(() => {
+    return new Set(
+      renderedVideos
+        .filter((v) => v.status === 'completed')
+        .map((v) => v.candidate_id)
+        .filter(Boolean)
+    );
+  }, [renderedVideos]);
+
+  const activeExportCandIds = useMemo(() => {
+    return new Set(
+      renderedVideos
+        .filter((v) => v.status === 'queued' || v.status === 'rendering')
+        .map((v) => v.candidate_id)
+        .filter(Boolean)
+    );
+  }, [renderedVideos]);
+
+  const candidatesEligibleForBatchRender = useMemo(() => {
+    return candidates.filter(
+      (c) => !completedExportCandIds.has(c.id) && !activeExportCandIds.has(c.id)
+    );
+  }, [candidates, completedExportCandIds, activeExportCandIds]);
+
+  const handleBatchRenderMissingVideos = async () => {
+    if (!asset || candidatesEligibleForBatchRender.length === 0) return;
+    setIsBatchRenderingMissing(true);
+    const effPid = asset.project_id || projectId || 'default';
+    const cids = candidatesEligibleForBatchRender.map((c) => c.id);
+    try {
+      const res = await submitBatchExport(effPid, {
+        candidate_ids: cids,
+      });
+      setExportSuccessToast(
+        `Dispatched render for ${res.total_submitted} missing video(s)! Track progress in Generated Videos.`
+      );
+      setTimeout(() => setExportSuccessToast(null), 6000);
+      await loadIntelligenceData();
+    } catch (err: any) {
+      alert(`Batch render missing videos failed: ${err?.message || 'Unknown error'}`);
+    } finally {
+      setIsBatchRenderingMissing(false);
+    }
+  };
+
   // Clear all selections
   const clearCandidateSelection = () => {
     setSelectedCandidateIds(new Set());
@@ -900,30 +960,47 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         )}
 
         {/* 8 Horizontal Tabs Navigation: Quiet 34px Rows with 2px Gaps */}
-        <nav className="flex items-center gap-1 overflow-x-auto pt-1 no-scrollbar border-t border-border">
-          {[
-            { id: 'home', label: 'Home' },
-            { id: 'generated_shorts', label: `Generated Shorts (${candidates.length})` },
-            { id: 'rendered_videos', label: `Generated Videos (${renderedVideos.filter((v) => v.status === 'completed').length})` },
-            { id: 'scripts', label: `Generated Scripts (${synthesizedScripts.length})` },
-            { id: 'frames', label: 'Analyzed Frames' },
-            { id: 'transcript', label: 'Voice & Transcript Analysis' },
-            { id: 'scenes', label: `Scene Analysis (${scenes.length})` },
-            { id: 'details', label: 'Video Analysis Details' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as VideoDashboardTab)}
-              className={`h-[34px] px-3 text-xs font-medium rounded-md shrink-0 transition select-none flex items-center ${
-                activeTab === tab.id
-                  ? 'bg-surface-active text-text-primary border border-border shadow-2xs'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+        {(() => {
+          const completedVideosCount = renderedVideos.filter((v) => v.status === 'completed').length;
+          const activeVideosCount = renderedVideos.filter((v) => v.status === 'queued' || v.status === 'rendering').length;
+          const failedVideosCount = renderedVideos.filter((v) => v.status === 'failed').length;
+
+          let renderedVideosLabel = `Generated Videos (${completedVideosCount})`;
+          if (activeVideosCount > 0) {
+            renderedVideosLabel = `Generated Videos (${completedVideosCount} completed, ${activeVideosCount} rendering)`;
+          } else if (failedVideosCount > 0 && completedVideosCount > 0) {
+            renderedVideosLabel = `Generated Videos (${completedVideosCount} completed, ${failedVideosCount} failed)`;
+          } else if (failedVideosCount > 0 && completedVideosCount === 0) {
+            renderedVideosLabel = `Generated Videos (0 completed, ${failedVideosCount} failed)`;
+          }
+
+          return (
+            <nav className="flex items-center gap-1 overflow-x-auto pt-1 no-scrollbar border-t border-border">
+              {[
+                { id: 'home', label: 'Home' },
+                { id: 'generated_shorts', label: `Generated Shorts (${candidates.length})` },
+                { id: 'rendered_videos', label: renderedVideosLabel },
+                { id: 'scripts', label: `Generated Scripts (${synthesizedScripts.length})` },
+                { id: 'frames', label: 'Analyzed Frames' },
+                { id: 'transcript', label: 'Voice & Transcript Analysis' },
+                { id: 'scenes', label: `Scene Analysis (${scenes.length})` },
+                { id: 'details', label: 'Video Analysis Details' },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as VideoDashboardTab)}
+                  className={`h-[34px] px-3 text-xs font-medium rounded-md shrink-0 transition select-none flex items-center ${
+                    activeTab === tab.id
+                      ? 'bg-surface-active text-text-primary border border-border shadow-2xs'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-surface-hover border border-transparent'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+          );
+        })()}
       </header>
 
       {/* ==================== TAB CONTENT AREA ==================== */}
@@ -1187,6 +1264,19 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   </select>
                 )}
 
+                {candidatesEligibleForBatchRender.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                    disabled={isBatchRenderingMissing}
+                    onClick={handleBatchRenderMissingVideos}
+                    leftIcon={isBatchRenderingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Film className="w-3.5 h-3.5" />}
+                  >
+                    {isBatchRenderingMissing ? 'Rendering...' : `Render Missing Videos (${candidatesEligibleForBatchRender.length})`}
+                  </Button>
+                )}
+
                 <Button
                   variant="primary"
                   size="sm"
@@ -1435,6 +1525,18 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
               </div>
 
               <div className="flex items-center gap-2">
+                {candidatesEligibleForBatchRender.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                    disabled={isBatchRenderingMissing}
+                    onClick={handleBatchRenderMissingVideos}
+                    leftIcon={isBatchRenderingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Film className="w-3.5 h-3.5" />}
+                  >
+                    {isBatchRenderingMissing ? 'Rendering...' : `Render Missing (${candidatesEligibleForBatchRender.length})`}
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"
@@ -1848,6 +1950,19 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                   Extracted narrative hooks, dialogue pacing, and 1-click video conversion.
                 </p>
               </div>
+
+              {candidatesEligibleForBatchRender.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                  disabled={isBatchRenderingMissing}
+                  onClick={handleBatchRenderMissingVideos}
+                  leftIcon={isBatchRenderingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Film className="w-3.5 h-3.5" />}
+                >
+                  {isBatchRenderingMissing ? 'Rendering...' : `Render Missing Videos (${candidatesEligibleForBatchRender.length})`}
+                </Button>
+              )}
             </div>
 
             {synthesizedScripts.length === 0 ? (

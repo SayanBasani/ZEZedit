@@ -3926,37 +3926,37 @@
   ],
   "surprises": [
     {
-      "source": "Centralized Error Response Contract",
-      "target": "AppError",
-      "source_files": [
-        "docs/architecture/API_DESIGN.md",
-        "backend/app/core/errors.py"
-      ],
-      "confidence": "INFERRED",
-      "relation": "references",
-      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `Centralized Error Response Contract` unexpectedly reaches hub `AppError`"
-    },
-    {
-      "source": "ADR-04: Centralized Error Handling & Structured Logging",
-      "target": "AppError",
-      "source_files": [
-        "docs/architecture/TECHNOLOGY_DECISIONS.md",
-        "backend/app/core/errors.py"
-      ],
-      "confidence": "INFERRED",
-      "relation": "references",
-      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `ADR-04: Centralized Error Handling & Structured Logging` unexpectedly reaches hub `AppError`"
-    },
-    {
-      "source": "Priority 2: Milestone 13 \u2014 Conversational LLM Editor Integration (Fix DEF-04)",
-      "target": "AIEditorService",
+      "source": "Priority 4: Milestone 15 — Performance Optimization & Hardware Acceleration",
+      "target": "ExportService",
       "source_files": [
         "docs/audit/ZezEdit_2_0_SYSTEM_AUDIT.md",
-        "backend/app/services/ai_editor_service.py"
+        "backend/app/services/export_service.py"
       ],
       "confidence": "INFERRED",
       "relation": "references",
-      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `Priority 2: Milestone 13 \u2014 Conversational LLM Editor Integration (Fix DEF-04)` unexpectedly reaches hub `AIEditorService`"
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories; bridges separate communities; peripheral node `Priority 4: Milestone 15 — Performance Optimization & Hardware Acceleration` unexpectedly reaches hub `ExportService`"
+    },
+    {
+      "source": "15. Multi-Track Timeline & Custom Clip Editing",
+      "target": "ExportService",
+      "source_files": [
+        "docs/reports/milestone_18_unified_video_to_shorts_pipeline_report.md",
+        "backend/app/services/export_service.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories; bridges separate communities; peripheral node `15. Multi-Track Timeline & Custom Clip Editing` unexpectedly reaches hub `ExportService`"
+    },
+    {
+      "source": "4. AI Video Editor Assistant Architecture",
+      "target": "TimelineCommandService",
+      "source_files": [
+        "docs/architecture/TIMELINE_MODEL.md",
+        "backend/app/services/timeline_command_service.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "references",
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories; bridges separate communities; peripheral node `4. AI Video Editor Assistant Architecture` unexpectedly reaches hub `TimelineCommandService`"
     },
     {
       "source": "Domain B: Media Management, Proxies & Storage",
@@ -3967,22 +3967,55 @@
       ],
       "confidence": "INFERRED",
       "relation": "references",
-      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `Domain B: Media Management, Proxies & Storage` unexpectedly reaches hub `StorageLayout`"
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories; bridges separate communities; peripheral node `Domain B: Media Management, Proxies & Storage` unexpectedly reaches hub `StorageLayout`"
     },
     {
-      "source": "1. Core Mandate: One Single Job System",
-      "target": "JobOrchestrator",
+      "source": "`ZEZ-020`: Media Organization, Tags & Search",
+      "target": "MediaAssetItem",
       "source_files": [
-        "docs/architecture/JOB_ORCHESTRATION.md",
-        "backend/app/services/jobs.py"
+        "docs/reconstruction/ZEZEDIT_1_0_PARITY_SPECIFICATION.md",
+        "frontend/src/types/projects.ts"
       ],
       "confidence": "INFERRED",
       "relation": "references",
-      "why": "inferred connection - not explicitly stated in source; crosses file types (code \u2194 doc); connects across different repos/directories; bridges separate communities; peripheral node `1. Core Mandate: One Single Job System` unexpectedly reaches hub `JobOrchestrator`"
+      "why": "inferred connection - not explicitly stated in source; crosses file types (code ↔ doc); connects across different repos/directories; bridges separate communities; peripheral node ``ZEZ-020`: Media Organization, Tags & Search` unexpectedly reaches hub `MediaAssetItem`"
     }
   ],
-  "tokens": {
-    "input": 0,
-    "output": 0
-  }
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `JobOrchestrator` connect `config.py` to `apiClient.ts`, `export_service.py`, `projects.ts`, `.__init__`, `ExportService`, `VideoEditDashboard.tsx`, `.from_root`, `run_migrations`, `core.py`, `ProjectService`, `create_app`, `subprocess`, `story.mjs`, `ExportService`, `ZezEdit 2.0 — Milestone 12 Completion Report: Pre-Deletion Baseline Reconstruction & Feature Parity Specification`, `ZezEdit 2.0 — Milestone 17 Verification & Restoration Report`, `SettingsService`, `characters.py`, `ZezEdit 2.0 — Media Storage & Processing Pipeline`, `pytest`, `Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`)`, `Domain H: Multi-Track Timeline & Conversational AI Video Editor (`ZEZ-069` – `ZEZ-080`)`, `README.md`, `ZezEdit 2.0 — UI, Navigation & Feature Gap Analysis`, `character_service.py`, `character.py`, `Effects`, `duration_sec`?",
+      "why": "High betweenness centrality (0.241) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 47 inferred relationships involving `JobOrchestrator` (e.g. with `get_system_resources()` and `cancel_job()`) actually correct?",
+      "why": "`JobOrchestrator` has 47 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `zezedit-backend` to the rest of the system?",
+      "why": "1 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `apiClient.ts` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.033877995642701525 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does ``ZEZ-063`: Graceful Render Job Cancellation` connect `README.md` to `config.py`, `v1/reframing.py`?",
+      "why": "High betweenness centrality (0.169) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 25 inferred relationships involving `Settings` (e.g. with `get_settings_service()` and `list_ai_providers()`) actually correct?",
+      "why": "`Settings` has 25 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `export_service.py` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.04338842975206612 - nodes in this community are weakly interconnected."
+    }
+  ]
 }

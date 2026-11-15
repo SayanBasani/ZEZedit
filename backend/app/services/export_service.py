@@ -74,6 +74,7 @@ class ExportService:
         self,
         project_id: str,
         request: RenderExportRequest,
+        auto_dispatch: bool = True,
     ) -> Dict[str, Any]:
         """Validate request and enqueue a background render job."""
         with sqlite_session(self.db_path) as conn:
@@ -185,6 +186,7 @@ class ExportService:
                 priority=120 if request.is_preview else 100,
                 input_config=input_cfg,
                 media_asset_id=cand["media_asset_id"],
+                auto_dispatch=auto_dispatch,
             )
 
             # Insert initial export record
@@ -379,16 +381,47 @@ class ExportService:
     def execute_render_job(self, job_id: str) -> Dict[str, Any]:
         """Execute the 15-stage export render synchronously, reporting progress to JobOrchestrator."""
         with _PROCESS_LOCK:
-            if job_id in _ACTIVE_JOB_IDS:
-                logger.info("Job %s is already actively being rendered by another worker; skipping duplicate execution.", job_id)
-                return {"status": "already_running"}
+            is_active = job_id in _ACTIVE_JOB_IDS
+        if is_active:
+            logger.info("Job %s is already actively being rendered by another worker; waiting for completion.", job_id)
+            for _ in range(240):
+                time.sleep(0.5)
+                cur_job = self.jobs.get_job(job_id)
+                if cur_job.status in ("completed", "failed", "cancelled"):
+                    break
+            final_job = self.jobs.get_job(job_id)
+            if final_job.status == "completed":
+                res = {"status": "completed"}
+                if hasattr(final_job, "result_metadata") and isinstance(final_job.result_metadata, dict):
+                    res.update(final_job.result_metadata)
+                if "output_path" not in res:
+                    with sqlite_session(self.db_path) as conn:
+                        conn.row_factory = sqlite3.Row
+                        exp_row = conn.execute("SELECT * FROM exports WHERE render_job_id = ?", (job_id,)).fetchone()
+                        if exp_row and exp_row["output_path"]:
+                            res["output_path"] = exp_row["output_path"]
+                            res["export_id"] = exp_row["id"]
+                return res
+            return {"status": final_job.status}
+
+        with _PROCESS_LOCK:
             _ACTIVE_JOB_IDS.add(job_id)
 
         job = self.jobs.get_job(job_id)
         if job.status == "completed":
             with _PROCESS_LOCK:
                 _ACTIVE_JOB_IDS.discard(job_id)
-            return {"status": "completed"}
+            res = {"status": "completed"}
+            if hasattr(job, "result_metadata") and isinstance(job.result_metadata, dict):
+                res.update(job.result_metadata)
+            if "output_path" not in res:
+                with sqlite_session(self.db_path) as conn:
+                    conn.row_factory = sqlite3.Row
+                    exp_row = conn.execute("SELECT * FROM exports WHERE render_job_id = ?", (job_id,)).fetchone()
+                    if exp_row and exp_row["output_path"]:
+                        res["output_path"] = exp_row["output_path"]
+                        res["export_id"] = exp_row["id"]
+            return res
         if job.status in ("failed", "cancelled"):
             with _PROCESS_LOCK:
                 _ACTIVE_JOB_IDS.discard(job_id)

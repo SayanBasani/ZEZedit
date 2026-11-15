@@ -257,6 +257,10 @@ def _run_discovery_background(
                             )
                         except Exception as sub_err:
                             logger.warning("Could not auto-enqueue export render for %s: %s", cr["id"], sub_err)
+                    try:
+                        exp_svc.jobs.dispatch_queued_jobs()
+                    except Exception as disp_err:
+                        logger.warning("Queue dispatch after auto-render encountered error: %s", disp_err)
             except Exception as auto_err:
                 logger.warning("Auto-render background pipeline submission encountered error: %s", auto_err)
         job_orchestrator.complete_job(job_id=job_id, result_summary={"status": "completed"})
@@ -381,15 +385,25 @@ def start_highlight_discovery(
                             cid = c_item.get("id")
                             if cid:
                                 try:
-                                    exp_svc.submit_export_job(
+                                    sub_res = exp_svc.submit_export_job(
                                         project_id=project_id,
                                         request=RenderExportRequest(
                                             candidate_id=cid,
                                             preset_id=target_preset,
                                         ),
+                                        auto_dispatch=not payload.run_synchronously,
                                     )
+                                    if payload.run_synchronously and "job_id" in sub_res:
+                                        exp_svc.execute_render_job(sub_res["job_id"])
+                                    elif "job_id" in sub_res and background_tasks is not None:
+                                        background_tasks.add_task(exp_svc.execute_render_job, sub_res["job_id"])
                                 except Exception as sub_err:
                                     logger.warning("Could not auto-enqueue export render for %s: %s", cid, sub_err)
+                        if not payload.run_synchronously:
+                            try:
+                                exp_svc.jobs.dispatch_queued_jobs()
+                            except Exception as disp_err:
+                                logger.warning("Queue dispatch after auto-render encountered error: %s", disp_err)
                     except Exception as auto_err:
                         logger.warning("Auto-render pipeline submission encountered error: %s", auto_err)
                 job_orchestrator.complete_job(job.id, result_summary={"status": "completed", "count": len(candidates_list)})

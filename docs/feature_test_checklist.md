@@ -4,6 +4,49 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Session 22 — End-to-End Generation Repair, Multimodal Acceptance & Real Video Export Verification
+- [x] Automatic End-to-End Generation & Render Guarantee:
+  - Generate Shorts automatically discovers candidates, persists reusable scripts, and renders physical MP4 files.
+  - Verified 5 candidates produce 5 export records, 5 render jobs, and 5 physical 1080x1920 MP4 files verified via FFprobe (`test_five_candidates_generate_five_exports_and_mp4s`).
+- [x] Accurate Real-Time Navigation Tab Status:
+  - Dynamic navigation tab label shows active rendering counts (e.g. `Generated Videos (0 completed, 5 rendering)` transitioning to `Generated Videos (5)`).
+  - Eliminates misleading `(0)` counter while rendering is underway.
+- [x] 1-Click Missing Video Render Recovery:
+  - Added `handleBatchRenderMissingVideos` and surfaced "Render Missing Videos (N)" buttons across `Generated Shorts`, `Generated Scripts`, and `Generated Videos` tabs.
+  - Verified batch recovery renders all stranded candidate scripts (`test_batch_render_recovery_action`).
+- [x] Concurrency Lock & Data Integrity:
+  - Prevented worker thread duplicate render race conditions in `ExportService.execute_render_job`.
+  - Enriched completed render job responses with `result_metadata` and `output_path`.
+- [x] Full Regression Suite Pass:
+  - Full backend test suite: **260 passed, 0 unresolved failures** across all modules.
+  - Session 22 end-to-end tests (`backend/tests/test_session22_end_to_end_generation.py`): **3/3 passed** in 42.76s.
+  - Session 21 multimodal tests (`backend/tests/test_session21_multimodal_intelligence_and_tracking.py`): **5/5 passed** in 98.39s.
+  - Session 20 workflow tests (`backend/tests/test_session20_multimodal_workflow.py`): **4/4 passed** in 35.07s.
+  - Frontend TypeScript compiler: **0 errors** (`npx tsc --noEmit`).
+  - Frontend Vitest suite: **26 test files passed, 120 tests passed**.
+  - Frontend build: **Clean production build** (`npm run build`).
+- [x] Real Media & Live Browser Acceptance:
+  - Verified on live app `http://localhost:5173` with browser subagent.
+  - Verified batch rendering 5 missing videos for `med_5f80c48dda5f`, live progress banner, completion to 8 valid 1080x1920 MP4s, video playback modal, export deletion, and script preservation with "Render Video" button.
+  - Captured evidence screenshots in `docs/reports/session_22/evidence/`.
+
+---
+
+## Session 21 — Multimodal Intelligence Completion, Real Subject Tracking & Permanent Novelty Verification
+- [x] Moving Subject Tracking & Dynamic Framing:
+  - `SubjectTracker` (OpenCV TrackerMIL + motion differencing) tracks moving subjects across video frames.
+  - `FramingEngine` calculates 9:16 portrait keyframes and generates piecewise-linear FFmpeg crop filter expressions (`crop=w:h:x:y`).
+- [x] Permanent Novelty Ledger Survives Deletions:
+  - `media_generated_clips_history` records all generated intervals.
+  - Intervals remain permanently excluded even after user deletes rendered exports and candidate scripts.
+- [x] Full Timeline Coverage & Temporal Alignment:
+  - Calculated visual timeline coverage from detected scene spans across video duration ($\ge 80\%$).
+  - Synchronized multimodal temporal context query at any timestamp.
+- [x] Acceptance Tests:
+  - `backend/tests/test_session21_multimodal_intelligence_and_tracking.py`: **5/5 passed** in 98.39s.
+
+---
+
 ## Session 20 — Multimodal Video Intelligence, Automatic Short Generation & Permanent Novelty Management
 - [x] Immediate Modal Dismissal & Non-Blocking Progress:
   - Fixed modal hanging on submit; dismisses instantly (`onClose()`) allowing unblocked navigation.

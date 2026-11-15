@@ -143,6 +143,12 @@ def create_batch_export_jobs(
             logger.warning("Skipping candidate '%s' in batch export: %s", cid, exc)
             skipped_cands.append({"candidate_id": cid, "reason": str(exc)})
 
+    if not run_synchronously:
+        try:
+            service.jobs.dispatch_queued_jobs()
+        except Exception as disp_err:
+            logger.warning("Queue dispatch after batch submit encountered error: %s", disp_err)
+
     return BatchExportResponse(
         batch_id=batch_id,
         project_id=project_id,

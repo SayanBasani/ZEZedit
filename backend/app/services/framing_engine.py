@@ -132,8 +132,11 @@ class FramingEngine:
 
         # Single subject framing / Primary subject framing
         if subject_count == 1 or preferred_strategy in ("single_subject", "primary_subject"):
-            # Select most prominent subject by (confidence, area)
-            d = max(active_dets, key=lambda x: (x.confidence, x.box_w * x.box_h))
+            # Select most prominent subject by (motion priority, confidence, area)
+            d = max(
+                active_dets,
+                key=lambda x: (1.5 if getattr(x, "is_moving", False) else 1.0) * x.confidence * (x.box_w * x.box_h),
+            )
             target_x = d.center_x
             target_y = max(0.0, d.box_y - (self.headroom_factor * source_h * 0.5)) + (d.box_h / 2.0)
             return target_x, target_y, "single_subject", 1, warnings

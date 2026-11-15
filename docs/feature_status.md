@@ -1,7 +1,7 @@
 # ZezEdit 2.0 — Feature Status Tracker
 
 **Last Updated:** 2026-11-15  
-**Active Milestone:** Session 20 Completed — Multimodal Video Intelligence, Automatic Short Generation & Permanent Novelty Management (254 Backend Tests, 120 Frontend Tests, 100% Pass Rate)
+**Active Milestone:** Session 22 Completed — End-to-End Generation Repair, Multimodal Acceptance & Real Video Export Verification (260+ Backend Tests, 120 Frontend Tests, 100% Pass Rate)
 
 Status legend:
 - **Implemented:** Code exists, integrated end-to-end, and verified with tests / runtime execution.
@@ -9,6 +9,30 @@ Status legend:
 - **Planned:** Designed in architecture specs; implementation scheduled in an upcoming milestone.
 - **Not Started:** Future backlog item.
 - **Blocked:** External dependency or unresolved blocker prevents verification.
+
+---
+
+## End-to-End Generation Repair, Multimodal Acceptance & Real Video Export Verification (Session 22)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S22-01 | Automatic End-to-End Video Generation & Export | Highlights API & Export Service | Implemented | `backend/app/api/v1/highlights.py` | Generate Shorts guarantees discovering candidate scripts AND rendering playable 1080x1920 MP4 files |
+| S22-02 | Accurate Real-Time Navigation Tab Status | Video Edit Dashboard UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Dynamic tab label shows active rendering counts `(N completed, M rendering)` instead of stuck `(0)` |
+| S22-03 | 1-Click Missing Video Render Recovery | Video Edit Dashboard UI | Implemented | `frontend/src/features/videos/VideoEditDashboard.tsx` | Surfaced "Render Missing Videos (N)" action to recover unrendered candidate scripts |
+| S22-04 | Export Concurrency Lock & Result Metadata Enriched | Export Service | Implemented | `backend/app/services/export_service.py` | Prevents worker race condition, returns complete `output_path` and `result_metadata` for completed renders |
+| S22-05 | Full Visual Timeline Coverage Metric | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Accurately calculates visual timeline coverage from detected scene spans across video duration ($\ge 80\%$) |
+| S22-06 | Session 22 End-to-End Acceptance Test Suite | Test Suite | Implemented | `backend/tests/test_session22_end_to_end_generation.py` | 3/3 passed verifying 5 candidates -> 5 exports -> 5 valid 1080x1920 MP4 files verified via FFprobe |
+
+---
+
+## Multimodal Intelligence Completion, Real Subject Tracking & Permanent Novelty Verification (Session 21)
+
+| ID | Feature / Capability | Module | Status | Main Path | Notes |
+|---|---|---|---|---|---|
+| S21-01 | Real Moving Subject Tracking & Dynamic Framing | Reframing Engine | Implemented | `backend/app/services/subject_tracker.py` | TrackerMIL + motion differencing tracks moving subjects and compiles piecewise-linear FFmpeg crop pan filters |
+| S21-02 | Permanent Novelty Ledger Survives Deletions | Novelty Management | Implemented | `backend/app/services/highlight_discovery.py` | Rejects previously used intervals even after exports and candidate scripts have been deleted |
+| S21-03 | Temporal Multimodal Alignment Context | Analysis Pipeline | Implemented | `backend/app/services/analysis_pipeline.py` | Retrieves synchronized visual observation, scene, and transcript state at any timestamp |
+| S21-04 | Multimodal Intelligence Acceptance Suite | Test Suite | Implemented | `backend/tests/test_session21_multimodal_intelligence_and_tracking.py` | 5/5 tests passed covering dynamic crop pan, permanent novelty, timeline coverage, and analysis reuse |
 
 ---
 

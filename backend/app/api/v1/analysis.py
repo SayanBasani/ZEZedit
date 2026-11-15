@@ -475,6 +475,8 @@ def get_context(
         "nearby_segments": ctx.nearby_segments,
         "nearby_visual_observations": ctx.nearby_visual_observations,
         "nearest_frame": ctx.nearest_frame,
+        "audio_state": ctx.audio_state,
+        "aligned_event": ctx.aligned_event,
     }
 
 

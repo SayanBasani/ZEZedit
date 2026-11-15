@@ -16,6 +16,7 @@ class DetectedSubject:
     confidence: float
     category: str = "face"  # 'face', 'person', 'upper_body', 'saliency'
     subject_id: Optional[str] = None
+    is_moving: bool = False
 
     @property
     def center_x(self) -> float:
@@ -40,6 +41,8 @@ class SubjectTrack:
     last_seen: float = 0.0
     confidence_avg: float = 0.0
     is_active: bool = True
+    total_displacement_x: float = 0.0
+    is_moving: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -48,6 +51,8 @@ class SubjectTrack:
             "first_seen": self.first_seen,
             "last_seen": self.last_seen,
             "confidence_avg": self.confidence_avg,
+            "total_displacement_x": self.total_displacement_x,
+            "is_moving": self.is_moving,
             "detections": [d.to_dict() for d in self.detections],
         }
 

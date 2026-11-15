@@ -88,41 +88,17 @@ npx tsc --noEmit
 npm run build
 ```
 
-Run backend automated test suite (Pytest):
+---
 
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m pytest -v
-```
+## 6. End-to-End Generation & Workflow Acceptance (Session 22)
+
+- **Authoritative Session 22 Acceptance Report:** [`docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md`](file:///D:/ZezEdit/docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md) (Final Verdict: `COMPLETE AND VERIFIED`)
+- **Authoritative Session 20 Workflow Report:** [`docs/reports/session_20/SESSION_20_MULTIMODAL_WORKFLOW_ACCEPTANCE.md`](file:///D:/ZezEdit/docs/reports/session_20/SESSION_20_MULTIMODAL_WORKFLOW_ACCEPTANCE.md)
+- **Authoritative Session 19 Final Audit Report:** [`docs/reports/session_19/SESSION_19_FINAL_ACCEPTANCE_AUDIT.md`](file:///D:/ZezEdit/docs/reports/session_19/SESSION_19_FINAL_ACCEPTANCE_AUDIT.md)
 
 ---
 
-## 5. Exact Windows PowerShell frontend startup commands
-
-Development server (`http://localhost:5173`, proxying `/api` to `http://127.0.0.1:8000`):
-
-```powershell
-cd D:\ZezEdit\frontend
-npm run dev
-```
-
-Run frontend unit tests (Vitest via npm, never pnpm):
-
-```powershell
-cd D:\ZezEdit\frontend
-npm test -- --run
-```
-
-Production TypeScript check & Vite bundle build:
-
-```powershell
-cd D:\ZezEdit\frontend
-npm run build
-```
-
----
-
-## 6. ZezEdit 1.0 Parity Specification & Restoration (Milestones 12–30)
+## 7. ZezEdit 1.0 Parity Specification & Restoration (Milestones 12–30)
 
 - **Permanent Restoration Progress Tracker (Active Scope: 90/90 = 100.00% Verified):** [`docs/reconstruction/RESTORATION_PROGRESS_TRACKER.md`](file:///D:/ZezEdit/docs/reconstruction/RESTORATION_PROGRESS_TRACKER.md)
 - **Authoritative Milestone 30 Restoration Report:** [`docs/reports/milestone_30_restoration_report.md`](file:///D:/ZezEdit/docs/reports/milestone_30_restoration_report.md)

@@ -126,8 +126,9 @@ class SubjectTracker:
         timestamp: float,
         source_w: int,
         source_h: int,
+        prev_img: Optional[Any] = None,
     ) -> List[DetectedSubject]:
-        """Detect faces, persons, and salient foreground objects in a frame using CPU vision techniques."""
+        """Detect faces, persons, moving subjects, and salient objects using CPU vision techniques."""
         detections: List[DetectedSubject] = []
 
         if not _OPENCV_AVAILABLE:
@@ -257,6 +258,59 @@ class SubjectTracker:
                 )
                 occupied_boxes.append(candidate_box)
 
+            # -------------------------------------------------------------
+            # Stage 3: Temporal Motion Differencing (Moving Subjects)
+            # -------------------------------------------------------------
+            if prev_img is not None and _OPENCV_AVAILABLE:
+                try:
+                    prev_gray = cv2.cvtColor(prev_img, cv2.COLOR_BGR2GRAY) if len(prev_img.shape) == 3 else prev_img
+                    if prev_gray.shape[:2] == gray.shape[:2]:
+                        diff = cv2.absdiff(prev_gray, gray)
+                        _, motion_thresh = cv2.threshold(diff, 18, 255, cv2.THRESH_BINARY)
+                        motion_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (9, 9))
+                        motion_mask = cv2.morphologyEx(motion_thresh, cv2.MORPH_OPEN, morph_kernel)
+                        motion_mask = cv2.morphologyEx(motion_mask, cv2.MORPH_CLOSE, motion_kernel)
+                        motion_contours, _ = cv2.findContours(motion_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+                        for cnt in motion_contours:
+                            area = cv2.contourArea(cnt)
+                            if area < (frame_area * 0.002) or area > (frame_area * 0.80):
+                                continue
+                            bx, by, bw, bh = cv2.boundingRect(cnt)
+                            sx = round(bx * scale_x, 1)
+                            sy = round(by * scale_y, 1)
+                            sw = round(bw * scale_x, 1)
+                            sh = round(bh * scale_y, 1)
+                            motion_box = (sx, sy, sw, sh)
+
+                            # If matches existing detection, boost confidence and mark moving
+                            matched_existing = False
+                            for det in detections:
+                                det_box = (det.box_x, det.box_y, det.box_w, det.box_h)
+                                if _compute_iou(motion_box, det_box) > 0.25:
+                                    det.confidence = min(0.98, det.confidence + 0.15)
+                                    det.is_moving = True
+                                    matched_existing = True
+                                    break
+
+                            if not matched_existing and not any(_compute_iou(motion_box, occ) > 0.35 for occ in occupied_boxes):
+                                aspect = bh / max(1.0, bw)
+                                cat = "person" if aspect >= 1.2 else "object"
+                                detections.append(
+                                    DetectedSubject(
+                                        timestamp=timestamp,
+                                        box_x=sx,
+                                        box_y=sy,
+                                        box_w=sw,
+                                        box_h=sh,
+                                        confidence=0.85,
+                                        category=cat,
+                                        is_moving=True,
+                                    )
+                                )
+                                occupied_boxes.append(motion_box)
+                except Exception as m_exc:
+                    logger.debug("Motion differencing skipped: %s", m_exc)
+
         except Exception as e:
             logger.debug("Subject detection error at t=%.2f: %s", timestamp, e)
 
@@ -323,6 +377,7 @@ class SubjectTracker:
         active_tracks: List[SubjectTrack] = []
         active_trackers: Dict[str, Any] = {}
         next_track_id = 1
+        prev_img = None
 
         for timestamp, img_path in samples:
             # 1. Scene boundary cut check
@@ -337,6 +392,7 @@ class SubjectTracker:
                     trk.is_active = False
                 active_tracks = []
                 active_trackers.clear()
+                prev_img = None
 
             # 2. Read image frame
             img = cv2.imread(str(img_path)) if _OPENCV_AVAILABLE else None
@@ -363,9 +419,11 @@ class SubjectTracker:
                         except Exception:
                             active_trackers.pop(tid, None)
 
-            # 4. Detect subjects in current frame
+            # 4. Detect subjects in current frame with temporal motion differencing
             frame_input = img if img is not None else img_path
-            detections = self.detect_subjects_in_frame(frame_input, timestamp, source_w, source_h)
+            detections = self.detect_subjects_in_frame(frame_input, timestamp, source_w, source_h, prev_img=prev_img)
+            if img is not None:
+                prev_img = img.copy()
 
             matched_detection_indices = set()
             unmatched_tracks = []
@@ -502,6 +560,9 @@ class SubjectTracker:
                 trk.confidence_avg = round(
                     sum(d.confidence for d in trk.detections) / len(trk.detections), 2
                 )
+                dx = abs(trk.detections[-1].center_x - trk.detections[0].center_x)
+                trk.total_displacement_x = round(dx, 1)
+                trk.is_moving = bool(dx >= (source_w * 0.05) or any(d.is_moving for d in trk.detections))
 
         return tracks
 
