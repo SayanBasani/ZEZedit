@@ -57,6 +57,18 @@ class MediaProbeResult:
     streams: List[Dict[str, Any]] = field(default_factory=list)
     raw_metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def video_stream_count(self) -> int:
+        return sum(1 for s in self.streams if s.get("codec_type") == "video")
+
+    @property
+    def audio_stream_count(self) -> int:
+        return sum(1 for s in self.streams if s.get("codec_type") == "audio")
+
+    @property
+    def subtitle_stream_count(self) -> int:
+        return sum(1 for s in self.streams if s.get("codec_type") == "subtitle")
+
 
 def parse_fraction(val: Optional[str]) -> Optional[float]:
     """Parse FFmpeg fractions like '30000/1001' or '24/1' into a float."""
@@ -137,7 +149,15 @@ def probe_media_file(file_path: Path, ffprobe_path: str = "") -> MediaProbeResul
     ]
 
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30, check=False)
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=30,
+            check=False,
+        )
     except subprocess.TimeoutExpired as exc:
         raise AppError(
             code="PROBE_TIMEOUT",

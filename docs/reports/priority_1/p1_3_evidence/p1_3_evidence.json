@@ -1,0 +1,328 @@
+{
+  "task": "P1.3",
+  "title": "Large-File Video Ingestion, Streaming and Bounded Memory",
+  "timestamp_utc": "2026-11-16T09:16:44.132070+00:00",
+  "demo_count": 9,
+  "demos": {
+    "DEMO_A_SMALL_REGRESSION": {
+      "status": "PASS",
+      "media_id": "med_c7d560a13bfa",
+      "filename": "demoA_small_regression.mp4",
+      "file_size": 12711,
+      "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\3f7c9627_demoA_small_regression.mp4",
+      "screenshot": "demoA_small_regression.png"
+    },
+    "DEMO_B_MEDIUM_VIDEO": {
+      "status": "PASS",
+      "media_id": "med_e22e0b96def5",
+      "filename": "demoB_medium_247mb.mkv",
+      "file_size": 247861323,
+      "upload_duration_seconds": 2.24,
+      "throughput_mb_s": 105.53,
+      "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988",
+      "sha256_match": true,
+      "memory": {
+        "sample_count": 9,
+        "baseline_rss_mb": 116.43,
+        "peak_rss_mb": 117.45,
+        "delta_rss_mb": 1.02,
+        "baseline_private_mb": 454.96,
+        "peak_private_mb": 456.86,
+        "delta_private_mb": 1.9,
+        "samples": [
+          {
+            "timestamp": 1794820585.0447338,
+            "rss_bytes": 122089472,
+            "rss_mb": 116.43,
+            "private_bytes": 477065216,
+            "private_mb": 454.96
+          },
+          {
+            "timestamp": 1794820585.3088648,
+            "rss_bytes": 122585088,
+            "rss_mb": 116.91,
+            "private_bytes": 477061120,
+            "private_mb": 454.96
+          },
+          {
+            "timestamp": 1794820585.573787,
+            "rss_bytes": 120840192,
+            "rss_mb": 115.24,
+            "private_bytes": 476880896,
+            "private_mb": 454.79
+          },
+          {
+            "timestamp": 1794820585.8254418,
+            "rss_bytes": 120852480,
+            "rss_mb": 115.25,
+            "private_bytes": 476880896,
+            "private_mb": 454.79
+          },
+          {
+            "timestamp": 1794820586.0892935,
+            "rss_bytes": 120954880,
+            "rss_mb": 115.35,
+            "private_bytes": 476893184,
+            "private_mb": 454.8
+          },
+          {
+            "timestamp": 1794820586.3551471,
+            "rss_bytes": 121049088,
+            "rss_mb": 115.44,
+            "private_bytes": 476946432,
+            "private_mb": 454.85
+          },
+          {
+            "timestamp": 1794820586.6195476,
+            "rss_bytes": 123154432,
+            "rss_mb": 117.45,
+            "private_bytes": 479055872,
+            "private_mb": 456.86
+          },
+          {
+            "timestamp": 1794820586.8837621,
+            "rss_bytes": 122101760,
+            "rss_mb": 116.45,
+            "private_bytes": 477999104,
+            "private_mb": 455.86
+          },
+          {
+            "timestamp": 1794820587.1342678,
+            "rss_bytes": 121118720,
+            "rss_mb": 115.51,
+            "private_bytes": 477052928,
+            "private_mb": 454.95
+          }
+        ]
+      },
+      "screenshots": [
+        "demoB_01_uploading.png",
+        "demoB_02_dashboard.png"
+      ]
+    },
+    "DEMO_C_LARGE_VIDEO_1_2GB": {
+      "status": "PASS",
+      "media_id": "med_9d64fc8870e8",
+      "filename": "demoC_large_1_2gb.mkv",
+      "file_size": 1298314363,
+      "upload_duration_seconds": 10.5,
+      "throughput_mb_s": 117.92,
+      "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e",
+      "sha256_match": true,
+      "range_request_verified": true,
+      "screenshots": [
+        "demoC_01_uploading.png",
+        "demoC_02_processing.png",
+        "demoC_03_dashboard.png"
+      ]
+    },
+    "DEMO_E_MEMORY_BEHAVIOR": {
+      "status": "PASS",
+      "tested_file_size_bytes": 1298314363,
+      "tested_file_size_mb": 1238.17,
+      "memory_metrics": {
+        "sample_count": 41,
+        "baseline_rss_mb": 116.77,
+        "peak_rss_mb": 118.02,
+        "delta_rss_mb": 1.25,
+        "baseline_private_mb": 454.93,
+        "peak_private_mb": 456.64,
+        "delta_private_mb": 1.71,
+        "samples": [
+          {
+            "timestamp": 1794820588.6361792,
+            "rss_bytes": 122445824,
+            "rss_mb": 116.77,
+            "private_bytes": 477028352,
+            "private_mb": 454.93
+          },
+          {
+            "timestamp": 1794820589.1645765,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820589.6916854,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820590.1927445,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820590.7077687,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820591.219114,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820591.7446158,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820592.2605243,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820592.790123,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820593.3165271,
+            "rss_bytes": 123580416,
+            "rss_mb": 117.86,
+            "private_bytes": 478044160,
+            "private_mb": 455.9
+          },
+          {
+            "timestamp": 1794820593.8454232,
+            "rss_bytes": 123539456,
+            "rss_mb": 117.82,
+            "private_bytes": 477974528,
+            "private_mb": 455.83
+          },
+          {
+            "timestamp": 1794820594.3716977,
+            "rss_bytes": 121614336,
+            "rss_mb": 115.98,
+            "private_bytes": 476631040,
+            "private_mb": 454.55
+          },
+          {
+            "timestamp": 1794820594.8880787,
+            "rss_bytes": 121643008,
+            "rss_mb": 116.01,
+            "private_bytes": 476659712,
+            "private_mb": 454.58
+          },
+          {
+            "timestamp": 1794820595.4076219,
+            "rss_bytes": 121643008,
+            "rss_mb": 116.01,
+            "private_bytes": 476659712,
+            "private_mb": 454.58
+          },
+          {
+            "timestamp": 1794820595.9346838,
+            "rss_bytes": 122699776,
+            "rss_mb": 117.02,
+            "private_bytes": 478826496,
+            "private_mb": 456.64
+          },
+          {
+            "timestamp": 1794820596.4629548,
+            "rss_bytes": 123752448,
+            "rss_mb": 118.02,
+            "private_bytes": 478826496,
+            "private_mb": 456.64
+          },
+          {
+            "timestamp": 1794820596.9891648,
+            "rss_bytes": 123002880,
+            "rss_mb": 117.3,
+            "private_bytes": 478826496,
+            "private_mb": 456.64
+          },
+          {
+            "timestamp": 1794820597.511557,
+            "rss_bytes": 122626048,
+            "rss_mb": 116.95,
+            "private_bytes": 477663232,
+            "private_mb": 455.54
+          },
+          {
+            "timestamp": 1794820598.0367093,
+            "rss_bytes": 123604992,
+            "rss_mb": 117.88,
+            "private_bytes": 478613504,
+            "private_mb": 456.44
+          },
+          {
+            "timestamp": 1794820598.562975,
+            "rss_bytes": 121622528,
+            "rss_mb": 115.99,
+            "private_bytes": 476659712,
+            "private_mb": 454.58
+          },
+          {
+            "timestamp": 1794820599.0874686,
+            "rss_bytes": 122384384,
+            "rss_mb": 116.71,
+            "private_bytes": 477937664,
+            "private_mb": 455.8
+          }
+        ]
+      },
+      "bounded_memory_demonstrated": true,
+      "delta_rss_mb": 1.25
+    },
+    "DEMO_D_LARGE_VIDEO_2GB": {
+      "status": "BLOCKED",
+      "reason": "No valid ~2 GB video asset present in environment. Tested maximum real video is 1.21 GB (Visionquest S01E08.mkv, 1,298,314,363 bytes).",
+      "tested_maximum_bytes": 1298314363
+    },
+    "DEMO_F_CLIENT_DISCONNECT": {
+      "status": "PASS",
+      "filename": "demoF_disconnect_1794820600.mp4",
+      "sent_bytes": 18793,
+      "total_bytes": 62645,
+      "db_records_found": 0,
+      "storage_clean": true
+    },
+    "DEMO_G_SIZE_REJECTION": {
+      "status": "PASS",
+      "tested_content_length_bytes": 3221225472,
+      "rejection_status": 413,
+      "error_code": "REQUEST_ENTITY_TOO_LARGE"
+    },
+    "DEMO_H_CANCELLATION_RECOVERY": {
+      "status": "PASS",
+      "filename": "demoH_cancel_1794820601.mp4",
+      "db_records_found": 0,
+      "screenshots": [
+        "demoH_01_uploading.png",
+        "demoH_02_cancelled.png"
+      ]
+    },
+    "DEMO_I_CONCURRENT_UPLOADS": {
+      "status": "PASS",
+      "file1": {
+        "id": "med_225121d96da8",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\86d6d6b8_demoI_conc_1_1794820603.mp4",
+        "size": 17203
+      },
+      "file2": {
+        "id": "med_a6460c5d73cd",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\c89d2f19_demoI_conc_2_1794820603.mp4",
+        "size": 21464
+      },
+      "distinct_ids": true,
+      "distinct_paths": true
+    }
+  }
+}

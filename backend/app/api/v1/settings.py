@@ -1,8 +1,9 @@
 """Application settings, storage management, backups, and recovery endpoints."""
 
+import logging
 import os
 from typing import Any, Dict, List, Optional
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.core.binaries import probe_media_binary
@@ -20,6 +21,7 @@ from app.services.settings_service import SettingsService
 from app.services.storage import StorageService
 
 router = APIRouter(tags=["settings"])
+logger = logging.getLogger("zezedit.settings")
 
 
 class CleanupExecuteRequest(BaseModel):
@@ -167,6 +169,21 @@ def get_db_integrity_endpoint(
 ) -> Dict[str, Any]:
     """Execute SQLite PRAGMA integrity_check, foreign_key_check, and orphan scan."""
     return service.get_database_diagnostics()
+
+
+@router.post("/system/db-reconcile")
+def reconcile_db_consistency_endpoint(
+    service: BackupService = Depends(get_backup_service),
+) -> Dict[str, Any]:
+    """Execute idempotent reconciliation of foreign key references and missing export file statuses."""
+    try:
+        return service.reconcile_database_consistency()
+    except Exception as exc:
+        logger.error("Database reconciliation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Database reconciliation failed safely without state corruption.",
+        )
 
 
 @router.get("/system/recovery-status")

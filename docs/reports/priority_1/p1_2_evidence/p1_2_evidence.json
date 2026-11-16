@@ -1,0 +1,227 @@
+{
+  "task": "P1.2",
+  "title": "Accurate Byte-Based Upload Progress",
+  "timestamp_utc": "2026-11-16T08:41:29.024759+00:00",
+  "all_passed": true,
+  "demo_count": 6,
+  "demos": {
+    "DEMO_A_SINGLE_UPLOAD_PROGRESS": {
+      "status": "PASS",
+      "media_id": "med_8d8403cb89a2",
+      "url": "/videos/med_8d8403cb89a2",
+      "filename": "browser_demoA_single.mp4",
+      "file_size": 12711,
+      "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\2f1648ba_browser_demoA_single.mp4",
+      "samples_count": 3,
+      "sample_progression": [
+        {
+          "filename": "browser_demoA_single.mp4",
+          "loaded": 0,
+          "total": 12711,
+          "percentage": 0,
+          "state": "uploading",
+          "error": null,
+          "mediaAsset": null
+        },
+        {
+          "filename": "browser_demoA_single.mp4",
+          "loaded": 12908,
+          "total": 12908,
+          "percentage": 100,
+          "state": "processing",
+          "error": null,
+          "mediaAsset": null
+        },
+        {
+          "filename": "browser_demoA_single.mp4",
+          "loaded": 12908,
+          "total": 12908,
+          "percentage": 100,
+          "state": "completed",
+          "error": null,
+          "mediaAsset": {
+            "id": "med_8d8403cb89a2",
+            "project_id": "default",
+            "original_filename": "browser_demoA_single.mp4",
+            "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\2f1648ba_browser_demoA_single.mp4",
+            "is_external": false,
+            "media_type": "video",
+            "file_size_bytes": 12711,
+            "mime_type": null,
+            "duration_seconds": 2,
+            "width": 320,
+            "height": 240,
+            "fps": 25,
+            "video_codec": "h264",
+            "audio_codec": null,
+            "availability_status": "present",
+            "proxy_reference_path": null,
+            "thumbnail_reference_path": "D:\\ZezEdit\\storage\\thumbnails\\med_8d8403cb89a2.jpg",
+            "proxy_status": "none",
+            "metadata_status": "extracted",
+            "metadata": {
+              "streams": [
+                {
+                  "index": 0,
+                  "codec_name": "h264",
+                  "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                  "profile": "High",
+                  "codec_type": "video",
+                  "codec_tag_string": "avc1",
+                  "codec_tag": "0x31637661",
+                  "mime_codec_string": "avc1.64000d",
+                  "width": 320,
+                  "height": 240,
+                  "coded_width": 320,
+                  "coded_height": 240,
+                  "has_b_frames": 2,
+                  "sample_aspect_ratio": "1:1",
+                  "display_aspect_ratio": "4:3",
+                  "pix_fmt": "yuv420p",
+                  "level": 13,
+                  "chroma_location": "left",
+                  "field_order": "progressive",
+                  "is_avc": "true",
+                  "nal_length_size": "4",
+                  "id": "0x1",
+                  "r_frame_rate": "25/1",
+                  "avg_frame_rate": "25/1",
+                  "time_base": "1/12800",
+                  "start_pts": 0,
+                  "start_time": "0.000000",
+                  "duration_ts": 25600,
+                  "duration": "2.000000",
+                  "bit_rate": "45076",
+                  "bits_per_raw_sample": "8",
+                  "nb_frames": "50",
+                  "extradata_size": 46,
+                  "disposition": {
+                    "default": 1,
+                    "dub": 0,
+                    "original": 0,
+                    "comment": 0,
+                    "lyrics": 0,
+                    "karaoke": 0,
+                    "forced": 0,
+                    "hearing_impaired": 0,
+                    "visual_impaired": 0,
+                    "clean_effects": 0,
+                    "attached_pic": 0,
+                    "timed_thumbnails": 0,
+                    "non_diegetic": 0,
+                    "captions": 0,
+                    "descriptions": 0,
+                    "metadata": 0,
+                    "dependent": 0,
+                    "still_image": 0,
+                    "multilayer": 0
+                  },
+                  "tags": {
+                    "language": "und",
+                    "handler_name": "VideoHandler",
+                    "encoder": "Lavc63.1.102 libx264"
+                  }
+                }
+              ],
+              "format": {
+                "filename": "D:\\ZezEdit\\storage\\media\\default_p\\2f1648ba_browser_demoA_single.mp4",
+                "nb_streams": 1,
+                "nb_programs": 0,
+                "nb_stream_groups": 0,
+                "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                "format_long_name": "QuickTime / MOV",
+                "start_time": "0.000000",
+                "duration": "2.000000",
+                "size": "12711",
+                "bit_rate": "50844",
+                "probe_score": 100,
+                "tags": {
+                  "major_brand": "isom",
+                  "minor_version": "512",
+                  "compatible_brands": "isomiso2avc1mp41",
+                  "encoder": "Lavf63.1.102"
+                }
+              }
+            },
+            "created_at": "2026-11-16T08:41:17.800355+00:00",
+            "updated_at": "2026-11-16T08:41:17.876236+00:00"
+          }
+        }
+      ],
+      "screenshots": [
+        "demoA_01_uploading.png",
+        "demoA_02_processing.png",
+        "demoA_03_dashboard.png"
+      ]
+    },
+    "DEMO_B_BATCH_UPLOAD_PROGRESS": {
+      "status": "PASS",
+      "batch_files": [
+        "browser_demoB_1.mp4",
+        "browser_demoB_2.mp4",
+        "browser_demoB_3.mp4"
+      ],
+      "total_bytes": 25377,
+      "media_ids": [
+        "med_b10fc861da39",
+        "med_30a3fd3a3885",
+        "med_9480812e3758"
+      ],
+      "physical_paths": [
+        "D:\\ZezEdit\\storage\\media\\default_p\\f855aeae_browser_demoB_3.mp4",
+        "D:\\ZezEdit\\storage\\media\\default_p\\74e8324e_browser_demoB_2.mp4",
+        "D:\\ZezEdit\\storage\\media\\default_p\\5005f7af_browser_demoB_1.mp4"
+      ],
+      "samples_count": 1,
+      "screenshots": [
+        "demoB_01_batch_uploading.png",
+        "demoB_02_batch_processing.png",
+        "demoB_03_batch_complete.png"
+      ]
+    },
+    "DEMO_C_SLOW_TRANSFER": {
+      "status": "PASS",
+      "file_size": 34721,
+      "throttle_bytes_per_sec": 122880,
+      "samples_captured": 5,
+      "monotonic_check_passed": true,
+      "screenshots": [
+        "demoC_01_throttled_progress.png",
+        "demoC_02_throttled_complete.png"
+      ]
+    },
+    "DEMO_D_ABORT_AND_FAILURE": {
+      "status": "PASS",
+      "filename": "browser_demoD_abort.mp4",
+      "aborted_in_flight": true,
+      "db_records_found": 0,
+      "screenshots": [
+        "demoD_01_during_upload.png",
+        "demoD_02_aborted_state.png"
+      ]
+    },
+    "DEMO_E_SERVER_PROCESSING_DELAY": {
+      "status": "PASS",
+      "test_delay_seconds": 2.5,
+      "processing_state_visually_separated": true,
+      "media_id": "med_63a3978cb070",
+      "screenshots": [
+        "demoE_01_server_processing.png",
+        "demoE_02_persisted_complete.png"
+      ]
+    },
+    "DEMO_F_MOBILE_VIEWPORT": {
+      "status": "PASS",
+      "viewport": {
+        "width": 375,
+        "height": 812,
+        "mobile": true
+      },
+      "media_id": "med_03510f1af78a",
+      "screenshots": [
+        "demoF_01_mobile_uploading.png",
+        "demoF_02_mobile_dashboard.png"
+      ]
+    }
+  }
+}

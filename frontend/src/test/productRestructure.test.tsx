@@ -62,6 +62,54 @@ describe('Product Restructure — Video-Centric Workflows', () => {
     expect(handleOpen).toHaveBeenCalledWith(mockVideoAsset);
   });
 
+  it('supports single video upload and navigates to VideoEditDashboard', async () => {
+    const handleOpen = vi.fn();
+    const uploadedAsset: MediaAssetItem = {
+      ...mockVideoAsset,
+      id: 'med_uploaded_999',
+      original_filename: 'uploaded_solo.mp4',
+    };
+    vi.spyOn(apiClient, 'uploadMediaFile').mockResolvedValue(uploadedAsset);
+
+    const { container } = render(<ShortVideoGeneratorLibrary onOpenDashboard={handleOpen} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeDefined();
+
+    const file = new File(['fake video data'], 'uploaded_solo.mp4', { type: 'video/mp4' });
+    fireEvent.change(fileInput, { target: { files: [file] } });
+
+    await waitFor(() => {
+      expect(apiClient.uploadMediaFile).toHaveBeenCalledWith('all', file, false, true, expect.anything());
+      expect(handleOpen).toHaveBeenCalledWith(uploadedAsset);
+    });
+  });
+
+  it('supports multiple video batch upload and refreshes library', async () => {
+    const handleOpen = vi.fn();
+    const batchResponse = {
+      total: 2,
+      succeeded: 2,
+      failed: 0,
+      items: [
+        { filename: 'clip1.mp4', success: true, media_id: 'm1', asset: mockVideoAsset },
+        { filename: 'clip2.mp4', success: true, media_id: 'm2', asset: mockVideoAsset },
+      ],
+    };
+    vi.spyOn(apiClient, 'uploadMediaBatch').mockResolvedValue(batchResponse as any);
+
+    const { container } = render(<ShortVideoGeneratorLibrary onOpenDashboard={handleOpen} />);
+    const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+    expect(fileInput).toBeDefined();
+
+    const file1 = new File(['fake-1'], 'clip1.mp4', { type: 'video/mp4' });
+    const file2 = new File(['fake-2'], 'clip2.mp4', { type: 'video/mp4' });
+    fireEvent.change(fileInput, { target: { files: [file1, file2] } });
+
+    await waitFor(() => {
+      expect(apiClient.uploadMediaBatch).toHaveBeenCalledWith('all', [file1, file2], false, true, expect.anything());
+    });
+  });
+
   it('renders VideoEditDashboard with 8 horizontal tabs and technical specs', async () => {
     const handleBack = vi.fn();
     render(

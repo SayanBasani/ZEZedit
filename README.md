@@ -11,7 +11,7 @@ ZezEdit 2.0 is a modular, CPU-first, local-first AI-assisted video editor for Wi
 - **Python:** Python 3.11+ (tested with Python 3.14.6)
 - **Node.js & npm:** Node.js 20+ and npm 10+ (tested with Node v24.18.1 / npm 12.2.0; do not use pnpm)
 - **Media Tools:** `ffmpeg` and `ffprobe` available on `PATH` (tested with FFmpeg 9.0.2) or configured explicitly in `.env`
-- **Local AI Runtime (Optional for Milestone 1):** Ollama running at `http://127.0.0.1:11434` (verified with `qwen3-vl:4b-instruct`)
+- **Local AI Runtime (Optional):** Ollama running at `http://127.0.0.1:11434` (verified with `qwen3-vl:4b-instruct`)
 
 ---
 
@@ -47,52 +47,159 @@ Copy-Item .env.example .env
 2. Review `ZEZEDIT_STORAGE_ROOT` in `.env` (defaults to `D:\ZezEdit\storage`). Never point `ZEZEDIT_STORAGE_ROOT` to a drive root such as `D:\` or an OS system folder; startup validation explicitly rejects unsafe roots.
 3. On backend startup, FastAPI automatically creates the isolated storage subdirectories (`db`, `media`, `proxies`, `thumbnails`, `analysis`, `timelines`, `shorts`, `exports`, `temp`, `backups`, `logs`) and initializes `storage\db\zezedit.db` via forward-only SQLite migrations in `backend\migrations\`.
 
----
+### Storage & User Data Retention Layout
 
-## 4. Exact Windows PowerShell backend startup commands
-
-Start FastAPI via Uvicorn (`http://127.0.0.1:8000`):
-
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-```
-
-Run backend automated test suite (Pytest):
-```powershell
-cd D:\ZezEdit\backend
-.\.venv\Scripts\python -m pytest -q
-```
+All user videos, databases, and rendered files are strictly confined to `D:\ZezEdit\storage`:
+- **Databases**: `storage\db\zezedit.db` (SQLite with WAL journaling).
+- **Uploaded Media**: `storage\media\{project_id}\{filename}`.
+- **Proxies & Thumbnails**: `storage\proxies\` and `storage\thumbnails\`.
+- **Analysis Data & Keyframes**: `storage\analysis\{run_id}\`.
+- **Rendered Shorts Exports**: `storage\exports\{project_id}\*.mp4`.
+- **Temporary Files & PIDs**: `storage\temp\` (including `zezedit.pid`).
+- **Database Backups**: `storage\backups\`.
+- **System Logs**: `storage\logs\` (including `launcher_stdout.log` and `launcher_stderr.log`).
 
 ---
 
-## 5. Exact Windows PowerShell frontend startup commands
+## 4. First-time setup
 
-Start frontend development server via Vite (`http://localhost:5173`):
+Before launching production mode for the first time, build the frontend production distribution:
+
+```powershell
+cd D:\ZezEdit\frontend
+npm run build
+```
+
+This compiles optimized client assets into `frontend\dist` (`index.html` and `assets/`). The one-click launcher will also automatically run this build if `frontend\dist` is missing.
+
+---
+
+## 5. One-click Windows startup
+
+To start ZEZEdit in production mode:
+- Double-click `Start-ZEZEdit.bat` in File Explorer, OR
+- Run from Windows PowerShell / Command Prompt:
+
+```cmd
+D:\ZezEdit\Start-ZEZEdit.bat
+```
+
+Or using PowerShell:
+
+```powershell
+.\Start-ZEZEdit.ps1 [-NoBrowser] [-ValidateOnly] [-Port 8000] [-TimeoutSeconds 30]
+```
+
+**What the launcher does automatically:**
+1. Resolves workspace root dynamically from the script location (can be called from any current working directory or shortcut).
+2. Verifies Python virtual environment (Python 3.11+) and core dependencies.
+3. Verifies `.env` configuration file (copies from `.env.example` if missing, masks secrets).
+4. Verifies FFmpeg and FFprobe availability on `PATH`.
+5. Checks frontend production build in `frontend\dist` (auto-builds via `npm run build` if missing).
+6. Checks port ownership and probes `http://127.0.0.1:8000/health`:
+   - If an existing healthy ZEZEdit instance is detected, reports status without spawning duplicates.
+   - If occupied by an unrelated foreign process, displays actionable error without killing it.
+7. Cleans stale PID files from prior crashed sessions if the previous process is not running.
+8. Starts the FastAPI server as a detached background process (immune to parent job object limits or console closure).
+9. Records structured process ownership in `storage\temp\zezedit_process.json` and PID in `storage\temp\zezedit.pid`.
+10. Polls `http://127.0.0.1:8000/health` with proxy-immune HTTP probes until readiness is confirmed.
+11. Opens the application in your default web browser at `http://127.0.0.1:8000` (unless `-NoBrowser` is specified).
+
+---
+
+## 6. Normal shutdown
+
+To stop the running production server cleanly:
+- Double-click `Stop-ZEZEdit.bat`, OR
+- Run from Windows PowerShell / Command Prompt:
+
+```cmd
+D:\ZezEdit\Stop-ZEZEdit.bat
+```
+
+Or using PowerShell:
+
+```powershell
+.\Stop-ZEZEdit.ps1 [-GracefulTimeoutSeconds 5]
+```
+
+**Process Ownership & Termination Safety:**
+1. Inspects structured ownership in `storage\temp\zezedit_process.json` and `storage\temp\zezedit.pid`.
+2. **PID Reuse Protection:** Inspects the process command line via CIM/WMI before terminating. If a non-ZEZEdit process is running with that PID, it is safely preserved and the stale PID file is cleaned.
+3. **Graceful Shutdown First:** Sends graceful termination signal (`taskkill /PID <pid> /T`), allowing in-flight jobs and SQLite WAL writes to flush cleanly.
+4. **Child Process Cleanup:** Cleans owned child processes without terminating unrelated system processes.
+5. Removes PID and metadata files upon successful shutdown. Idempotent: safe to run multiple times.
+
+---
+
+## 7. Development-mode startup
+
+For developers actively modifying backend Python or frontend React source code:
+
+1. Start backend development server with auto-reload:
+
+```powershell
+cd D:\ZezEdit\backend
+.\.venv\Scripts\python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+```
+
+2. In a separate terminal, start frontend Vite dev server (`http://localhost:5173`):
 
 ```powershell
 cd D:\ZezEdit\frontend
 npm run dev
 ```
 
-Run frontend unit tests (Vitest via npm, never pnpm):
-```powershell
-cd D:\ZezEdit\frontend
-npm test -- --run
-```
-
-Compile TypeScript and build for production:
-```powershell
-cd D:\ZezEdit\frontend
-npx tsc --noEmit
-npm run build
-```
+Vite proxies `/api` calls directly to `http://127.0.0.1:8000`.
 
 ---
 
-## 6. End-to-End Generation & Workflow Acceptance (Session 22)
+## 8. Troubleshooting
 
-- **Authoritative Session 22 Acceptance Report:** [`docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md`](file:///D:/ZezEdit/docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md) (Final Verdict: `COMPLETE AND VERIFIED`)
+- **Port 8000 already in use:**
+  Run `Stop-ZEZEdit.bat` to clear previous instances, or check `netstat -ano | findstr :8000`.
+- **FFmpeg not found:**
+  Ensure FFmpeg is installed and added to Windows `PATH`, or set `ZEZEDIT_FFMPEG_PATH=C:\path\to\ffmpeg.exe` in `D:\ZezEdit\.env`.
+- **Ollama / AI models unreachable:**
+  Ensure Ollama is running (`ollama serve` or open Ollama app). If Ollama is offline, ZEZEdit operates in `ready_with_optional_unavailable` mode using fast local OpenCV color and motion heuristics.
+- **Frontend build missing or blank page:**
+  Run `cd D:\ZezEdit\frontend; npm run build`. Check that `frontend\dist\index.html` exists.
+- **Inspect server logs:**
+  Review `storage\logs\launcher_stdout.log`, `storage\logs\launcher_stderr.log`, and `storage\logs\zezedit.log`.
+
+---
+
+## 9. Reports & Historical Acceptance Audits
+
+### Priority 1 — Video Ingestion, Upload & Core Pipeline Reports
+- **[P1.6 Media Library, Metadata and Asset Management Report](docs/reports/priority_1/P1_6_MEDIA_LIBRARY_AND_METADATA.md)** (Final Verdict: `MEDIA LIBRARY & ASSET MANAGEMENT ACCEPTED`)
+- **[P1.5 Upload Integrity, File Validation and Atomic Persistence Report](docs/reports/priority_1/P1_5_UPLOAD_INTEGRITY_AND_VALIDATION.md)** (Final Verdict: `INTEGRITY CONTRACT & ATOMIC PUBLICATION ACCEPTED`)
+- **[P1.4 Upload Failure Handling, Retry and Recovery Report](docs/reports/priority_1/P1_4_UPLOAD_FAILURE_RETRY_AND_RECOVERY.md)** (Final Verdict: `FAILURE HANDLING & RETRY ACCEPTED`)
+- **[P1.3-R1 Large Upload Acceptance Evidence Reconciliation Report](docs/reports/priority_1/P1_3_R1_LARGE_UPLOAD_EVIDENCE_RECONCILIATION.md)** (Final Verdict: `LARGE UPLOAD EVIDENCE RECONCILED & ACCEPTED`)
+- **[P1.3 Large-File Video Ingestion, Streaming and Bounded Memory Report](docs/reports/priority_1/P1_3_LARGE_FILE_STREAMING_AND_BOUNDED_MEMORY.md)** (Final Verdict: `STREAMING & BOUNDED MEMORY ACCEPTED`)
+- **[P1.2 Accurate Byte-Based Upload Progress Report](docs/reports/priority_1/P1_2_BYTE_ACCURATE_UPLOAD_PROGRESS.md)** (Final Verdict: `BYTE-ACCURATE UPLOAD PROGRESS ACCEPTED & VERIFIED`)
+- **[P1.1-R1 Real Browser Upload Acceptance and Scope Verification Report](docs/reports/priority_1/P1_1_R1_BROWSER_UPLOAD_ACCEPTANCE.md)** (Final Verdict: `REAL BROWSER UPLOAD ACCEPTED`)
+- **[P1.1 Single and Multiple Video Upload Report](docs/reports/priority_1/P1_1_SINGLE_AND_MULTIPLE_UPLOAD.md)** (Final Verdict: `SINGLE & MULTIPLE UPLOAD VERIFIED`)
+
+### Priority 0 — Windows Release Hardening & Stability Reports
+- **[P0.9-R1 Restart and Persistence Evidence Reconciliation Report](docs/reports/priority_0/P0_9_R1_EVIDENCE_RECONCILIATION.md)** (Final Verdict: `EVIDENCE RECONCILED & ACCEPTED`)
+- **[P0.9 Restart, Recovery and Data Persistence Verification Report](docs/reports/priority_0/P0_9_RESTART_AND_DATA_PERSISTENCE.md)** (Final Verdict: `RESTART & DATA PERSISTENCE ACCEPTED`)
+- **[P0.8-R1 Production Serving Evidence Reconciliation Report](docs/reports/priority_0/P0_8_R1_EVIDENCE_RECONCILIATION.md)** (Final Verdict: `EVIDENCE RECONCILED & ACCEPTED`)
+- **[P0.8 Production Frontend Serving & SPA Routing Report](docs/reports/priority_0/P0_8_PRODUCTION_FRONTEND_SERVING.md)** (Final Verdict: `PRODUCTION FRONTEND SERVING VERIFIED & ACCEPTED`)
+- **[P0.7 Windows Launcher Reliability & Process Lifecycle Safety Report](docs/reports/priority_0/P0_7_WINDOWS_LAUNCHER_RELIABILITY.md)** (Final Verdict: `WINDOWS LAUNCHER ACCEPTED`)
+- **[P0.6 Job Queue, Cancellation and Worker Reliability Report](docs/reports/priority_0/P0_6_JOB_QUEUE_AND_CANCELLATION.md)** (Final Verdict: `JOB QUEUE & WORKER RELIABILITY ACCEPTED`)
+- **[P0.5-R1 Database/API Regression and Reconciliation Safety Closure Report](docs/reports/priority_0/P0_5_R1_REGRESSION_AND_SAFETY_CLOSURE.md)** (Final Verdict: `DATABASE CONSISTENCY & SAFETY ACCEPTED`)
+- **[P0.5 Database and API Consistency Report](docs/reports/priority_0/P0_5_DATABASE_AND_API_CONSISTENCY.md)** (Final Verdict: `RECONCILIATION VERIFIED`)
+- **[P0.4 TypeScript and Production Build Stability Report](docs/reports/priority_0/P0_4_TYPESCRIPT_AND_PRODUCTION_BUILD_STABILITY.md)** (Final Verdict: `TYPESCRIPT & PRODUCTION BUILD ACCEPTED`)
+- **[P0.3-R1 Browser Evidence Reconciliation Report](docs/reports/priority_0/P0_3_R1_BROWSER_EVIDENCE_RECONCILIATION.md)** (Final Verdict: `BROWSER RECONCILIATION ACCEPTED`)
+- **[P0.3 Frontend Stability & Real Browser Acceptance Report](docs/reports/priority_0/P0_3_FRONTEND_BROWSER_ACCEPTANCE.md)** (Final Verdict: `FRONTEND STABILITY ACCEPTED`)
+- **[P0.2 Backend Test Baseline Diagnosis and Safe Repair Report](docs/reports/priority_0/P0_2_BACKEND_TEST_BASELINE.md)** (Final Verdict: `BACKEND BASELINE ACCEPTED`)
+- **[P0.1 Complete Project Audit and Failure Inventory](docs/reports/priority_0/P0_1_PROJECT_AUDIT.md)** (Final Verdict: `AUDIT COMPLETE`)
+
+### Milestone & Session Acceptance Reports
+- [Session 24 Windows Production Mode, One-Click Launcher & Release Hardening Report](docs/reports/session_24/SESSION_24_WINDOWS_PRODUCTION_READINESS.md) (Final Verdict: `PRODUCTION MODE VERIFIED`)
+- [Session 23 Real-Media AI Quality Validation & Professional Video Acceptance Report](docs/reports/session_23/SESSION_23_PROFESSIONAL_QUALITY_ACCEPTANCE.md) (Final Verdict: `BETA READY WITH DOCUMENTED LIMITATIONS`)
+- [Session 22 End-to-End Generation Repair & Real Video Export Acceptance Report](docs/reports/session_22/SESSION_22_END_TO_END_GENERATION_ACCEPTANCE.md) (Final Verdict: `COMPLETE AND VERIFIED`)
 - **Authoritative Session 20 Workflow Report:** [`docs/reports/session_20/SESSION_20_MULTIMODAL_WORKFLOW_ACCEPTANCE.md`](file:///D:/ZezEdit/docs/reports/session_20/SESSION_20_MULTIMODAL_WORKFLOW_ACCEPTANCE.md)
 - **Authoritative Session 19 Final Audit Report:** [`docs/reports/session_19/SESSION_19_FINAL_ACCEPTANCE_AUDIT.md`](file:///D:/ZezEdit/docs/reports/session_19/SESSION_19_FINAL_ACCEPTANCE_AUDIT.md)
 
@@ -119,7 +226,7 @@ npm run build
 
 ---
 
-## Media Ingestion, Formats & Proxy Pipeline (Milestone 4)
+## Media Ingestion, Formats & Proxy Pipeline (Milestone 4 & Priority 1.1–1.3)
 
 - **Supported Video Formats:** MP4, MOV, MKV, WebM, AVI, M4V, MPEG/MPG, TS, FLV, WMV
 - **Supported Audio Formats:** MP3, WAV, AAC, M4A, FLAC, OGG, Opus, WMA
@@ -127,7 +234,14 @@ npm run build
 - **Import Workflows:**
   - *External Reference:* References original files on disk with zero duplication, extracting metadata and generating cached thumbnails.
   - *Managed Copy:* Streams large files into `storage/media/{project_subdir}/` in 1 MB chunks without buffering entire files in memory.
-  - *Streaming Upload:* `POST /api/v1/projects/{project_id}/media/upload` accepts chunked uploads directly to storage.
+  - *Streaming Single Upload:* `POST /api/v1/projects/{project_id}/media/upload` and `POST /api/v1/media/upload` accept chunked uploads directly to storage with automatic project assignment.
+  - *Batch Multi-Video Upload (P1.1):* `POST /api/v1/projects/{project_id}/media/batch-upload` and `POST /api/v1/media/batch-upload` allow selecting and uploading multiple videos in one operation, with detailed per-file results and partial-failure tolerance.
+  - *Safe Filename & Collision Handling (P1.1):* Non-destructive storage naming with unique 8-character hex prefixes, verbatim preservation of Unicode, spaces, and brackets in database metadata, and strict rejection of path traversal sequences (`400 PATH_TRAVERSAL_DETECTED`).
+  - *Accurate Byte-Based Upload Progress (P1.2):* Real-time byte tracking via `XMLHttpRequest.upload.onprogress` with strictly monotonic loaded bytes, mathematical percentage calculation, clean visual separation between wire transmission and server processing, and immediate user cancellation via `AbortController`. Implemented with quiet graphite Unslop design in `UploadProgressPanel.tsx` across `ShortVideoGeneratorLibrary` and `MediaLibraryView`.
+  - *Large-File Streaming & Bounded Memory (P1.3):* Robust large-file streaming up to 2.5 GB ceiling with strictly bounded memory (verified on 1.21 GB video with only +1.25 MB RSS delta), incremental 1 MB disk writing with on-the-fly SHA-256 calculation, Tier 1 pre-flight validation (413 payload too large / 507 insufficient disk space before reading request bodies), Tier 2 in-flight stream limits and periodic disk headroom checks, client disconnect cleanup, startup orphaned upload purging, and concurrency throttling (max 2 parallel heavy transfers returning 429 when saturated).
+  - *Upload Failure Handling, Retry and Recovery (P1.4):* Formalized upload state machine (`queued`, `uploading`, `processing`, `completed`, `failed`, `cancelled`, `retrying`) tracking unique `attemptId` and `attemptCount`, stale callback protection discarding outdated XHR events, deterministic error classification (retryable network/server/timeout drops vs. terminal 400/413/415/corrupt/empty files), item-level selective retry in batch uploads without re-uploading succeeded files, safe full-restart retry from byte zero with honest guidance when DOM `File` reference is lost on page reload, atomic `.uploading` part file renaming, and automated startup sweeping of stale partial uploads.
+  - *Upload Integrity, File Validation and Atomic Persistence (P1.5):* Strict end-to-end integrity contracts backed by Migration 0017 schema enhancements (`sha256`, `integrity_status`, `upload_attempt_id`, `integrity_details_json`). Enforces exact byte-count matching (`X-Expected-File-Size` vs received bytes), streaming single-pass SHA-256 calculation without second disk reads, pre-publication FFprobe container validation on staged `.uploading` part files, explicit rejection of corrupt, truncated, zero-byte, plain-text, and audio-only files masquerading as video (`400 NO_VIDEO_STREAM` / `CORRUPT_MEDIA`), support for multi-stream MKVs, two-phase atomic publication via `os.replace()`, and automatic physical rollback on storage or database registration failures.
+  - *Media Library, Metadata and Asset Management (P1.6):* Pure source video discovery guaranteed by Migration 0018 performance indexes, preventing exports or generated artifacts from polluting the library. Projecting enriched technical badges (format, codecs, duration, file size, resolution, upload date, verified integrity status, analysis state). Provides 300ms debounced case-insensitive search across filenames and asset ID prefixes, multi-criteria format/codec/resolution filtering, allowlisted server-side sorting with SQLi defense, server-side pagination with zero page overlap, detailed stream topology inspection modal, chunked HTTP 206 Partial Content video seeking with native HTML5 player, atomic metadata refresh preserving SHA-256, on-demand thumbnail regeneration with fallback handling, dependency-safe deletion with 409 Conflict protection (`ACTIVE_OPERATION_IN_PROGRESS`, `DEPENDENCY_CONFLICT`) requiring `force_with_exports=true` for safe disk space reclamation, and responsive mobile reflow (375x812 with 0px overflow).
 - **Scrub Proxies:** Downscaled H.264 MP4 proxies (`360p`, `480p`, `720p`) generated via FFmpeg bounded by CPU worker thread constraints (default 4 threads), with fast-start MP4 atoms for instantaneous seeking.
 - **Thumbnails:** Deterministic JPEG frames saved to `storage/thumbnails/{asset_id}.jpg`.
 - **Relinking:** Missing external files can be relinked to new filesystem paths without data loss.
@@ -306,6 +420,28 @@ ZezEdit incorporates the [Unslop](https://github.com/heydamir/unslop) design ski
 ---
 
 ## Architecture & Documentation
+
+- [P1.6 Media Library, Metadata and Asset Management Report](docs/reports/priority_1/P1_6_MEDIA_LIBRARY_AND_METADATA.md)
+- [P1.5 Upload Integrity, File Validation and Atomic Persistence Report](docs/reports/priority_1/P1_5_UPLOAD_INTEGRITY_AND_VALIDATION.md)
+- [P1.4 Upload Failure Handling, Retry and Recovery Report](docs/reports/priority_1/P1_4_UPLOAD_FAILURE_RETRY_AND_RECOVERY.md)
+- [P1.3-R1 Large Upload Acceptance Evidence Reconciliation Report](docs/reports/priority_1/P1_3_R1_LARGE_UPLOAD_EVIDENCE_RECONCILIATION.md)
+- [P1.3 Large-File Video Ingestion, Streaming and Bounded Memory Report](docs/reports/priority_1/P1_3_LARGE_FILE_STREAMING_AND_BOUNDED_MEMORY.md)
+- [P1.2 Accurate Byte-Based Upload Progress Report](docs/reports/priority_1/P1_2_BYTE_ACCURATE_UPLOAD_PROGRESS.md)
+- [P1.1-R1 Real Browser Upload Acceptance and Scope Verification Report](docs/reports/priority_1/P1_1_R1_BROWSER_UPLOAD_ACCEPTANCE.md)
+- [P1.1 Single and Multiple Video Upload Report](docs/reports/priority_1/P1_1_SINGLE_AND_MULTIPLE_UPLOAD.md)
+- [P0.9-R1 Restart and Persistence Evidence Reconciliation Report](docs/reports/priority_0/P0_9_R1_EVIDENCE_RECONCILIATION.md)
+- [P0.9 Restart, Recovery and Data Persistence Verification Report](docs/reports/priority_0/P0_9_RESTART_AND_DATA_PERSISTENCE.md)
+- [P0.8-R1 Production Serving Evidence Reconciliation Report](docs/reports/priority_0/P0_8_R1_EVIDENCE_RECONCILIATION.md)
+- [P0.8 Production Frontend Serving and SPA Routing Report](docs/reports/priority_0/P0_8_PRODUCTION_FRONTEND_SERVING.md)
+- [P0.7 Windows Launcher Reliability and Process Lifecycle Report](docs/reports/priority_0/P0_7_WINDOWS_LAUNCHER_RELIABILITY.md)
+- [P0.6 Job Queue, Cancellation and Worker Reliability Report](docs/reports/priority_0/P0_6_JOB_QUEUE_AND_CANCELLATION.md)
+- [P0.5-R1 Database/API Regression and Reconciliation Safety Closure Report](docs/reports/priority_0/P0_5_R1_REGRESSION_AND_SAFETY_CLOSURE.md)
+- [P0.5 Database and API Consistency Verification Report](docs/reports/priority_0/P0_5_DATABASE_AND_API_CONSISTENCY.md)
+- [P0.4 TypeScript and Production Build Stability Report](docs/reports/priority_0/P0_4_TYPESCRIPT_AND_BUILD_STABILITY.md)
+- [P0.3-R1 Browser Evidence Reconciliation Report](docs/reports/priority_0/P0_3_R1_BROWSER_EVIDENCE_RECONCILIATION.md)
+- [P0.3 Frontend Stability, Real Browser Demonstrations and Output Review](docs/reports/priority_0/P0_3_FRONTEND_BROWSER_ACCEPTANCE.md)
+- [P0.2 Backend Test Baseline Verification Report](docs/reports/priority_0/P0_2_BACKEND_TEST_BASELINE.md)
+- [P0.1 Project Audit & Failure Inventory Report](docs/reports/priority_0/P0_1_PROJECT_AUDIT.md)
 
 - [Session 19 Final Product Acceptance Audit & Remaining Work Inventory](docs/reports/session_19/SESSION_19_FINAL_ACCEPTANCE_AUDIT.md)
 - [Session 18 Queue Stabilization & Acceptance Report](docs/reports/session_18/SESSION_18_QUEUE_STABILIZATION_REPORT.md)

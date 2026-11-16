@@ -285,7 +285,18 @@ def stream_export_video(
     if not exp.output_path:
         raise HTTPException(status_code=404, detail="Export video has not been rendered yet.")
 
-    video_path = Path(exp.output_path)
+    raw_path = Path(exp.output_path)
+    storage_root = service.settings.storage_root.resolve()
+    if raw_path.is_absolute():
+        video_path = raw_path.resolve()
+    else:
+        video_path = (storage_root / "exports" / project_id / raw_path).resolve()
+
+    if not video_path.is_relative_to(storage_root):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: export path is outside allowed storage root.",
+        )
     if not video_path.exists():
         raise HTTPException(status_code=404, detail=f"Export video file missing from disk: {video_path.name}")
 
@@ -357,7 +368,18 @@ def download_export_video(
     if not exp.output_path:
         raise HTTPException(status_code=404, detail="Export video has not been rendered yet.")
 
-    video_path = Path(exp.output_path)
+    raw_path = Path(exp.output_path)
+    storage_root = service.settings.storage_root.resolve()
+    if raw_path.is_absolute():
+        video_path = raw_path.resolve()
+    else:
+        video_path = (storage_root / "exports" / project_id / raw_path).resolve()
+
+    if not video_path.is_relative_to(storage_root):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: export path is outside allowed storage root.",
+        )
     if not video_path.exists():
         raise HTTPException(status_code=404, detail=f"Export video file missing from disk: {video_path.name}")
 

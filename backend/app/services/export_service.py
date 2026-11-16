@@ -336,11 +336,15 @@ class ExportService:
         export = self.get_export(project_id, export_id)
         if export.output_path:
             p = Path(export.output_path)
-            if p.exists():
-                try:
+            try:
+                resolved = p.resolve()
+                storage_root = self.settings.storage_root.resolve()
+                if resolved.is_relative_to(storage_root) and p.exists():
                     p.unlink(missing_ok=True)
-                except Exception as exc:
-                    logger.warning("Could not delete export file %s: %s", p, exc)
+                elif not resolved.is_relative_to(storage_root):
+                    logger.warning("Refusing to delete export file outside storage root: %s", p)
+            except Exception as exc:
+                logger.warning("Could not delete export file %s: %s", p, exc)
 
         with sqlite_session(self.db_path) as conn:
             conn.execute("DELETE FROM exports WHERE id = ? AND project_id = ?", (export_id, project_id))
@@ -650,10 +654,23 @@ class ExportService:
 
             # Parse real-time progress and error logs from stdout
             output_lines: List[str] = []
+            cancelled_early = False
             if proc.stdout:
                 for line in proc.stdout:
                     line_str = line.strip()
                     output_lines.append(line_str)
+
+                    # Periodic cancellation check
+                    if line_str.startswith("out_time_us=") or len(output_lines) % 10 == 0:
+                        try:
+                            job_cur = self.jobs.get_job(job_id)
+                            if job_cur.status in ("cancelling", "cancelled"):
+                                cancelled_early = True
+                                proc.kill()
+                                break
+                        except Exception:
+                            pass
+
                     if line_str.startswith("out_time_us="):
                         try:
                             us = int(line_str.split("=")[1])
@@ -662,6 +679,11 @@ class ExportService:
                             self.jobs.transition_job_state(
                                 job_id, "running", progress_pct=round(pct, 1), stage="rendering_video"
                             )
+                        except AppError:
+                            # State transition rejected (e.g. status was transitioned to cancelling/cancelled)
+                            cancelled_early = True
+                            proc.kill()
+                            break
                         except Exception:
                             pass
 
@@ -670,16 +692,27 @@ class ExportService:
             with _PROCESS_LOCK:
                 _ACTIVE_RENDER_PROCESSES.pop(job_id, None)
 
+            # Check if cancellation was requested or process was killed
+            job_check = self.jobs.get_job(job_id)
+            if cancelled_early or job_check.status in {"cancelling", "cancelled"}:
+                if temp_rendered_mp4.exists():
+                    try:
+                        temp_rendered_mp4.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                if job_check.status == "cancelling":
+                    try:
+                        self.jobs.transition_job_state(job_id, "cancelled", stage="cancelled")
+                    except Exception:
+                        pass
+                with sqlite_session(self.db_path) as conn:
+                    conn.execute(
+                        "UPDATE exports SET status = 'cancelled', error_message = 'Cancelled by user', completed_at = datetime('now') WHERE id = ?",
+                        (export_id,),
+                    )
+                return {"status": "cancelled"}
+
             if proc.returncode != 0:
-                # Check if cancellation was requested or already cancelled
-                job_check = self.jobs.get_job(job_id)
-                if job_check.status in {"cancelling", "cancelled"}:
-                    if job_check.status == "cancelling":
-                        try:
-                            self.jobs.transition_job_state(job_id, "cancelled", stage="cancelled")
-                        except Exception:
-                            pass
-                    return {"status": "cancelled"}
                 err_msg = "\n".join(output_lines[-20:]) if output_lines else "FFmpeg process failed"
                 raise ProcessingError(f"Render failed (code {proc.returncode}): {err_msg}")
 

@@ -58,8 +58,9 @@ async def get_health(request: Request) -> HealthResponse:
         settings.storage_root
     )
 
-    # Probe SQLite WAL + schema_migrations
+    # Probe SQLite WAL + schema_migrations + integrity
     db_connected = False
+    integrity_valid = False
     journal_mode = "unknown"
     applied_migrations: list[str] = []
     try:
@@ -71,8 +72,11 @@ async def get_health(request: Request) -> HealthResponse:
             ).fetchall()
             applied_migrations = [str(r["version"]) for r in rows]
             db_connected = True
+            integ_row = conn.execute("PRAGMA integrity_check(1);").fetchone()
+            integrity_valid = bool(integ_row and integ_row[0] == "ok")
     except Exception:
         db_connected = False
+        integrity_valid = False
 
     writable, buckets_ready = _check_storage_writable(layout)
 
@@ -85,9 +89,33 @@ async def get_health(request: Request) -> HealthResponse:
     )
     ollama_probe = await ollama_client.probe_health()
 
-    core_ok = db_connected and writable and buckets_ready
+    whisper_available = False
+    try:
+        import faster_whisper
+        whisper_available = True
+    except ImportError:
+        whisper_available = False
+
+    frontend_dist = getattr(settings, "frontend_dist_dir", None)
+    if frontend_dist is None:
+        from app.core.config import PROJECT_ROOT
+        frontend_dist = PROJECT_ROOT / "frontend" / "dist"
+    frontend_build_available = (frontend_dist / "index.html").is_file()
+
+    dispatcher_initialized = getattr(request.app.state, "dispatcher_initialized", True)
+    is_starting = getattr(request.app.state, "starting", False)
+
+    core_ok = db_connected and integrity_valid and writable and buckets_ready
     media_ok = ffmpeg_status.available and ffprobe_status.available
-    overall_status = "ready" if (core_ok and media_ok) else "degraded"
+
+    if is_starting:
+        overall_status = "starting"
+    elif not core_ok or not media_ok:
+        overall_status = "failed"
+    elif ollama_probe.reachable:
+        overall_status = "ready"
+    else:
+        overall_status = "ready_with_optional_unavailable"
 
     return HealthResponse(
         status=overall_status,
@@ -99,6 +127,7 @@ async def get_health(request: Request) -> HealthResponse:
             connected=db_connected,
             path=str(layout.db_file),
             journal_mode=journal_mode,
+            integrity_valid=integrity_valid,
             current_migration=applied_migrations[-1] if applied_migrations else None,
             applied_migrations=applied_migrations,
         ),
@@ -125,6 +154,9 @@ async def get_health(request: Request) -> HealthResponse:
             installed_models=ollama_probe.models,
             details=ollama_probe.details,
         ),
+        dispatcher_initialized=dispatcher_initialized,
+        frontend_build_available=frontend_build_available,
+        whisper_available=whisper_available,
     )
 
 

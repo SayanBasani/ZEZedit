@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from app.core.errors import AppError
+from app.db.connection import sqlite_session
 
 logger = logging.getLogger("zezedit.backups")
 
@@ -138,9 +139,7 @@ class BackupService:
         issues: List[str] = []
         healthy = True
 
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        try:
+        with sqlite_session(self.db_path) as conn:
             # 1. PRAGMA integrity_check
             row = conn.execute("PRAGMA integrity_check;").fetchone()
             integrity_ok = bool(row and str(row[0]).lower() == "ok")
@@ -169,6 +168,7 @@ class BackupService:
                 "analysis_runs",
                 "shorts_candidates",
                 "timeline_sequences",
+                "exports",
                 "render_exports",
                 "jobs",
                 "project_events",
@@ -194,9 +194,6 @@ class BackupService:
             except Exception:
                 orphan_candidates = 0
 
-        finally:
-            conn.close()
-
         return {
             "healthy": healthy,
             "integrity_check": "ok" if integrity_ok else "failed",
@@ -215,9 +212,7 @@ class BackupService:
         backups = self.list_backups()
         last_backup = backups[0] if backups else None
 
-        conn = sqlite3.connect(str(self.db_path))
-        conn.row_factory = sqlite3.Row
-        try:
+        with sqlite_session(self.db_path) as conn:
             # Check interrupted jobs
             interrupted = conn.execute(
                 "SELECT id, job_type, updated_at FROM jobs WHERE status = 'interrupted' ORDER BY updated_at DESC"
@@ -235,8 +230,6 @@ class BackupService:
                 "SELECT project_id, event_type, created_at FROM project_events ORDER BY created_at DESC LIMIT 1"
             ).fetchone()
             last_activity = dict(latest_ev) if latest_ev else None
-        finally:
-            conn.close()
 
         return {
             "last_backup": last_backup,
@@ -248,4 +241,95 @@ class BackupService:
             "last_project_activity": last_activity,
             "recovery_ready": True,
             "checked_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def reconcile_database_consistency(self) -> Dict[str, Any]:
+        """Audit and reconcile foreign key references and export file availability idempotently and transactionally."""
+        with sqlite_session(self.db_path) as conn:
+            conn.execute("BEGIN IMMEDIATE;")
+            try:
+                # 1. Foreign-key reconciliation: candidate_id = NULL where candidate does not exist
+                # The schema declared constraint is ON DELETE SET NULL
+                res_exp_fk = conn.execute(
+                    """
+                    UPDATE exports
+                    SET candidate_id = NULL
+                    WHERE candidate_id IS NOT NULL
+                      AND candidate_id NOT IN (SELECT id FROM shorts_candidates);
+                    """
+                )
+                exports_fk_fixed = res_exp_fk.rowcount
+
+                res_ref_fk = conn.execute(
+                    """
+                    UPDATE reframing_plans
+                    SET candidate_id = NULL
+                    WHERE candidate_id IS NOT NULL
+                      AND candidate_id NOT IN (SELECT id FROM shorts_candidates);
+                    """
+                )
+                reframing_fk_fixed = res_ref_fk.rowcount
+
+                # 2. Missing completed export file reconciliation
+                completed_rows = conn.execute(
+                    "SELECT id, project_id, output_path FROM exports WHERE status = 'completed'"
+                ).fetchall()
+
+                missing_exports_marked: List[str] = []
+                storage_root = self.backups_dir.parent
+                for r in completed_rows:
+                    out_path = r["output_path"]
+                    if not out_path:
+                        is_missing = True
+                    else:
+                        raw_path = Path(out_path)
+                        if raw_path.is_absolute():
+                            is_missing = not raw_path.exists()
+                        else:
+                            cand1 = (storage_root / "exports" / r["project_id"] / raw_path).resolve()
+                            cand2 = (storage_root / raw_path).resolve()
+                            is_missing = not (cand1.exists() or cand2.exists() or raw_path.exists())
+
+                    if is_missing:
+                        conn.execute(
+                            """
+                            UPDATE exports
+                            SET status = 'failed',
+                                validation_status = 'invalid',
+                                validation_details_json = '{"is_valid": false, "error": "Export video file missing from disk"}',
+                                error_message = 'Export video file missing from storage disk (historical test artifact purged)'
+                            WHERE id = ?
+                            """,
+                            (r["id"],),
+                        )
+                        missing_exports_marked.append(r["id"])
+
+                conn.execute("COMMIT;")
+            except Exception as exc:
+                conn.execute("ROLLBACK;")
+                logger.error("Database reconciliation transaction failed and was rolled back: %s", exc)
+                raise
+
+            # 3. Post-reconciliation verification
+            integrity_row = conn.execute("PRAGMA integrity_check;").fetchone()
+            integrity_status = str(integrity_row[0]) if integrity_row else "unknown"
+
+            fk_violations = conn.execute("PRAGMA foreign_key_check;").fetchall()
+
+            total_exports = conn.execute("SELECT count(*) as cnt FROM exports").fetchone()["cnt"]
+            active_completed = conn.execute(
+                "SELECT count(*) as cnt FROM exports WHERE status = 'completed'"
+            ).fetchone()["cnt"]
+
+        return {
+            "status": "success",
+            "foreign_key_violations_fixed": exports_fk_fixed + reframing_fk_fixed,
+            "exports_foreign_keys_fixed": exports_fk_fixed,
+            "reframing_foreign_keys_fixed": reframing_fk_fixed,
+            "missing_exports_reconciled": missing_exports_marked,
+            "remaining_foreign_key_violations": len(fk_violations),
+            "integrity_check": integrity_status,
+            "total_exports_count": total_exports,
+            "active_completed_exports_count": active_completed,
+            "reconciled_at": datetime.now(timezone.utc).isoformat(),
         }

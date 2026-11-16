@@ -230,10 +230,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       const activeRun = runs.find((r) => r.status === 'completed') || runs[0];
       if (activeRun) {
         const [sc, tr, cInfo, tele] = await Promise.all([
-          fetchAnalysisScenes(effPid, assetId, activeRun.id).catch(() => []),
-          fetchAnalysisTranscript(effPid, assetId, activeRun.id).catch(() => null),
-          fetchAnalysisCacheInfo(effPid, assetId, activeRun.id).catch(() => null),
-          fetchAnalysisTelemetry(effPid, assetId, activeRun.id).catch(() => null),
+          Promise.resolve(fetchAnalysisScenes(effPid, assetId, activeRun.id)).catch(() => []),
+          Promise.resolve(fetchAnalysisTranscript(effPid, assetId, activeRun.id)).catch(() => null),
+          Promise.resolve(fetchAnalysisCacheInfo(effPid, assetId, activeRun.id)).catch(() => null),
+          Promise.resolve(fetchAnalysisTelemetry(effPid, assetId, activeRun.id)).catch(() => null),
         ]);
         setScenes(sc);
         setTranscript(tr);

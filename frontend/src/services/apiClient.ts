@@ -31,12 +31,26 @@ import {
   JobListResponse,
   MediaAssetItem,
   MediaAssetListResponse,
+  MediaBatchUploadItemResult,
+  MediaBatchUploadResponse,
   MediaImportLocalPayload,
+  MediaListQueryParams,
   MediaStorageStats,
   ProjectCreatePayload,
   ProjectItem,
   ProjectListResponse,
+  UploadProgressInfo,
+  UploadProgressOptions,
+  UploadTransferState,
 } from '../types/projects';
+
+export type {
+  MediaBatchUploadItemResult,
+  MediaBatchUploadResponse,
+  UploadProgressInfo,
+  UploadProgressOptions,
+  UploadTransferState,
+};
 import {
   AddTextOverlayRequest,
   AIConversation,
@@ -181,44 +195,44 @@ export function deleteProject(projectId: string): Promise<void> {
 }
 
 // ==================== MEDIA ASSETS ====================
-export function fetchAllMedia(
-  params?: {
-    media_type?: string;
-    availability?: string;
-    proxy_status?: string;
-    search?: string;
-  }
-): Promise<MediaAssetListResponse> {
+function buildMediaQueryParams(params?: MediaListQueryParams): string {
+  if (!params) return '';
   const query = new URLSearchParams();
-  if (params?.media_type && params.media_type !== 'all') query.set('media_type', params.media_type);
-  if (params?.availability && params.availability !== 'all') query.set('availability', params.availability);
-  if (params?.proxy_status && params.proxy_status !== 'all') query.set('proxy_status', params.proxy_status);
-  if (params?.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.media_type && params.media_type !== 'all') query.set('media_type', params.media_type);
+  if (params.availability && params.availability !== 'all') query.set('availability', params.availability);
+  if (params.proxy_status && params.proxy_status !== 'all') query.set('proxy_status', params.proxy_status);
+  if (params.search && params.search.trim()) query.set('search', params.search.trim());
+  if (params.resolution && params.resolution !== 'all') query.set('resolution', params.resolution);
+  if (params.format && params.format !== 'all') query.set('format', params.format);
+  if (params.video_codec && params.video_codec !== 'all') query.set('video_codec', params.video_codec);
+  if (params.duration_min !== undefined) query.set('duration_min', String(params.duration_min));
+  if (params.duration_max !== undefined) query.set('duration_max', String(params.duration_max));
+  if (params.date_from) query.set('date_from', params.date_from);
+  if (params.date_to) query.set('date_to', params.date_to);
+  if (params.integrity_status && params.integrity_status !== 'all') query.set('integrity_status', params.integrity_status);
+  if (params.analysis_status && params.analysis_status !== 'all') query.set('analysis_status', params.analysis_status);
+  if (params.missing_thumbnail !== undefined) query.set('missing_thumbnail', String(params.missing_thumbnail));
+  if (params.sort_by) query.set('sort_by', params.sort_by);
+  if (params.sort_order) query.set('sort_order', params.sort_order);
+  if (params.page !== undefined) query.set('page', String(params.page));
+  if (params.page_size !== undefined) query.set('page_size', String(params.page_size));
 
-  const q = query.toString() ? `?${query.toString()}` : '';
-  return request<MediaAssetListResponse>(`/media${q}`);
+  const q = query.toString();
+  return q ? `?${q}` : '';
+}
+
+export function fetchAllMedia(params?: MediaListQueryParams): Promise<MediaAssetListResponse> {
+  return request<MediaAssetListResponse>(`/media${buildMediaQueryParams(params)}`);
 }
 
 export function fetchProjectMedia(
   projectId: string,
-  params?: {
-    media_type?: string;
-    availability?: string;
-    proxy_status?: string;
-    search?: string;
-  }
+  params?: MediaListQueryParams
 ): Promise<MediaAssetListResponse> {
   if (!projectId || projectId === 'all') {
     return fetchAllMedia(params);
   }
-  const query = new URLSearchParams();
-  if (params?.media_type && params.media_type !== 'all') query.set('media_type', params.media_type);
-  if (params?.availability && params.availability !== 'all') query.set('availability', params.availability);
-  if (params?.proxy_status && params.proxy_status !== 'all') query.set('proxy_status', params.proxy_status);
-  if (params?.search && params.search.trim()) query.set('search', params.search.trim());
-
-  const q = query.toString() ? `?${query.toString()}` : '';
-  return request<MediaAssetListResponse>(`/projects/${projectId}/media${q}`);
+  return request<MediaAssetListResponse>(`/projects/${projectId}/media${buildMediaQueryParams(params)}`);
 }
 
 export function fetchMediaAsset(assetId: string, projectId?: string): Promise<MediaAssetItem> {
@@ -244,36 +258,503 @@ export function importLocalMedia(
   });
 }
 
+export function isUploadRetryable(status: number | null, code?: string | null): boolean {
+  if (status === null || status === 0) return true; // network error / timeout / aborted
+  if ([408, 429, 500, 502, 503, 504].includes(status)) return true;
+  if (
+    code === 'NETWORK_ERROR' ||
+    code === 'TIMEOUT' ||
+    code === 'ABORTED' ||
+    code === 'TOO_MANY_CONCURRENT_UPLOADS' ||
+    code === 'DATABASE_REGISTRATION_FAILED' ||
+    code === 'PUBLICATION_FAILED' ||
+    code === 'BYTE_COUNT_MISMATCH' ||
+    code === 'CHECKSUM_MISMATCH'
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function formatBytes(bytes: number | null | undefined, decimals = 1): string {
+  if (bytes === null || bytes === undefined || isNaN(bytes) || bytes <= 0) return '0 B';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  if (i < 0) return '0 B';
+  const idx = Math.min(i, sizes.length - 1);
+  return `${parseFloat((bytes / Math.pow(k, idx)).toFixed(dm))} ${sizes[idx]}`;
+}
+
 export async function uploadMediaFile(
   projectId: string,
   file: File,
   generateProxy = false,
-  generateThumbnail = true
+  generateThumbnail = true,
+  options?: UploadProgressOptions
 ): Promise<MediaAssetItem> {
+  const attemptId = options?.attemptId || `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const attemptCount = options?.attemptCount || 1;
+
   const formData = new FormData();
   formData.append('file', file);
 
-  const endpoint = (!projectId || projectId === 'all')
-    ? `${API_BASE}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`
-    : `${API_BASE}/projects/${projectId}/media/upload?generate_proxy=${generateProxy}&generate_thumbnail=${generateThumbnail}`;
-
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    body: formData,
+  const queryParams = new URLSearchParams({
+    generate_proxy: String(generateProxy),
+    generate_thumbnail: String(generateThumbnail),
   });
-
-  if (!res.ok) {
-    let msg = `Upload failed with status ${res.status}`;
-    try {
-      const err = await res.json();
-      if (err.error?.message) msg = err.error.message;
-    } catch {
-      // ignore
-    }
-    throw new ApiClientError(msg, `HTTP_${res.status}`);
+  if (options?.testDelaySeconds && options.testDelaySeconds > 0) {
+    queryParams.set('test_delay_seconds', String(options.testDelaySeconds));
+  }
+  if (options?.testFailureCode && options.testFailureCode > 0) {
+    queryParams.set('test_failure_code', String(options.testFailureCode));
+  }
+  if (options?.testFailRegistration) {
+    queryParams.set('test_fail_registration', 'true');
+  }
+  if (options?.testFailPublication) {
+    queryParams.set('test_fail_publication', 'true');
+  }
+  if (options?.expectedSize) {
+    queryParams.set('expected_size', String(options.expectedSize));
+  }
+  if (options?.expectedSha256) {
+    queryParams.set('expected_sha256', options.expectedSha256);
+  }
+  if (attemptId) {
+    queryParams.set('attempt_id', attemptId);
   }
 
-  return (await res.json()) as MediaAssetItem;
+  const endpoint = (!projectId || projectId === 'all')
+    ? `${API_BASE}/media/upload?${queryParams.toString()}`
+    : `${API_BASE}/projects/${projectId}/media/upload?${queryParams.toString()}`;
+
+  // Fallback to fetch if XMLHttpRequest is unavailable in test environment
+  if (typeof XMLHttpRequest === 'undefined') {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: formData,
+      signal: options?.signal,
+    });
+    if (!res.ok) {
+      let msg = `Upload failed with status ${res.status}`;
+      let code = `HTTP_${res.status}`;
+      try {
+        const err = await res.json();
+        if (err.error?.message) msg = err.error.message;
+        if (err.error?.code) code = err.error.code;
+        if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      } catch {}
+      const retryable = isUploadRetryable(res.status, code);
+      if (options?.onProgress) {
+        options.onProgress({
+          filename: file.name,
+          loaded: 0,
+          total: file.size > 0 ? file.size : null,
+          percentage: 0,
+          state: 'error',
+          error: msg,
+          attemptId,
+          attemptCount,
+          retryable,
+        });
+      }
+      throw new ApiClientError(msg, code);
+    }
+    const asset = (await res.json()) as MediaAssetItem;
+    if (options?.onProgress) {
+      options.onProgress({
+        filename: file.name,
+        loaded: file.size,
+        total: file.size,
+        percentage: 100,
+        state: 'completed',
+        mediaAsset: asset,
+        attemptId,
+        attemptCount,
+        retryable: false,
+      });
+    }
+    return asset;
+  }
+
+  return new Promise<MediaAssetItem>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let lastLoaded = 0;
+    let isFinished = false;
+
+    const emit = (
+      loaded: number,
+      total: number | null,
+      state: UploadTransferState,
+      error?: string | null,
+      asset?: MediaAssetItem | null,
+      retryable?: boolean
+    ) => {
+      // Stale callback protection: if options specify attemptId and it doesn't match active attempt, discard
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      if (!options?.onProgress) return;
+      let percentage: number | null = null;
+      if (total !== null && total > 0) {
+        percentage = Math.min(100, Math.max(0, (loaded / total) * 100));
+      }
+      options.onProgress({
+        filename: file.name,
+        loaded,
+        total,
+        percentage,
+        state,
+        error: error || null,
+        mediaAsset: asset || null,
+        attemptId,
+        attemptCount,
+        retryable: retryable ?? (state === 'completed' ? false : isUploadRetryable(null)),
+      });
+    };
+
+    const initialTotal = file.size > 0 ? file.size : null;
+    emit(0, initialTotal, 'uploading', null, null, false);
+
+    if (options?.testNetworkError) {
+      setTimeout(() => {
+        isFinished = true;
+        try { xhr.abort(); } catch {}
+        const netErr = new ApiClientError('Network error during upload', 'NETWORK_ERROR');
+        emit(0, initialTotal, 'failed', 'Network error during upload', null, true);
+        reject(netErr);
+      }, 150);
+      return;
+    }
+
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        isFinished = true;
+        try { xhr.abort(); } catch {}
+        const abortErr = new ApiClientError('Upload was aborted', 'ABORTED');
+        emit(0, initialTotal, 'aborted', 'Upload was aborted', null, true);
+        reject(abortErr);
+        return;
+      }
+      options.signal.addEventListener('abort', () => {
+        if (isFinished) return;
+        isFinished = true;
+        try { xhr.abort(); } catch {}
+        const abortErr = new ApiClientError('Upload was aborted', 'ABORTED');
+        emit(lastLoaded, initialTotal, 'aborted', 'Upload was aborted', null, true);
+        reject(abortErr);
+      }, { once: true });
+    }
+
+    if (xhr.upload) {
+      xhr.upload.onprogress = (event: ProgressEvent) => {
+        if (isFinished) return;
+        if (options?.attemptId && options.attemptId !== attemptId) return;
+        const computable = Boolean(event.lengthComputable && event.total > 0);
+        const currentLoaded = Math.max(lastLoaded, event.loaded);
+        lastLoaded = currentLoaded;
+        const currentTotal = computable ? event.total : (file.size > 0 ? file.size : null);
+
+        if (currentTotal !== null && currentLoaded >= currentTotal) {
+          emit(currentTotal, currentTotal, 'processing', null, null, false);
+        } else {
+          emit(currentLoaded, currentTotal, 'uploading', null, null, false);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const status = xhr.status;
+      if (status >= 200 && status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as MediaAssetItem;
+          const finalTotal = Math.max(lastLoaded, file.size > 0 ? file.size : lastLoaded);
+          emit(finalTotal, finalTotal, 'completed', null, data, false);
+          resolve(data);
+        } catch {
+          const parseErr = new ApiClientError('Failed to parse upload response', 'PARSE_ERROR');
+          emit(lastLoaded, file.size > 0 ? file.size : null, 'error', parseErr.message, null, false);
+          reject(parseErr);
+        }
+      } else {
+        let msg = `Upload failed with status ${status}`;
+        let code = `HTTP_${status}`;
+        try {
+          const errObj = JSON.parse(xhr.responseText);
+          if (errObj.error?.message) msg = errObj.error.message;
+          if (errObj.error?.code) code = errObj.error.code;
+          if (errObj.detail) msg = typeof errObj.detail === 'string' ? errObj.detail : JSON.stringify(errObj.detail);
+        } catch {}
+        const retryable = isUploadRetryable(status, code);
+        const apiErr = new ApiClientError(msg, code);
+        emit(lastLoaded, file.size > 0 ? file.size : null, 'error', msg, null, retryable);
+        reject(apiErr);
+      }
+    };
+
+    xhr.onerror = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const netErr = new ApiClientError('Network error during upload', 'NETWORK_ERROR');
+      emit(lastLoaded, file.size > 0 ? file.size : null, 'error', 'Network error during upload', null, true);
+      reject(netErr);
+    };
+
+    xhr.ontimeout = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const timeoutErr = new ApiClientError('Upload request timed out', 'TIMEOUT');
+      emit(lastLoaded, file.size > 0 ? file.size : null, 'error', 'Upload request timed out', null, true);
+      reject(timeoutErr);
+    };
+
+    xhr.onabort = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const abortErr = new ApiClientError('Upload was aborted', 'ABORTED');
+      emit(lastLoaded, initialTotal, 'aborted', 'Upload was aborted', null, true);
+      reject(abortErr);
+    };
+
+    xhr.open('POST', endpoint);
+    if (attemptId) {
+      try { xhr.setRequestHeader('X-Upload-Attempt-Id', attemptId); } catch {}
+    }
+    if (options?.expectedSize) {
+      try { xhr.setRequestHeader('X-Expected-File-Size', String(options.expectedSize)); } catch {}
+    }
+    if (options?.expectedSha256) {
+      try { xhr.setRequestHeader('X-Expected-Sha256', options.expectedSha256); } catch {}
+    }
+    xhr.send(formData);
+  });
+}
+
+export async function uploadMediaBatch(
+  projectId: string,
+  files: File[],
+  generateProxy = false,
+  generateThumbnail = true,
+  options?: UploadProgressOptions
+): Promise<MediaBatchUploadResponse> {
+  const attemptId = options?.attemptId || `batch_att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const attemptCount = options?.attemptCount || 1;
+
+  const formData = new FormData();
+  let totalBytes = 0;
+  for (const file of files) {
+    formData.append('files', file);
+    totalBytes += file.size;
+  }
+
+  const queryParams = new URLSearchParams({
+    generate_proxy: String(generateProxy),
+    generate_thumbnail: String(generateThumbnail),
+  });
+  if (options?.testDelaySeconds && options.testDelaySeconds > 0) {
+    queryParams.set('test_delay_seconds', String(options.testDelaySeconds));
+  }
+  if (options?.testFailureCode && options.testFailureCode > 0) {
+    queryParams.set('test_failure_code', String(options.testFailureCode));
+  }
+  if (options?.testFailRegistration) {
+    queryParams.set('test_fail_registration', 'true');
+  }
+  if (options?.testFailPublication) {
+    queryParams.set('test_fail_publication', 'true');
+  }
+  if (options?.expectedSize) {
+    queryParams.set('expected_size', String(options.expectedSize));
+  }
+  if (options?.expectedSha256) {
+    queryParams.set('expected_sha256', options.expectedSha256);
+  }
+  if (attemptId) {
+    queryParams.set('attempt_id', attemptId);
+  }
+
+  const endpoint = (!projectId || projectId === 'all')
+    ? `${API_BASE}/media/batch-upload?${queryParams.toString()}`
+    : `${API_BASE}/projects/${projectId}/media/batch-upload?${queryParams.toString()}`;
+
+  // Fallback to fetch if XMLHttpRequest is unavailable
+  if (typeof XMLHttpRequest === 'undefined') {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: formData,
+      signal: options?.signal,
+    });
+    if (!res.ok) {
+      let msg = `Batch upload failed with status ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err.error?.message) msg = err.error.message;
+      } catch {}
+      throw new ApiClientError(msg, `HTTP_${res.status}`);
+    }
+    const data = (await res.json()) as MediaBatchUploadResponse;
+    if (options?.onProgress) {
+      options.onProgress({
+        filename: `${files.length} files`,
+        loaded: totalBytes,
+        total: totalBytes,
+        percentage: 100,
+        state: 'completed',
+        attemptId,
+        attemptCount,
+        retryable: false,
+      });
+    }
+    return data;
+  }
+
+  return new Promise<MediaBatchUploadResponse>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    let lastLoaded = 0;
+    let isFinished = false;
+
+    const emit = (
+      loaded: number,
+      total: number | null,
+      state: UploadTransferState,
+      error?: string | null,
+      retryable?: boolean
+    ) => {
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      if (!options?.onProgress) return;
+      let percentage: number | null = null;
+      if (total !== null && total > 0) {
+        percentage = Math.min(100, Math.max(0, (loaded / total) * 100));
+      }
+      options.onProgress({
+        filename: `${files.length} files`,
+        loaded,
+        total,
+        percentage,
+        state,
+        error: error || null,
+        attemptId,
+        attemptCount,
+        retryable: retryable ?? (state === 'completed' ? false : isUploadRetryable(null)),
+      });
+    };
+
+    const initialTotal = totalBytes > 0 ? totalBytes : null;
+    emit(0, initialTotal, 'uploading', null, false);
+
+    if (options?.signal) {
+      if (options.signal.aborted) {
+        isFinished = true;
+        try { xhr.abort(); } catch {}
+        const abortErr = new ApiClientError('Batch upload was aborted', 'ABORTED');
+        emit(0, initialTotal, 'cancelled', 'Batch upload was aborted', true);
+        reject(abortErr);
+        return;
+      }
+      options.signal.addEventListener('abort', () => {
+        if (isFinished) return;
+        isFinished = true;
+        try { xhr.abort(); } catch {}
+        const abortErr = new ApiClientError('Batch upload was aborted', 'ABORTED');
+        emit(lastLoaded, initialTotal, 'cancelled', 'Batch upload was aborted', true);
+        reject(abortErr);
+      }, { once: true });
+    }
+
+    if (xhr.upload) {
+      xhr.upload.onprogress = (event: ProgressEvent) => {
+        if (isFinished) return;
+        if (options?.attemptId && options.attemptId !== attemptId) return;
+        const computable = Boolean(event.lengthComputable && event.total > 0);
+        const currentLoaded = Math.max(lastLoaded, event.loaded);
+        lastLoaded = currentLoaded;
+        const currentTotal = computable ? event.total : (totalBytes > 0 ? totalBytes : null);
+
+        if (currentTotal !== null && currentLoaded >= currentTotal) {
+          emit(currentTotal, currentTotal, 'processing', null, false);
+        } else {
+          emit(currentLoaded, currentTotal, 'uploading', null, false);
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const status = xhr.status;
+      if (status >= 200 && status < 300) {
+        try {
+          const data = JSON.parse(xhr.responseText) as MediaBatchUploadResponse;
+          const finalTotal = Math.max(lastLoaded, totalBytes > 0 ? totalBytes : lastLoaded);
+          emit(finalTotal, finalTotal, 'completed', null, false);
+          resolve(data);
+        } catch {
+          const parseErr = new ApiClientError('Failed to parse batch response', 'PARSE_ERROR');
+          emit(lastLoaded, totalBytes > 0 ? totalBytes : null, 'failed', parseErr.message, false);
+          reject(parseErr);
+        }
+      } else {
+        let msg = `Batch upload failed with status ${status}`;
+        let code = `HTTP_${status}`;
+        try {
+          const errObj = JSON.parse(xhr.responseText);
+          if (errObj.error?.message) msg = errObj.error.message;
+          if (errObj.error?.code) code = errObj.error.code;
+          if (errObj.detail) msg = typeof errObj.detail === 'string' ? errObj.detail : JSON.stringify(errObj.detail);
+        } catch {}
+        const retryable = isUploadRetryable(status, code);
+        const apiErr = new ApiClientError(msg, code);
+        emit(lastLoaded, totalBytes > 0 ? totalBytes : null, 'failed', msg, retryable);
+        reject(apiErr);
+      }
+    };
+
+    xhr.onerror = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const netErr = new ApiClientError('Network error during batch upload', 'NETWORK_ERROR');
+      emit(lastLoaded, totalBytes > 0 ? totalBytes : null, 'failed', 'Network error during batch upload', true);
+      reject(netErr);
+    };
+
+    xhr.ontimeout = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const timeoutErr = new ApiClientError('Batch upload timed out', 'TIMEOUT');
+      emit(lastLoaded, totalBytes > 0 ? totalBytes : null, 'failed', 'Batch upload timed out', true);
+      reject(timeoutErr);
+    };
+
+    xhr.onabort = () => {
+      if (isFinished) return;
+      if (options?.attemptId && options.attemptId !== attemptId) return;
+      isFinished = true;
+      const abortErr = new ApiClientError('Batch upload was aborted', 'ABORTED');
+      emit(lastLoaded, initialTotal, 'cancelled', 'Batch upload was aborted', true);
+      reject(abortErr);
+    };
+
+    xhr.open('POST', endpoint);
+    if (attemptId) {
+      try { xhr.setRequestHeader('X-Upload-Attempt-Id', attemptId); } catch {}
+    }
+    if (options?.expectedSize) {
+      try { xhr.setRequestHeader('X-Expected-File-Size', String(options.expectedSize)); } catch {}
+    }
+    if (options?.expectedSha256) {
+      try { xhr.setRequestHeader('X-Expected-Sha256', options.expectedSha256); } catch {}
+    }
+    xhr.send(formData);
+  });
 }
 
 export function generateProxy(
@@ -346,10 +827,11 @@ export function checkProjectMediaIntegrity(
 export function deleteMediaAsset(
   projectId: string,
   assetId: string,
-  deleteSource = false
+  deleteSource = false,
+  forceWithExports = false
 ): Promise<void> {
   return request<void>(
-    `/projects/${projectId}/media/${assetId}?delete_source=${deleteSource}`,
+    `/projects/${projectId}/media/${assetId}?delete_source=${deleteSource}&force_with_exports=${forceWithExports}`,
     { method: 'DELETE' }
   );
 }
@@ -516,10 +998,29 @@ export function clearAllUserData(confirmation = 'DELETE ALL USER DATA'): Promise
   });
 }
 
-export function deleteMediaAssetGlobal(assetId: string, deleteSource = false): Promise<void> {
-  return request<void>(`/media/${assetId}?delete_source=${deleteSource}`, {
-    method: 'DELETE',
-  });
+export function deleteMediaAssetGlobal(
+  assetId: string,
+  deleteSource = false,
+  forceWithExports = false
+): Promise<void> {
+  return request<void>(
+    `/media/${assetId}?delete_source=${deleteSource}&force_with_exports=${forceWithExports}`,
+    { method: 'DELETE' }
+  );
+}
+
+export function refreshMediaMetadata(assetId: string, projectId?: string): Promise<MediaAssetItem> {
+  const url = projectId && projectId !== 'all'
+    ? `/projects/${projectId}/media/${assetId}/refresh-metadata`
+    : `/media/${assetId}/refresh-metadata`;
+  return request<MediaAssetItem>(url, { method: 'POST' });
+}
+
+export function regenerateThumbnailGlobal(assetId: string, projectId?: string): Promise<MediaAssetItem> {
+  const url = projectId && projectId !== 'all'
+    ? `/projects/${projectId}/media/${assetId}/thumbnail/regenerate`
+    : `/media/${assetId}/thumbnail/regenerate`;
+  return request<MediaAssetItem>(url, { method: 'POST' });
 }
 
 export function updateMediaAssetGlobal(

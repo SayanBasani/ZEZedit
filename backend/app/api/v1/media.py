@@ -1,10 +1,12 @@
 """Media metadata management, ingestion, proxying, and thumbnail endpoints."""
 
+import logging
+import math
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
@@ -14,6 +16,8 @@ from app.schemas.core import (
     MediaAssetListResponse,
     MediaAssetResponse,
     MediaAssetUpdateRequest,
+    MediaBatchUploadItemResult,
+    MediaBatchUploadResponse,
     MediaImportLocalRequest,
     MediaIntegrityCheckResult,
     MediaProxyGenerateRequest,
@@ -27,6 +31,8 @@ from app.services.media import MediaService
 from app.services.media_pipeline import MediaPipelineService
 from app.services.projects import ProjectService
 from app.services.workflow_state import VideoWorkflowStateResponse, WorkflowStateMachine
+
+logger = logging.getLogger("zezedit.media_api")
 
 router = APIRouter(prefix="/projects/{project_id}/media", tags=["media"])
 
@@ -54,6 +60,95 @@ def get_media_service(request: Request) -> MediaService:
         settings.storage_root
     )
     return MediaService(settings=settings, db_path=layout.db_file)
+
+
+def _stream_video_asset(asset_id: str, service: MediaService, request: Request):
+    """Serve source video or proxy with HTTP 206 byte-range streaming for HTML5 playback."""
+    asset = service.get_media_asset("all", asset_id)
+    layout = StorageLayout.from_root(service.settings.storage_root)
+    source_path = Path(asset.storage_path) if asset.storage_path else None
+    if not source_path or not source_path.is_file():
+        source_path = layout.media / (asset.storage_path or "")
+    if not source_path.is_file() and asset.proxy_reference_path:
+        source_path = Path(asset.proxy_reference_path)
+        if not source_path.is_file():
+            source_path = layout.proxies / Path(asset.proxy_reference_path).name
+
+    if not source_path.is_file():
+        raise AppError(
+            code="MEDIA_STREAM_NOT_FOUND",
+            message=f"Video stream file for asset '{asset_id}' is not accessible on disk.",
+            status_code=404,
+        )
+
+    # Path traversal defense: verify file is within storage_root if not external
+    if not asset.is_external:
+        try:
+            if not source_path.resolve().is_relative_to(service.settings.storage_root.resolve()):
+                raise AppError(
+                    code="ACCESS_DENIED",
+                    message="Access denied: media path is outside allowed storage root.",
+                    status_code=403,
+                )
+        except Exception as p_err:
+            if isinstance(p_err, AppError):
+                raise
+            pass
+
+    file_size = source_path.stat().st_size
+    media_type = asset.mime_type or "video/mp4"
+    range_header = request.headers.get("range")
+
+    if not range_header:
+        return FileResponse(
+            str(source_path),
+            media_type=media_type,
+            filename=source_path.name,
+            headers={"Accept-Ranges": "bytes", "Content-Length": str(file_size)},
+        )
+
+    # Parse byte range: "bytes=start-end"
+    try:
+        units, range_val = range_header.split("=")
+        if units.strip() != "bytes":
+            raise ValueError()
+        start_str, end_str = range_val.split("-")
+        start = int(start_str) if start_str else 0
+        end = int(end_str) if end_str else file_size - 1
+        if start < 0 or start >= file_size or end < start:
+            raise ValueError()
+        end = min(end, file_size - 1)
+        content_length = end - start + 1
+    except Exception:
+        raise AppError(
+            code="RANGE_NOT_SATISFIABLE",
+            message=f"Requested range '{range_header}' not satisfiable for file of size {file_size} bytes.",
+            status_code=416,
+        )
+
+    def iter_bytes():
+        with open(source_path, "rb") as f:
+            f.seek(start)
+            remaining = content_length
+            chunk_size = 64 * 1024
+            while remaining > 0:
+                read_len = min(remaining, chunk_size)
+                data = f.read(read_len)
+                if not data:
+                    break
+                remaining -= len(data)
+                yield data
+
+    return StreamingResponse(
+        iter_bytes(),
+        status_code=206,
+        media_type=media_type,
+        headers={
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(content_length),
+        },
+    )
 
 
 # -------------------- IMPORT & REGISTRATION ENDPOINTS --------------------
@@ -103,20 +198,142 @@ def import_local_file(
 
 @router.post("/upload", response_model=MediaAssetResponse, status_code=201)
 async def upload_media_file(
+    request: Request,
     project_id: str,
     file: UploadFile = File(...),
     generate_proxy: bool = Query(False),
     generate_thumbnail: bool = Query(True),
+    expected_size: Optional[int] = Query(None),
+    expected_sha256: Optional[str] = Query(None),
+    attempt_id: Optional[str] = Query(None),
+    test_delay_seconds: float = Query(0.0),
+    test_failure_code: Optional[int] = Query(None),
+    test_fail_registration: bool = Query(False),
+    test_fail_publication: bool = Query(False),
+    require_video: bool = Query(False),
     pipeline: MediaPipelineService = Depends(get_pipeline_service),
 ) -> MediaAssetResponse:
     """Stream-upload a media file in chunks into managed storage."""
+    if test_failure_code and test_failure_code > 0:
+        raise AppError(
+            code=f"SIMULATED_FAILURE_{test_failure_code}",
+            message=f"Simulated test failure with HTTP status {test_failure_code}.",
+            status_code=test_failure_code,
+        )
+
+    exp_size = expected_size
+    if exp_size is None and "x-expected-file-size" in request.headers:
+        try:
+            exp_size = int(request.headers["x-expected-file-size"])
+        except ValueError:
+            pass
+    exp_sha = expected_sha256 or request.headers.get("x-expected-sha256")
+    att_id = attempt_id or request.headers.get("x-upload-attempt-id")
+    req_vid = require_video or request.headers.get("x-require-video", "").lower() == "true"
+
     rec = await pipeline.import_uploaded_media(
         project_id=project_id,
         upload_file=file,
         generate_proxy_now=generate_proxy,
         generate_thumbnail_now=generate_thumbnail,
+        expected_size=exp_size,
+        expected_sha256=exp_sha,
+        attempt_id=att_id,
+        test_fail_registration=test_fail_registration,
+        test_fail_publication=test_fail_publication,
+        require_video=req_vid,
     )
+    if test_delay_seconds > 0:
+        import asyncio
+        await asyncio.sleep(test_delay_seconds)
     return MediaAssetResponse(**rec.__dict__)
+
+
+@router.post("/batch-upload", response_model=MediaBatchUploadResponse, status_code=200)
+async def upload_media_batch(
+    request: Request,
+    project_id: str,
+    files: List[UploadFile] = File(...),
+    generate_proxy: bool = Query(False),
+    generate_thumbnail: bool = Query(True),
+    test_delay_seconds: float = Query(0.0),
+    test_failure_code: Optional[int] = Query(None),
+    test_fail_registration: bool = Query(False),
+    test_fail_publication: bool = Query(False),
+    test_failure_filename: Optional[str] = Query(None),
+    require_video: bool = Query(False),
+    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+) -> MediaBatchUploadResponse:
+    """Upload multiple media files in one operation with per-file status reporting."""
+    if not files:
+        raise AppError(
+            code="NO_FILES_PROVIDED",
+            message="No files provided for batch upload.",
+            status_code=400,
+        )
+
+    items: List[MediaBatchUploadItemResult] = []
+    succeeded_count = 0
+    failed_count = 0
+    batch_attempt_id = request.headers.get("x-upload-attempt-id")
+    req_vid = require_video or request.headers.get("x-require-video", "").lower() == "true"
+
+    for upload_file in files:
+        fname = upload_file.filename or "uploaded_media"
+        try:
+            if test_failure_code and test_failure_code > 0:
+                if not test_failure_filename or test_failure_filename in fname:
+                    raise AppError(
+                        code=f"SIMULATED_FAILURE_{test_failure_code}",
+                        message=f"Simulated test failure for item '{fname}' with HTTP status {test_failure_code}.",
+                        status_code=test_failure_code,
+                    )
+            rec = await pipeline.import_uploaded_media(
+                project_id=project_id,
+                upload_file=upload_file,
+                generate_proxy_now=generate_proxy,
+                generate_thumbnail_now=generate_thumbnail,
+                attempt_id=batch_attempt_id,
+                test_fail_registration=test_fail_registration,
+                test_fail_publication=test_fail_publication,
+                require_video=req_vid,
+            )
+            asset_resp = MediaAssetResponse(**rec.__dict__)
+            items.append(
+                MediaBatchUploadItemResult(
+                    filename=fname,
+                    success=True,
+                    media_id=rec.id,
+                    asset=asset_resp,
+                )
+            )
+            succeeded_count += 1
+        except Exception as exc:
+            err_msg = str(exc)
+            err_code = getattr(exc, "code", "UPLOAD_FAILED")
+            logger.warning("Batch upload failed for item '%s': %s", fname, err_msg)
+            items.append(
+                MediaBatchUploadItemResult(
+                    filename=fname,
+                    success=False,
+                    media_id=None,
+                    asset=None,
+                    error=err_msg,
+                    error_code=err_code,
+                )
+            )
+            failed_count += 1
+
+    if test_delay_seconds > 0:
+        import asyncio
+        await asyncio.sleep(test_delay_seconds)
+
+    return MediaBatchUploadResponse(
+        total=len(files),
+        succeeded=succeeded_count,
+        failed=failed_count,
+        items=items,
+    )
 
 
 # -------------------- ASSET LISTING & RETRIEVAL --------------------
@@ -128,19 +345,61 @@ def list_media(
     media_type: Optional[str] = Query(None),
     proxy_status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    resolution: Optional[str] = Query(None),
+    format: Optional[str] = Query(None),
+    video_codec: Optional[str] = Query(None),
+    duration_min: Optional[float] = Query(None),
+    duration_max: Optional[float] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    integrity_status: Optional[str] = Query(None),
+    analysis_status: Optional[str] = Query(None),
+    missing_thumbnail: Optional[bool] = Query(None),
+    sort: Optional[str] = Query(None),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     service: MediaService = Depends(get_media_service),
 ) -> MediaAssetListResponse:
-    """List assets for a project with optional filters for type, availability, proxy status, and search query."""
-    items = service.list_media_assets(
+    """List assets for a project with server-side search, filtering, allowlisted sorting, and pagination."""
+    if sort:
+        if ":" in sort:
+            s_by, s_ord = sort.split(":", 1)
+            sort_by = s_by.strip()
+            sort_order = s_ord.strip()
+        else:
+            sort_by = sort.strip()
+
+    items, total_count = service.list_media_assets(
         project_id=project_id,
         availability=availability,
         media_type=media_type,
         proxy_status=proxy_status,
         search=search,
+        resolution=resolution,
+        format=format,
+        video_codec=video_codec,
+        duration_min=duration_min,
+        duration_max=duration_max,
+        date_from=date_from,
+        date_to=date_to,
+        integrity_status=integrity_status,
+        analysis_status=analysis_status,
+        missing_thumbnail=missing_thumbnail,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+        return_total=True,
     )
+    total_pages = max(1, math.ceil(total_count / page_size))
     return MediaAssetListResponse(
         items=[MediaAssetResponse(**r.__dict__) for r in items],
-        total=len(items),
+        total=total_count,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
     )
 
 
@@ -160,6 +419,39 @@ def get_media(
     service: MediaService = Depends(get_media_service),
 ) -> MediaAssetResponse:
     rec = service.get_media_asset(project_id, asset_id)
+    return MediaAssetResponse(**rec.__dict__)
+
+
+@router.get("/{asset_id}/stream")
+def stream_media(
+    project_id: str,
+    asset_id: str,
+    request: Request,
+    service: MediaService = Depends(get_media_service),
+):
+    """Serve source video or proxy with byte-range streaming for HTML5 playback."""
+    return _stream_video_asset(asset_id, service, request)
+
+
+@router.post("/{asset_id}/refresh-metadata", response_model=MediaAssetResponse)
+def refresh_metadata_endpoint(
+    project_id: str,
+    asset_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaAssetResponse:
+    """Explicitly re-probe media file on disk and update metadata atomically."""
+    rec = service.refresh_media_metadata(project_id, asset_id)
+    return MediaAssetResponse(**rec.__dict__)
+
+
+@router.post("/{asset_id}/thumbnail/regenerate", response_model=MediaAssetResponse)
+def regenerate_thumbnail_endpoint(
+    project_id: str,
+    asset_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaAssetResponse:
+    """Explicitly regenerate JPEG thumbnail for an asset."""
+    rec = service.regenerate_thumbnail(project_id, asset_id)
     return MediaAssetResponse(**rec.__dict__)
 
 
@@ -183,10 +475,16 @@ def delete_media(
     project_id: str,
     asset_id: str,
     delete_source: bool = Query(False),
-    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+    force_with_exports: bool = Query(False),
+    service: MediaService = Depends(get_media_service),
 ) -> None:
-    """Safely remove media asset from project, removing derivative proxies and thumbnails."""
-    pipeline.delete_media_asset(project_id, asset_id, delete_source_file=delete_source)
+    """Safely remove media asset from project, checking active operations and dependent exports."""
+    service.delete_media_asset(
+        project_id=project_id,
+        asset_id=asset_id,
+        delete_source=delete_source,
+        force_with_exports=force_with_exports,
+    )
 
 
 # -------------------- THUMBNAILS & PROXIES --------------------
@@ -201,13 +499,26 @@ def get_thumbnail_file(
     """Serve the thumbnail image for a media asset with on-demand fallback generation."""
     from app.services.media_thumbnail import generate_thumbnail
     asset = service.get_media_asset(project_id, asset_id)
-    thumb_path = Path(asset.thumbnail_reference_path) if asset.thumbnail_reference_path else pipeline.storage.thumbnails / f"{asset_id}.jpg"
+    thumb_path = None
+    if asset.thumbnail_reference_path:
+        p = Path(asset.thumbnail_reference_path)
+        if p.is_file():
+            thumb_path = p
+        elif (pipeline.storage.root / asset.thumbnail_reference_path).is_file():
+            thumb_path = pipeline.storage.root / asset.thumbnail_reference_path
+        elif (pipeline.storage.thumbnails / p.name).is_file():
+            thumb_path = pipeline.storage.thumbnails / p.name
+    if not thumb_path or not thumb_path.is_file():
+        thumb_path = pipeline.storage.thumbnails / f"{asset_id}.jpg"
+
     if not thumb_path.exists() or thumb_path.stat().st_size == 0:
         source_path = Path(asset.storage_path) if asset.storage_path else None
+        if not source_path or not source_path.is_file():
+            source_path = pipeline.storage.media / (asset.storage_path or "")
         if source_path and source_path.is_file():
             try:
                 generate_thumbnail(source_path, thumb_path, media_type=asset.media_type or "video", duration=asset.duration_seconds)
-                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": str(thumb_path)})
+                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": f"thumbnails/{thumb_path.name}"})
             except Exception as exc:
                 raise AppError(
                     code="THUMBNAIL_NOT_FOUND",
@@ -378,19 +689,61 @@ def list_all_media(
     media_type: Optional[str] = Query(None),
     proxy_status: Optional[str] = Query(None),
     search: Optional[str] = Query(None),
+    resolution: Optional[str] = Query(None),
+    format: Optional[str] = Query(None),
+    video_codec: Optional[str] = Query(None),
+    duration_min: Optional[float] = Query(None),
+    duration_max: Optional[float] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    integrity_status: Optional[str] = Query(None),
+    analysis_status: Optional[str] = Query(None),
+    missing_thumbnail: Optional[bool] = Query(None),
+    sort: Optional[str] = Query(None),
+    sort_by: str = Query("created_at"),
+    sort_order: str = Query("desc"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     service: MediaService = Depends(get_media_service),
 ) -> MediaAssetListResponse:
-    """List all assets across all projects in a unified library view."""
-    items = service.list_media_assets(
+    """List all assets across all projects with server-side search, filtering, allowlisted sorting, and pagination."""
+    if sort:
+        if ":" in sort:
+            s_by, s_ord = sort.split(":", 1)
+            sort_by = s_by.strip()
+            sort_order = s_ord.strip()
+        else:
+            sort_by = sort.strip()
+
+    items, total_count = service.list_media_assets(
         project_id="all",
         availability=availability,
         media_type=media_type,
         proxy_status=proxy_status,
         search=search,
+        resolution=resolution,
+        format=format,
+        video_codec=video_codec,
+        duration_min=duration_min,
+        duration_max=duration_max,
+        date_from=date_from,
+        date_to=date_to,
+        integrity_status=integrity_status,
+        analysis_status=analysis_status,
+        missing_thumbnail=missing_thumbnail,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        page=page,
+        page_size=page_size,
+        return_total=True,
     )
+    total_pages = max(1, math.ceil(total_count / page_size))
     return MediaAssetListResponse(
         items=[MediaAssetResponse(**r.__dict__) for r in items],
-        total=len(items),
+        total=total_count,
+        page=page,
+        page_size=page_size,
+        total_pages=total_pages,
     )
 
 
@@ -401,9 +754,32 @@ async def upload_media_file_global(
     project_id: Optional[str] = Query(None),
     generate_proxy: bool = Query(False),
     generate_thumbnail: bool = Query(True),
+    expected_size: Optional[int] = Query(None),
+    expected_sha256: Optional[str] = Query(None),
+    attempt_id: Optional[str] = Query(None),
+    test_delay_seconds: float = Query(0.0),
+    test_failure_code: Optional[int] = Query(None),
+    test_fail_registration: bool = Query(False),
+    test_fail_publication: bool = Query(False),
     pipeline: MediaPipelineService = Depends(get_pipeline_service),
 ) -> MediaAssetResponse:
     """Upload media directly; if project_id is omitted, auto-creates or selects the default project."""
+    if test_failure_code and test_failure_code > 0:
+        raise AppError(
+            code=f"SIMULATED_FAILURE_{test_failure_code}",
+            message=f"Simulated test failure with HTTP status {test_failure_code}.",
+            status_code=test_failure_code,
+        )
+
+    exp_size = expected_size
+    if exp_size is None and "x-expected-file-size" in request.headers:
+        try:
+            exp_size = int(request.headers["x-expected-file-size"])
+        except ValueError:
+            pass
+    exp_sha = expected_sha256 or request.headers.get("x-expected-sha256")
+    att_id = attempt_id or request.headers.get("x-upload-attempt-id")
+
     if not project_id or project_id in ("auto", "default", "all"):
         settings: Settings = getattr(request.app.state, "settings", None) or get_settings()
         layout: StorageLayout = getattr(request.app.state, "storage", None) or StorageLayout.from_root(
@@ -421,8 +797,113 @@ async def upload_media_file_global(
         upload_file=file,
         generate_proxy_now=generate_proxy,
         generate_thumbnail_now=generate_thumbnail,
+        expected_size=exp_size,
+        expected_sha256=exp_sha,
+        attempt_id=att_id,
+        test_fail_registration=test_fail_registration,
+        test_fail_publication=test_fail_publication,
+        require_video=True,
     )
+    if test_delay_seconds > 0:
+        import asyncio
+        await asyncio.sleep(test_delay_seconds)
     return MediaAssetResponse(**rec.__dict__)
+
+
+@global_media_router.post("/batch-upload", response_model=MediaBatchUploadResponse, status_code=200)
+async def upload_media_batch_global(
+    request: Request,
+    files: List[UploadFile] = File(...),
+    project_id: Optional[str] = Query(None),
+    generate_proxy: bool = Query(False),
+    generate_thumbnail: bool = Query(True),
+    test_delay_seconds: float = Query(0.0),
+    test_failure_code: Optional[int] = Query(None),
+    test_fail_registration: bool = Query(False),
+    test_fail_publication: bool = Query(False),
+    test_failure_filename: Optional[str] = Query(None),
+    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+) -> MediaBatchUploadResponse:
+    """Upload multiple media files globally; auto-selects or creates default project if omitted."""
+    if not files:
+        raise AppError(
+            code="NO_FILES_PROVIDED",
+            message="No files provided for batch upload.",
+            status_code=400,
+        )
+
+    if not project_id or project_id in ("auto", "default", "all"):
+        settings: Settings = getattr(request.app.state, "settings", None) or get_settings()
+        layout: StorageLayout = getattr(request.app.state, "storage", None) or StorageLayout.from_root(
+            settings.storage_root
+        )
+        proj_svc = ProjectService(settings=settings, db_path=layout.db_file)
+        proj = proj_svc.get_or_create_default_project(name="Default Project")
+        target_pid = proj.id
+    else:
+        target_pid = project_id
+
+    items: List[MediaBatchUploadItemResult] = []
+    succeeded_count = 0
+    failed_count = 0
+    batch_attempt_id = request.headers.get("x-upload-attempt-id")
+
+    for upload_file in files:
+        fname = upload_file.filename or "uploaded_media"
+        try:
+            if test_failure_code and test_failure_code > 0:
+                if not test_failure_filename or test_failure_filename in fname:
+                    raise AppError(
+                        code=f"SIMULATED_FAILURE_{test_failure_code}",
+                        message=f"Simulated test failure for item '{fname}' with HTTP status {test_failure_code}.",
+                        status_code=test_failure_code,
+                    )
+            rec = await pipeline.import_uploaded_media(
+                project_id=target_pid,
+                upload_file=upload_file,
+                generate_proxy_now=generate_proxy,
+                generate_thumbnail_now=generate_thumbnail,
+                attempt_id=batch_attempt_id,
+                test_fail_registration=test_fail_registration,
+                test_fail_publication=test_fail_publication,
+                require_video=True,
+            )
+            asset_resp = MediaAssetResponse(**rec.__dict__)
+            items.append(
+                MediaBatchUploadItemResult(
+                    filename=fname,
+                    success=True,
+                    media_id=rec.id,
+                    asset=asset_resp,
+                )
+            )
+            succeeded_count += 1
+        except Exception as exc:
+            err_msg = str(exc)
+            err_code = getattr(exc, "code", "UPLOAD_FAILED")
+            logger.warning("Global batch upload failed for item '%s': %s", fname, err_msg)
+            items.append(
+                MediaBatchUploadItemResult(
+                    filename=fname,
+                    success=False,
+                    media_id=None,
+                    asset=None,
+                    error=err_msg,
+                    error_code=err_code,
+                )
+            )
+            failed_count += 1
+
+    if test_delay_seconds > 0:
+        import asyncio
+        await asyncio.sleep(test_delay_seconds)
+
+    return MediaBatchUploadResponse(
+        total=len(files),
+        succeeded=succeeded_count,
+        failed=failed_count,
+        items=items,
+    )
 
 
 @global_media_router.post("/import-local", response_model=MediaAssetResponse, status_code=201)
@@ -474,13 +955,26 @@ def get_media_thumbnail_global(
     """Serve media thumbnail directly by asset ID."""
     from app.services.media_thumbnail import generate_thumbnail
     asset = service.get_media_asset("all", asset_id)
-    thumb_path = Path(asset.thumbnail_reference_path) if asset.thumbnail_reference_path else pipeline.storage.thumbnails / f"{asset_id}.jpg"
+    thumb_path = None
+    if asset.thumbnail_reference_path:
+        p = Path(asset.thumbnail_reference_path)
+        if p.is_file():
+            thumb_path = p
+        elif (pipeline.storage.root / asset.thumbnail_reference_path).is_file():
+            thumb_path = pipeline.storage.root / asset.thumbnail_reference_path
+        elif (pipeline.storage.thumbnails / p.name).is_file():
+            thumb_path = pipeline.storage.thumbnails / p.name
+    if not thumb_path or not thumb_path.is_file():
+        thumb_path = pipeline.storage.thumbnails / f"{asset_id}.jpg"
+
     if not thumb_path.exists() or thumb_path.stat().st_size == 0:
         source_path = Path(asset.storage_path) if asset.storage_path else None
+        if not source_path or not source_path.is_file():
+            source_path = pipeline.storage.media / (asset.storage_path or "")
         if source_path and source_path.is_file():
             try:
                 generate_thumbnail(source_path, thumb_path, media_type=asset.media_type or "video", duration=asset.duration_seconds)
-                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": str(thumb_path)})
+                service.update_media_metadata(asset.project_id, asset_id, {"thumbnail_reference_path": f"thumbnails/{thumb_path.name}"})
             except Exception as exc:
                 raise AppError(
                     code="THUMBNAIL_NOT_FOUND",
@@ -522,24 +1016,31 @@ def get_media_proxy_global(
 @global_media_router.get("/{asset_id}/stream")
 def stream_media_global(
     asset_id: str,
+    request: Request,
     service: MediaService = Depends(get_media_service),
-) -> FileResponse:
+):
     """Serve source video or proxy with byte-range streaming for HTML5 playback."""
-    asset = service.get_media_asset("all", asset_id)
-    source_path = Path(asset.storage_path) if asset.storage_path else None
-    if source_path and source_path.is_file():
-        return FileResponse(source_path, media_type=asset.mime_type or "video/mp4", headers={"Accept-Ranges": "bytes"})
-    
-    if asset.proxy_reference_path:
-        proxy_path = Path(asset.proxy_reference_path)
-        if proxy_path.is_file():
-            return FileResponse(proxy_path, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+    return _stream_video_asset(asset_id, service, request)
 
-    raise AppError(
-        code="MEDIA_STREAM_NOT_FOUND",
-        message=f"Video stream file for asset '{asset_id}' is not accessible on disk.",
-        status_code=404,
-    )
+
+@global_media_router.post("/{asset_id}/refresh-metadata", response_model=MediaAssetResponse)
+def refresh_media_metadata_global(
+    asset_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaAssetResponse:
+    """Explicitly re-probe media file on disk and update metadata atomically."""
+    rec = service.refresh_media_metadata("all", asset_id)
+    return MediaAssetResponse(**rec.__dict__)
+
+
+@global_media_router.post("/{asset_id}/thumbnail/regenerate", response_model=MediaAssetResponse)
+def regenerate_thumbnail_global(
+    asset_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaAssetResponse:
+    """Explicitly regenerate JPEG thumbnail for an asset."""
+    rec = service.regenerate_thumbnail("all", asset_id)
+    return MediaAssetResponse(**rec.__dict__)
 
 
 @global_media_router.patch("/{asset_id}", response_model=MediaAssetResponse)
@@ -562,11 +1063,10 @@ def update_media_global(
 def delete_media_global(
     asset_id: str,
     delete_source: bool = Query(False),
-    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+    force_with_exports: bool = Query(False),
     service: MediaService = Depends(get_media_service),
 ) -> None:
-    """Safely remove media asset across all projects."""
-    asset = service.get_media_asset("all", asset_id)
-    pipeline.delete_media_asset(asset.project_id, asset_id, delete_source_file=delete_source)
+    """Safely remove media asset across all projects, checking active operations and dependent exports."""
+    service.delete_media_asset("all", asset_id, delete_source=delete_source, force_with_exports=force_with_exports)
 
 

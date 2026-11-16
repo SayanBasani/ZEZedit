@@ -184,9 +184,15 @@ def test_missing_media_file_graceful_failure(session3_env):
             asyncio.run(pipeline.execute_analysis(run_id))
 
         # Run must be marked failed in DB with clear error message
-        r_failed = client.get(f"/api/v1/projects/proj_s3/media/med_missing/analysis/{run_id}")
-        assert r_failed.status_code == 200
-        data = r_failed.json()
+        import time
+        data = {}
+        for _ in range(30):
+            r_failed = client.get(f"/api/v1/projects/proj_s3/media/med_missing/analysis/{run_id}")
+            assert r_failed.status_code == 200
+            data = r_failed.json()
+            if data["status"] == "failed":
+                break
+            time.sleep(0.1)
         assert data["status"] == "failed"
         assert "not found" in (data["error_message"] or "").lower()
 

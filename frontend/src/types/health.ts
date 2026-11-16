@@ -9,6 +9,7 @@ export interface DatabaseHealth {
   connected: boolean;
   path: string;
   journal_mode: string;
+  integrity_valid?: boolean;
   current_migration: string | null;
   applied_migrations: string[];
 }
@@ -27,7 +28,7 @@ export interface OllamaHealth {
 }
 
 export interface HealthResponse {
-  status: 'ready' | 'degraded';
+  status: 'ready' | 'ready_with_optional_unavailable' | 'starting' | 'failed' | 'degraded';
   app_name: string;
   app_version: string;
   environment: string;
@@ -37,6 +38,9 @@ export interface HealthResponse {
   ffmpeg: DependencyCheck;
   ffprobe: DependencyCheck;
   ollama: OllamaHealth;
+  dispatcher_initialized?: boolean;
+  frontend_build_available?: boolean;
+  whisper_available?: boolean;
 }
 
 export interface SystemInfoResponse {

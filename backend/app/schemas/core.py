@@ -161,11 +161,60 @@ class MediaAssetResponse(BaseModel):
     metadata: Dict[str, Any]
     created_at: str
     updated_at: str
+    sha256: Optional[str] = None
+    integrity_status: Optional[str] = None
+    upload_attempt_id: Optional[str] = None
+    integrity_details_json: Optional[str] = None
+    last_integrity_check: Optional[str] = None
+    display_filename: Optional[str] = None
+    file_extension: Optional[str] = None
+    container_format: Optional[str] = None
+    resolution_label: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    audio_stream_count: int = 0
+    subtitle_stream_count: int = 0
+    audio_languages: List[str] = Field(default_factory=list)
+    subtitle_languages: List[str] = Field(default_factory=list)
+    pixel_format: Optional[str] = None
+    bitrate: Optional[int] = None
+    analysis_status: str = "none"
+    is_playable: bool = True
+    thumbnail_available: bool = False
+    thumbnail_url: Optional[str] = None
+    streaming_url: Optional[str] = None
+    dashboard_url: Optional[str] = None
 
 
 class MediaAssetListResponse(BaseModel):
     items: List[MediaAssetResponse]
     total: int
+    total_count: Optional[int] = None
+    page: int = 1
+    page_size: int = 20
+    total_pages: int = 1
+
+    def __init__(self, **data):
+        if "total" in data and "total_count" not in data:
+            data["total_count"] = data["total"]
+        elif "total_count" in data and "total" not in data:
+            data["total"] = data["total_count"]
+        super().__init__(**data)
+
+
+class MediaBatchUploadItemResult(BaseModel):
+    filename: str
+    success: bool
+    media_id: Optional[str] = None
+    asset: Optional[MediaAssetResponse] = None
+    error: Optional[str] = None
+    error_code: Optional[str] = None
+
+
+class MediaBatchUploadResponse(BaseModel):
+    total: int
+    succeeded: int
+    failed: int
+    items: List[MediaBatchUploadItemResult]
 
 
 MediaRelinkResponse.model_rebuild()

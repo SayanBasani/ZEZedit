@@ -1,0 +1,436 @@
+{
+  "DEMO-01": {
+    "demo_id": "DEMO-01",
+    "purpose": "Normal shutdown and restart",
+    "command": "Start-ZEZEdit.ps1 / Stop-ZEZEdit.ps1",
+    "pre_state": {
+      "port_8000_listening": false
+    },
+    "post_state": {
+      "port_8000_listening": true,
+      "health_status": 200,
+      "media_count_after_restart": 5
+    },
+    "status": "PASSED",
+    "details": {
+      "start_duration_s": 6.186,
+      "stop_duration_s": 5.937,
+      "restart_duration_s": 6.259
+    },
+    "timestamp_utc": "2026-11-16T05:54:22.430602+00:00"
+  },
+  "DEMO-02": {
+    "demo_id": "DEMO-02",
+    "purpose": "Repeated 5x start/stop restart cycles",
+    "command": "Start-ZEZEdit.ps1 / Stop-ZEZEdit.ps1 x5",
+    "pre_state": {
+      "cycle_count": 5
+    },
+    "post_state": {
+      "completed_cycles": 5,
+      "all_clean": true
+    },
+    "status": "PASSED",
+    "details": {
+      "cycles": [
+        {
+          "cycle": 1,
+          "start_dur_s": 5.863,
+          "stop_dur_s": 5.92,
+          "integrity": "ok",
+          "jobs_count": 93,
+          "exports_count": 44,
+          "port_clean": true
+        },
+        {
+          "cycle": 2,
+          "start_dur_s": 5.706,
+          "stop_dur_s": 5.897,
+          "integrity": "ok",
+          "jobs_count": 93,
+          "exports_count": 44,
+          "port_clean": true
+        },
+        {
+          "cycle": 3,
+          "start_dur_s": 6.108,
+          "stop_dur_s": 5.898,
+          "integrity": "ok",
+          "jobs_count": 93,
+          "exports_count": 44,
+          "port_clean": true
+        },
+        {
+          "cycle": 4,
+          "start_dur_s": 5.767,
+          "stop_dur_s": 5.942,
+          "integrity": "ok",
+          "jobs_count": 93,
+          "exports_count": 44,
+          "port_clean": true
+        },
+        {
+          "cycle": 5,
+          "start_dur_s": 5.816,
+          "stop_dur_s": 5.941,
+          "integrity": "ok",
+          "jobs_count": 93,
+          "exports_count": 44,
+          "port_clean": true
+        }
+      ]
+    },
+    "timestamp_utc": "2026-11-16T05:55:57.523899+00:00"
+  },
+  "DEMO-03": {
+    "demo_id": "DEMO-03",
+    "purpose": "Launch from external working directory",
+    "command": "Start-ZEZEdit.ps1 from C:\\Users\\sayan\\AppData\\Local\\Temp",
+    "pre_state": {
+      "working_dir": "C:\\Users\\sayan\\AppData\\Local\\Temp"
+    },
+    "post_state": {
+      "resolved_project_root": "D:\\ZezEdit",
+      "status_code": 200
+    },
+    "status": "PASSED",
+    "details": {
+      "duration_s": 6.275,
+      "info": {
+        "app_version": "2.0.0-alpha.1",
+        "os_platform": "Windows-11-10.0.26300-SP0",
+        "python_version": "3.14.6",
+        "cpu_count": 12,
+        "execution_mode": "cpu_first",
+        "max_concurrent_jobs": 1,
+        "ffmpeg_threads": 4,
+        "storage_root": "D:\\ZezEdit\\storage"
+      }
+    },
+    "timestamp_utc": "2026-11-16T05:56:13.824980+00:00"
+  },
+  "DEMO-04": {
+    "demo_id": "DEMO-04",
+    "purpose": "Stale PID and PID reuse protection",
+    "command": "Stop-ZEZEdit.ps1 on unrelated PID",
+    "pre_state": {
+      "test": "stale_pid_reuse"
+    },
+    "post_state": {
+      "current_pid_preserved": true,
+      "stale_cleaned": true
+    },
+    "status": "PASSED",
+    "details": {
+      "fake_pid": 17444,
+      "output": "Stopping ZEZEdit 2.0...\nWARNING: PID 17444 is running as 'python' with command '\"D:\\ZezEdit\\backend\\.venv\\Scripts\\python.exe\" \nbackend/scripts/run_p0_9_demos.py', which does not belong to ZEZEdit (PID reuse detected). Preserving process.\nNo active ZEZEdit instance was found.\n"
+    },
+    "timestamp_utc": "2026-11-16T05:56:14.917343+00:00"
+  },
+  "DEMO-05": {
+    "demo_id": "DEMO-05",
+    "purpose": "Database checkpoint and restart",
+    "command": "PRAGMA wal_checkpoint(TRUNCATE) + Start/Stop",
+    "pre_state": {
+      "db_path": "D:\\ZezEdit\\storage\\db\\zezedit.db"
+    },
+    "post_state": {
+      "checkpoint_busy": 0,
+      "jobs_count": 93,
+      "integrity": "ok"
+    },
+    "status": "PASSED",
+    "details": {
+      "checkpoint_result": [
+        0,
+        0,
+        0
+      ]
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.040875+00:00"
+  },
+  "DEMO-06": {
+    "demo_id": "DEMO-06",
+    "purpose": "Backend unexpected termination simulation",
+    "command": "Simulate crash on isolated DB",
+    "pre_state": {
+      "initial_jobs": 93
+    },
+    "post_state": {
+      "integrity": "ok",
+      "project_saved": "CrashTest"
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:31.589614+00:00"
+  },
+  "DEMO-07": {
+    "demo_id": "DEMO-07",
+    "purpose": "Uncommitted transaction interrupted",
+    "command": "Transaction without commit + disconnect",
+    "pre_state": {
+      "initial_state": "clean"
+    },
+    "post_state": {
+      "uncommitted_found": false
+    },
+    "status": "PASSED",
+    "details": {
+      "rolled_back": true
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.593442+00:00"
+  },
+  "DEMO-08": {
+    "demo_id": "DEMO-08",
+    "purpose": "WAL recovery",
+    "command": "Committed in WAL reopened without checkpoint",
+    "pre_state": {
+      "journal_mode": "wal"
+    },
+    "post_state": {
+      "integrity": "ok",
+      "fks": 0
+    },
+    "status": "PASSED",
+    "details": {
+      "wal_recovered_project": "WalCrash"
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.616608+00:00"
+  },
+  "DEMO-09": {
+    "demo_id": "DEMO-09",
+    "purpose": "Backup restoration into isolated location",
+    "command": "create_backup + restore_backup",
+    "pre_state": {
+      "target": "isolated_restore"
+    },
+    "post_state": {
+      "restored_integrity": "ok"
+    },
+    "status": "PASSED",
+    "details": {
+      "restored_record": "CrashTest",
+      "backup_filename": "backup_demo9_20261116T055631Z.db"
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.781301+00:00"
+  },
+  "DEMO-10": {
+    "demo_id": "DEMO-10",
+    "purpose": "Idle restart with no active jobs",
+    "command": "recover_interrupted_jobs on idle DB",
+    "pre_state": {
+      "completed_jobs": 78
+    },
+    "post_state": {
+      "completed_after": 78
+    },
+    "status": "PASSED",
+    "details": {
+      "recovered_count": 0
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.802097+00:00"
+  },
+  "DEMO-11": {
+    "demo_id": "DEMO-11",
+    "purpose": "Running job interruption recovery",
+    "command": "recover_interrupted_jobs on running job",
+    "pre_state": {
+      "insert_running_job": "job_int_test"
+    },
+    "post_state": {
+      "status": "interrupted"
+    },
+    "status": "PASSED",
+    "details": {
+      "error_message": "Backend process restarted while job was active."
+    },
+    "timestamp_utc": "2026-11-16T05:56:31.826384+00:00"
+  },
+  "DEMO-12": {
+    "demo_id": "DEMO-12",
+    "purpose": "Cancellation recovery across restart",
+    "command": "recover_interrupted_jobs on cancelling job",
+    "pre_state": {
+      "insert_cancelling_job": "job_canc_test"
+    },
+    "post_state": {
+      "status": "interrupted"
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:31.841786+00:00"
+  },
+  "DEMO-13": {
+    "demo_id": "DEMO-13",
+    "purpose": "Retry after restart",
+    "command": "retry_job on interrupted job",
+    "pre_state": {
+      "target_job": "job_int_test",
+      "status": "interrupted"
+    },
+    "post_state": {
+      "new_status": "queued",
+      "retry_count": 1
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:31.852037+00:00"
+  },
+  "DEMO-14": {
+    "demo_id": "DEMO-14",
+    "purpose": "Duplicate execution prevention",
+    "command": "claim_next_queued_job concurrent check",
+    "pre_state": {
+      "queued_job": "job_int_test"
+    },
+    "post_state": {
+      "claimed2_is_none": true
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:31.878441+00:00"
+  },
+  "DEMO-15": {
+    "demo_id": "DEMO-15",
+    "purpose": "Source media persistence and hash verification",
+    "command": "SHA-256 match vs baseline",
+    "pre_state": {
+      "baseline_media_count": 5
+    },
+    "post_state": {
+      "verified_media_count": 5
+    },
+    "status": "PASSED",
+    "details": {
+      "media_matches": [
+        {
+          "id": "med_290ccbe1f97d",
+          "size_match": true,
+          "sha_match": true
+        },
+        {
+          "id": "med_5e0235303b02",
+          "size_match": true,
+          "sha_match": true
+        },
+        {
+          "id": "med_862c2d042804",
+          "size_match": true,
+          "sha_match": true
+        },
+        {
+          "id": "med_5f80c48dda5f",
+          "size_match": true,
+          "sha_match": true
+        },
+        {
+          "id": "med_e229ffcd0a54",
+          "size_match": true,
+          "sha_match": true
+        }
+      ]
+    },
+    "timestamp_utc": "2026-11-16T05:56:34.694498+00:00"
+  },
+  "DEMO-16": {
+    "demo_id": "DEMO-16",
+    "purpose": "Generated video persistence and FFprobe validation",
+    "command": "SHA-256 comparison + ffprobe",
+    "pre_state": {
+      "baseline_valid_mp4s": 34
+    },
+    "post_state": {
+      "verified_exports": 34,
+      "ffprobe_ok": true
+    },
+    "status": "PASSED",
+    "details": {
+      "verified_count": 34
+    },
+    "timestamp_utc": "2026-11-16T05:56:35.192974+00:00"
+  },
+  "DEMO-17": {
+    "demo_id": "DEMO-17",
+    "purpose": "Script and candidate persistence",
+    "command": "Query shorts_candidates and speech_turns",
+    "pre_state": {
+      "expected_candidates": 38,
+      "expected_turns": 1788
+    },
+    "post_state": {
+      "candidates": 38,
+      "speech_turns": 1788,
+      "segments": 3099
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:35.200958+00:00"
+  },
+  "DEMO-18": {
+    "demo_id": "DEMO-18",
+    "purpose": "Analysis persistence and cache preservation",
+    "command": "Query analysis_runs, video_scenes, sampled_frames",
+    "pre_state": {
+      "expected_analyses": 9,
+      "expected_scenes": 1674,
+      "expected_frames": 282
+    },
+    "post_state": {
+      "analyses": 9,
+      "scenes": 1674,
+      "frames": 282
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:35.203402+00:00"
+  },
+  "DEMO-19": {
+    "demo_id": "DEMO-19",
+    "purpose": "Interrupted upload isolation",
+    "command": "Simulate partial temp upload without registration",
+    "pre_state": {
+      "test": "partial_upload"
+    },
+    "post_state": {
+      "registered_in_db": false
+    },
+    "status": "PASSED",
+    "details": {
+      "partial_quarantined": true
+    },
+    "timestamp_utc": "2026-11-16T05:56:35.236843+00:00"
+  },
+  "DEMO-20": {
+    "demo_id": "DEMO-20",
+    "purpose": "File write interruption on export",
+    "command": "Failed export recorded, scratch unlinked",
+    "pre_state": {
+      "test": "interrupted_export_write"
+    },
+    "post_state": {
+      "status": "failed",
+      "scratch_exists": false
+    },
+    "status": "PASSED",
+    "details": {},
+    "timestamp_utc": "2026-11-16T05:56:35.248512+00:00"
+  },
+  "DEMO-21": {
+    "demo_id": "DEMO-21",
+    "purpose": "Completed upload integrity verification",
+    "command": "Byte count + sha256 + DB match",
+    "pre_state": {
+      "test": "completed_upload_integrity"
+    },
+    "post_state": {
+      "size_match": true,
+      "sha_match": true
+    },
+    "status": "PASSED",
+    "details": {
+      "bytes": 30000,
+      "sha256": "f4c26908662d71161577d114cd73a61f988673f45c5160d5517c61dd10b37cd1"
+    },
+    "timestamp_utc": "2026-11-16T05:56:35.277451+00:00"
+  }
+}

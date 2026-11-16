@@ -1,0 +1,125 @@
+{
+  "task": "P1.5 Upload Integrity, File Validation and Atomic Persistence",
+  "timestamp": "2026-11-16T13:41:55.780237+00:00",
+  "demos": {
+    "DEMO_A_VALID_MP4": {
+      "status": "PASS",
+      "media_id": "med_59ce4a0972f6",
+      "filename": "demoA_valid.mp4",
+      "file_size": 8459,
+      "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b",
+      "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\0fefbe43_demoA_valid.mp4",
+      "streaming_code": 206,
+      "screenshot": "demoA_valid_success.png"
+    },
+    "DEMO_B_VALID_MKV_MULTISTREAM": {
+      "status": "PASS",
+      "media_id": "med_f1df7a651042",
+      "filename": "demoB_multistream.mkv",
+      "file_size": 27106,
+      "sha256": "f5a06335375ba7d965ed7d175bbc496eb699788f6512b601b2a74388eed717d7",
+      "screenshot": "demoB_mkv_success.png"
+    },
+    "DEMO_C_CORRUPT_VIDEO": {
+      "status": "PASS",
+      "expected_code": "CORRUPT_MEDIA",
+      "actual_status": 400,
+      "error_message": "Unable to read media file 'a1cd5e9c_demoC_corrupt.mp4.uploading': Exit code 1",
+      "screenshot": "demoC_corrupt_rejection.png"
+    },
+    "DEMO_D_TRUNCATED_VIDEO": {
+      "status": "PASS",
+      "expected_code": "CORRUPT_MEDIA",
+      "actual_status": 400,
+      "error_message": "Unable to read media file '85bb809f_demoD_truncated.mp4.uploading': Exit code 1",
+      "screenshot": "demoD_truncated_rejection.png"
+    },
+    "DEMO_E_NON_VIDEO_FILES": {
+      "status": "PASS",
+      "empty_result": {
+        "status": 400,
+        "code": "EMPTY_MEDIA_FILE"
+      },
+      "text_result": {
+        "status": 400,
+        "code": "CORRUPT_MEDIA"
+      },
+      "audio_result": {
+        "status": 400,
+        "code": "NO_VIDEO_STREAM"
+      },
+      "screenshot": "demoE_validation_policy.png"
+    },
+    "DEMO_F_BYTE_COUNT_MISMATCH": {
+      "status": "PASS",
+      "declared_oversized": {
+        "status": 400,
+        "code": "BYTE_COUNT_MISMATCH"
+      },
+      "declared_undersized": {
+        "status": 400,
+        "code": "BYTE_COUNT_MISMATCH"
+      }
+    },
+    "DEMO_G_CHECKSUM_MISMATCH": {
+      "status": "PASS",
+      "status_code": 400,
+      "error_code": "CHECKSUM_MISMATCH",
+      "error_message": "Computed SHA-256 checksum 'd9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b' does not match expected checksum '0000000000000000000000000000000000000000000000000000000000000000'.",
+      "screenshot": "demoG_checksum_mismatch.png"
+    },
+    "DEMO_H_STORAGE_DB_FAILURE_ROLLBACK": {
+      "status": "PASS",
+      "publication_fail": {
+        "status": 500,
+        "code": "PUBLICATION_FAILED"
+      },
+      "db_fail": {
+        "status": 500,
+        "code": "DATABASE_REGISTRATION_FAILED"
+      }
+    },
+    "DEMO_I_DUPLICATE_AND_CONCURRENT": {
+      "status": "PASS",
+      "asset_1": {
+        "id": "med_67311c64cbe1",
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\6e253b83_duplicate_name.mp4"
+      },
+      "asset_2": {
+        "id": "med_4490ae22a60c",
+        "sha256": "c50b6f6cdcab25611b65c6200aeb4f5f2fc0719b9badd0277763e3978b744d63",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a97b3b66_duplicate_name.mp4"
+      }
+    },
+    "DEMO_J_RETRY_INTEGRITY": {
+      "status": "PASS",
+      "attempt_1_status": 500,
+      "attempt_2_status": 201,
+      "media_id": "med_8cd7336e4ffa",
+      "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b",
+      "screenshot": "demoJ_retry_integrity.png"
+    },
+    "DEMO_K_LARGE_FILE_INTEGRITY": {
+      "status": "PASS",
+      "file": "69cf4be2_Visionquest S01E08.mkv",
+      "size_bytes": 1298314363,
+      "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e",
+      "bounded_memory_verified": true,
+      "qualification": "1.21 GB Visionquest integrity verified (SHA-256 match, physical stat size match, bounded memory +1.10 MB RSS delta reconciled in P1.3-R1)."
+    },
+    "DEMO_L_RESTART_AND_PERSISTENCE": {
+      "status": "PASS",
+      "asset_id": "med_59ce4a0972f6",
+      "persisted_sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b",
+      "persisted_size": 8459,
+      "integrity_status": "verified",
+      "streaming_code_after_restart": 206
+    }
+  },
+  "summary": {
+    "total_demos": 12,
+    "passed": 12,
+    "failed": 0
+  }
+}

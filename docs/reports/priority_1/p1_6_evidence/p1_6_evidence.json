@@ -1,0 +1,139 @@
+{
+  "run_id": "p1_6_run_1794844085",
+  "task": "P1.6 Media Library, Metadata and Asset Management",
+  "timestamp": "2026-11-16T15:48:05.054483+00:00",
+  "demos": {
+    "DEMO_A_EXISTING_LIBRARY_LOAD": {
+      "status": "PASS",
+      "visible_media_count": 100,
+      "db_media_count": 112,
+      "verified_items_count": 100,
+      "export_leak_count": 0,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_a_existing_library.png"
+    },
+    "DEMO_B_SEARCH": {
+      "status": "PASS",
+      "normal_filename_matches": 1,
+      "partial_filename_matches": 1,
+      "spaces_filename_matches": 1,
+      "unicode_filename_matches": 5,
+      "nonexistent_filename_matches": 0,
+      "unicode_asset_id": "med_360915d28983",
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_b_search_unicode.png"
+    },
+    "DEMO_C_FILTERING": {
+      "status": "PASS",
+      "mp4_filter_count": 86,
+      "mkv_filter_count": 27,
+      "h264_filter_count": 106,
+      "verified_integrity_filter_count": 39,
+      "resolution_720p_filter_count": 16,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_c_filtering.png"
+    },
+    "DEMO_D_SORTING": {
+      "status": "PASS",
+      "newest_sorted": true,
+      "oldest_sorted": true,
+      "largest_sorted": true,
+      "smallest_sorted": true,
+      "longest_sorted": true,
+      "filename_sorted": true
+    },
+    "DEMO_E_PAGINATION": {
+      "status": "PASS",
+      "page_size": 5,
+      "total_count": 113,
+      "total_pages": 23,
+      "zero_overlap_verified": true,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_e_pagination.png"
+    },
+    "DEMO_F_MEDIA_DETAILS": {
+      "status": "PASS",
+      "multistream_asset_id": "med_412484dbc8d3",
+      "multistream_audio_streams": 2,
+      "multistream_audio_languages": [
+        "eng",
+        "hin"
+      ],
+      "baseline_asset_id": "med_5e0235303b02",
+      "baseline_resolution": "1920x1080",
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_f_media_details.png"
+    },
+    "DEMO_G_SOURCE_PLAYBACK": {
+      "status": "PASS",
+      "asset_id": "med_412484dbc8d3",
+      "full_stream_status": 200,
+      "total_stream_bytes": 71136,
+      "range_0_1023_status": 206,
+      "range_1024_2047_status": 206,
+      "seeking_verified": true,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_g_source_playback.png"
+    },
+    "DEMO_H_MISSING_THUMBNAIL": {
+      "status": "PASS",
+      "asset_id": "med_412484dbc8d3",
+      "thumbnail_regenerated_path": "thumbnails/med_412484dbc8d3.jpg",
+      "thumbnail_serving_status": 200,
+      "thumbnail_bytes": 14627,
+      "non_existent_asset_thumbnail_status": 404,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_h_thumbnail_fallback.png"
+    },
+    "DEMO_I_MISSING_SOURCE_FILE": {
+      "status": "PASS",
+      "missing_asset_id": "med_missing_1794844112",
+      "is_playable_accurately_false": true,
+      "streaming_status": 404,
+      "library_remained_usable": true,
+      "no_automatic_destructive_cleanup": true
+    },
+    "DEMO_J_METADATA_REFRESH": {
+      "status": "PASS",
+      "asset_id": "med_412484dbc8d3",
+      "sha256_preserved": true,
+      "refreshed_duration": 2.023,
+      "second_refresh_idempotent": true
+    },
+    "DEMO_K_SOURCE_MEDIA_DELETION": {
+      "status": "PASS",
+      "asset_id": "med_cf4bb349e6b7",
+      "active_job_conflict_409": true,
+      "dependent_export_conflict_409": true,
+      "force_deletion_status": 204,
+      "storage_reclaimed": true
+    },
+    "DEMO_L_MOBILE_RESPONSIVENESS": {
+      "status": "PASS",
+      "viewport": "375x812 (mobile)",
+      "horizontal_overflow_pixels": 0,
+      "no_overflow_verified": true,
+      "screenshot": "docs\\reports\\priority_1\\p1_6_evidence\\screenshots\\demo_l_mobile_responsiveness.png"
+    },
+    "DEMO_M_LARGE_LIBRARY_BEHAVIOR": {
+      "status": "PASS",
+      "dataset_records_tested": 500,
+      "list_response_time_ms": 16.82,
+      "search_response_time_ms": 27.5,
+      "sort_response_time_ms": 20.98,
+      "page_payload_bytes": 27732,
+      "bounded_queries_verified": true
+    },
+    "DEMO_N_UPLOAD_INTEGRATION_REGRESSION": {
+      "status": "PASS",
+      "uploaded_asset_id": "med_e7a10389e3cc",
+      "sha256_verified": true,
+      "integrity_status": "verified",
+      "dashboard_url": "/projects/default/dashboard",
+      "streaming_range_status": 206
+    }
+  },
+  "summary": {
+    "total_demos": 14,
+    "passed": 14,
+    "failed": 0
+  },
+  "baseline_invariance": {
+    "status": "PASS",
+    "verified_source_assets": 93,
+    "zero_corruption_verified": true
+  }
+}

@@ -45,11 +45,54 @@ export interface MediaAssetItem {
   metadata: Record<string, any>;
   created_at: string;
   updated_at: string;
+  sha256?: string | null;
+  integrity_status?: string | null;
+  upload_attempt_id?: string | null;
+  integrity_details_json?: string | null;
+  last_integrity_check?: string | null;
   media_asset_id?: string | null;
   parent_job_id?: string | null;
   video_title?: string | null;
   elapsed_seconds?: number | null;
   estimated_remaining_seconds?: number | null;
+  display_filename?: string | null;
+  file_extension?: string | null;
+  container_format?: string | null;
+  resolution_label?: string | null;
+  aspect_ratio?: string | null;
+  audio_stream_count?: number;
+  subtitle_stream_count?: number;
+  audio_languages?: string[];
+  subtitle_languages?: string[];
+  pixel_format?: string | null;
+  bitrate?: number | null;
+  analysis_status?: string;
+  is_playable?: boolean;
+  thumbnail_available?: boolean;
+  thumbnail_url?: string | null;
+  streaming_url?: string | null;
+  dashboard_url?: string | null;
+}
+
+export interface MediaListQueryParams {
+  search?: string;
+  resolution?: string;
+  format?: string;
+  video_codec?: string;
+  duration_min?: number;
+  duration_max?: number;
+  date_from?: string;
+  date_to?: string;
+  integrity_status?: string;
+  analysis_status?: string;
+  missing_thumbnail?: boolean;
+  sort_by?: string;
+  sort_order?: 'asc' | 'desc';
+  page?: number;
+  page_size?: number;
+  availability?: string;
+  media_type?: string;
+  proxy_status?: string;
 }
 
 export interface MediaImportLocalPayload {
@@ -72,6 +115,65 @@ export interface MediaStorageStats {
 export interface MediaAssetListResponse {
   items: MediaAssetItem[];
   total: number;
+  page?: number;
+  page_size?: number;
+  total_pages?: number;
+}
+
+export interface MediaBatchUploadItemResult {
+  filename: string;
+  success: boolean;
+  media_id?: string | null;
+  asset?: MediaAssetItem | null;
+  error?: string | null;
+  error_code?: string | null;
+}
+
+export interface MediaBatchUploadResponse {
+  total: number;
+  succeeded: number;
+  failed: number;
+  items: MediaBatchUploadItemResult[];
+}
+
+export type UploadTransferState =
+  | 'idle'
+  | 'waiting'
+  | 'queued'
+  | 'uploading'
+  | 'processing'
+  | 'completed'
+  | 'error'
+  | 'failed'
+  | 'aborted'
+  | 'cancelled'
+  | 'retrying';
+
+export interface UploadProgressInfo {
+  filename: string;
+  loaded: number;
+  total: number | null;
+  percentage: number | null;
+  state: UploadTransferState;
+  error?: string | null;
+  mediaAsset?: MediaAssetItem | null;
+  attemptId?: string;
+  attemptCount?: number;
+  retryable?: boolean;
+}
+
+export interface UploadProgressOptions {
+  onProgress?: (progress: UploadProgressInfo) => void;
+  signal?: AbortSignal;
+  testDelaySeconds?: number;
+  attemptId?: string;
+  attemptCount?: number;
+  expectedSize?: number;
+  expectedSha256?: string;
+  testFailureCode?: number;
+  testFailRegistration?: boolean;
+  testFailPublication?: boolean;
+  testNetworkError?: boolean;
 }
 
 export interface JobItem {

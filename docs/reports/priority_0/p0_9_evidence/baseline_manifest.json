@@ -1,0 +1,1499 @@
+{
+  "timestamp_utc": "2026-11-16T14:02:39.938728+00:00",
+  "git": {
+    "branch": "main",
+    "head": "ab2e73f5731d09cfdfc501fda689cd2f1e384f0a",
+    "modified_count": 42,
+    "untracked_count": 38,
+    "modified_files": [
+      "EADME.md",
+      "backend/app/api/v1/exports.py",
+      "backend/app/api/v1/health.py",
+      "backend/app/api/v1/media.py",
+      "backend/app/api/v1/settings.py",
+      "backend/app/core/config.py",
+      "backend/app/main.py",
+      "backend/app/models/entities.py",
+      "backend/app/schemas/core.py",
+      "backend/app/schemas/health.py",
+      "backend/app/services/backup_service.py",
+      "backend/app/services/export_service.py",
+      "backend/app/services/jobs.py",
+      "backend/app/services/media.py",
+      "backend/app/services/media_pipeline.py",
+      "backend/app/services/media_probe.py",
+      "backend/tests/test_session3_unified_analysis.py",
+      "docs/MASTER_REQUIREMENTS.md",
+      "docs/feature_status.md",
+      "docs/feature_test_checklist.md",
+      "frontend/src/features/media/MediaLibraryView.tsx",
+      "frontend/src/features/videos/ShortVideoGeneratorLibrary.tsx",
+      "frontend/src/features/videos/VideoEditDashboard.tsx",
+      "frontend/src/services/apiClient.ts",
+      "frontend/src/test/mediaLibrary.test.tsx",
+      "frontend/src/test/productRestructure.test.tsx",
+      "frontend/src/types/health.ts",
+      "frontend/src/types/projects.ts",
+      "graphify-out/.graphify_analysis.json",
+      "graphify-out/.graphify_build_state.json",
+      "graphify-out/.graphify_labels.json",
+      "graphify-out/.graphify_labels.json.sig",
+      "graphify-out/.graphify_labels.pending.json",
+      "graphify-out/.graphify_root",
+      "graphify-out/2026-11-15/.graphify_labels.json",
+      "graphify-out/2026-11-15/GRAPH_REPORT.md",
+      "graphify-out/2026-11-15/graph.json",
+      "graphify-out/2026-11-15/manifest.json",
+      "graphify-out/GRAPH_REPORT.md",
+      "graphify-out/graph.html",
+      "graphify-out/graph.json",
+      "graphify-out/manifest.json"
+    ],
+    "untracked_files": [
+      "Start-ZEZEdit.bat",
+      "Start-ZEZEdit.ps1",
+      "Stop-ZEZEdit.bat",
+      "Stop-ZEZEdit.ps1",
+      "backend/migrations/0017_upload_integrity_contract.sql",
+      "backend/scripts/audit_database_p0_8_r1.py",
+      "backend/scripts/establish_p0_9_baseline.py",
+      "backend/scripts/run_p0_6_demos.py",
+      "backend/scripts/run_p0_7_demos.py",
+      "backend/scripts/run_p0_8_demos.py",
+      "backend/scripts/run_p0_9_demos.py",
+      "backend/scripts/run_p0_9_r1_reconciliation.py",
+      "backend/scripts/run_p1_1_demos.py",
+      "backend/scripts/run_p1_1_r1_browser_demos.py",
+      "backend/scripts/run_p1_2_browser_demos.py",
+      "backend/scripts/run_p1_3_demos.py",
+      "backend/scripts/run_p1_3_r1_reconciliation.py",
+      "backend/scripts/run_p1_4_demos.py",
+      "backend/scripts/run_p1_5_demos.py",
+      "backend/tests/test_p0_5_database_and_api_consistency.py",
+      "backend/tests/test_p0_6_job_queue_and_cancellation.py",
+      "backend/tests/test_p0_7_windows_launcher_reliability.py",
+      "backend/tests/test_p0_8_production_frontend_serving.py",
+      "backend/tests/test_p0_9_restart_and_persistence.py",
+      "backend/tests/test_p1_1_upload.py",
+      "backend/tests/test_p1_2_upload_progress.py",
+      "backend/tests/test_p1_3_large_upload_streaming.py",
+      "backend/tests/test_p1_4_upload_retry_and_recovery.py",
+      "backend/tests/test_p1_5_upload_integrity_and_validation.py",
+      "backend/tests/test_session24_windows_production_and_launcher.py",
+      "docs/reports/priority_0/",
+      "docs/reports/priority_1/",
+      "docs/reports/session_24/",
+      "docs/reports/session_25/",
+      "frontend/src/features/videos/UploadProgressPanel.tsx",
+      "frontend/src/test/uploadProgress.test.tsx",
+      "frontend/src/test/uploadRetry.test.tsx",
+      "graphify-out/2026-11-16/"
+    ]
+  },
+  "database": {
+    "path": "D:\\ZezEdit\\storage\\db\\zezedit.db",
+    "size_bytes": 12488704,
+    "wal_size_bytes": 0,
+    "journal_mode": "wal",
+    "integrity_ok": true,
+    "fk_violations_count": 0,
+    "table_counts": {
+      "ai_conversations": 0,
+      "ai_editing_plans": 0,
+      "ai_messages": 0,
+      "analysis_runs": 9,
+      "app_settings": 1,
+      "audio_analysis": 6,
+      "candidate_clip_edits": 1,
+      "candidate_generation_runs": 14,
+      "character_candidates": 0,
+      "character_extraction_jobs": 0,
+      "character_observations": 0,
+      "character_profiles": 0,
+      "character_review_events": 0,
+      "exports": 44,
+      "jobs": 267,
+      "media_assets": 93,
+      "media_generated_clips_history": 39,
+      "project_events": 1925,
+      "projects": 1,
+      "reframing_plans": 47,
+      "reframing_revisions": 47,
+      "sampled_frames": 282,
+      "schema_migrations": 17,
+      "shorts_candidates": 38,
+      "speech_turns": 1788,
+      "timeline_clips": 0,
+      "timeline_commands": 0,
+      "timeline_tracks": 0,
+      "timelines": 0,
+      "transcript_corrections": 0,
+      "transcript_segments": 3099,
+      "video_scenes": 1674,
+      "visual_observations": 110
+    },
+    "job_states": {
+      "cancelled": 2,
+      "completed": 166,
+      "failed": 96,
+      "interrupted": 3
+    }
+  },
+  "media_assets": {
+    "count": 93,
+    "records": [
+      {
+        "id": "med_290ccbe1f97d",
+        "filename": "Visionquest S01E08.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\69cf4be2_Visionquest S01E08.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_5e0235303b02",
+        "filename": "Ek Mota Hathi Ghumne Chala.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\767693cb_Ek Mota Hathi Ghumne Chala.mp4",
+        "exists": true,
+        "recorded_size": 73399286,
+        "actual_size": 73399286,
+        "sha256": "041bb69eba1ac19e6a73304cf001afb3121f6d5f1d148e7a5a041a00ad84f43d"
+      },
+      {
+        "id": "med_862c2d042804",
+        "filename": "BLACK TORCH S01E02.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\611e7441_BLACK TORCH S01E02.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_5f80c48dda5f",
+        "filename": "BLACK TORCH S01E02.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\74661b6c_BLACK TORCH S01E02.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_e229ffcd0a54",
+        "filename": "Visionquest S01E06 {Hindi-English} 1080p (10bit) WEB-DL ESub [BollyFlix].mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a12053a4_Visionquest S01E06 {Hindi-English} 1080p (10bit) WEB-DL ESub [BollyFlix].mkv",
+        "exists": true,
+        "recorded_size": 1012731419,
+        "actual_size": 1012731419,
+        "sha256": "3d8cd506f5dc15d05c4372fe510192c4c652c365a8a9749b9f1b833c8c5c828a"
+      },
+      {
+        "id": "med_b9b0694ed2ea",
+        "filename": "browser_demo1_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a79a76d5_browser_demo1_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_38802bad2fcc",
+        "filename": "browser_demo1_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7678c786_browser_demo1_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_c7beb0341d59",
+        "filename": "browser_demo1_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\0aa2d370_browser_demo1_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_b6cb484aa05c",
+        "filename": "browser_demo2_a.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\54d2916e_browser_demo2_a.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_3781ee74d8a5",
+        "filename": "browser_demo2_b.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\fba27e7c_browser_demo2_b.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_5f2e3c94f092",
+        "filename": "browser_demo2_c.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\c0f46190_browser_demo2_c.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_dfd5aac5e7f5",
+        "filename": "browser_demo1_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\d349ccef_browser_demo1_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_9fe0ad3572aa",
+        "filename": "browser_demo2_a.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\8a9cfad1_browser_demo2_a.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_480c2a1a4874",
+        "filename": "browser_demo2_b.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\4b350442_browser_demo2_b.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_539418e63be6",
+        "filename": "browser_demo2_c.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7ff764d8_browser_demo2_c.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_ff7f3d0a6d81",
+        "filename": "browser_demo3_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\546b3fba_browser_demo3_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_949e857c1fc0",
+        "filename": "browser_demo4_repeat.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\756a5e13_browser_demo4_repeat.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_1aa9a072a345",
+        "filename": "browser_demo4_repeat.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\40ecc59c_browser_demo4_repeat.mp4",
+        "exists": true,
+        "recorded_size": 17203,
+        "actual_size": 17203,
+        "sha256": "a6358379a038439e9e5ee2fb60abc00703f221f587120902fbf3561df9a3cfc9"
+      },
+      {
+        "id": "med_4345d456352d",
+        "filename": "browser_demo5_mobile.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\b0b60222_browser_demo5_mobile.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_28bdf16da0ce",
+        "filename": "browser_demoA_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7a3f8414_browser_demoA_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_7f16db62de8b",
+        "filename": "browser_demoA_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\16f2e6ff_browser_demoA_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_bb1b89fa6811",
+        "filename": "browser_demoA_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\1d6b9319_browser_demoA_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_7bd6325c1894",
+        "filename": "browser_demoB_1.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\636d6352_browser_demoB_1.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_d816972b02f8",
+        "filename": "browser_demoB_2.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\3b65e8aa_browser_demoB_2.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_9a26d80fed20",
+        "filename": "browser_demoB_3.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\b60818c3_browser_demoB_3.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_709157407936",
+        "filename": "browser_demoC_slow.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\52ae5bad_browser_demoC_slow.mp4",
+        "exists": true,
+        "recorded_size": 34721,
+        "actual_size": 34721,
+        "sha256": "c1129fa4747cc054aacb63662a692741697d43b4d4ba95270028e2bb150a2198"
+      },
+      {
+        "id": "med_8d8403cb89a2",
+        "filename": "browser_demoA_single.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\2f1648ba_browser_demoA_single.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_9480812e3758",
+        "filename": "browser_demoB_1.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\5005f7af_browser_demoB_1.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_30a3fd3a3885",
+        "filename": "browser_demoB_2.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\74e8324e_browser_demoB_2.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_b10fc861da39",
+        "filename": "browser_demoB_3.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\f855aeae_browser_demoB_3.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_e147117920cc",
+        "filename": "browser_demoC_slow.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\35905d27_browser_demoC_slow.mp4",
+        "exists": true,
+        "recorded_size": 34721,
+        "actual_size": 34721,
+        "sha256": "c1129fa4747cc054aacb63662a692741697d43b4d4ba95270028e2bb150a2198"
+      },
+      {
+        "id": "med_63a3978cb070",
+        "filename": "browser_demoE_processing.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\dee236dc_browser_demoE_processing.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_03510f1af78a",
+        "filename": "browser_demoF_mobile.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a18384d7_browser_demoF_mobile.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_a9add90c4cc5",
+        "filename": "demoA_small_regression.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a7838363_demoA_small_regression.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_a4f4a8428d66",
+        "filename": "demoB_medium_247mb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\283d2f24_demoB_medium_247mb.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_f6940e1fd744",
+        "filename": "demoC_large_1_2gb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\ccd4c3f4_demoC_large_1_2gb.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_0ea588c21218",
+        "filename": "demoH_cancel.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\8b908a82_demoH_cancel.mp4",
+        "exists": true,
+        "recorded_size": 96239,
+        "actual_size": 96239,
+        "sha256": "7662d3b4049d9b6b14d229336fdaac0f137291b7b144737ba3badb3cc64f3744"
+      },
+      {
+        "id": "med_bd1f70e06a5a",
+        "filename": "demoA_small_regression.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\1adaf6ce_demoA_small_regression.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_05de6b37c8d6",
+        "filename": "demoB_medium_247mb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\10edb4a6_demoB_medium_247mb.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_6b70dcee7350",
+        "filename": "demoC_large_1_2gb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a6d3f1a1_demoC_large_1_2gb.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_e8d83211c0a3",
+        "filename": "demoH_cancel.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\338bd9aa_demoH_cancel.mp4",
+        "exists": true,
+        "recorded_size": 96239,
+        "actual_size": 96239,
+        "sha256": "7662d3b4049d9b6b14d229336fdaac0f137291b7b144737ba3badb3cc64f3744"
+      },
+      {
+        "id": "med_cb4ec077d489",
+        "filename": "demoA_small_regression.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\75bc4f4c_demoA_small_regression.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_9adbc15780c9",
+        "filename": "demoB_medium_247mb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\e1e0084d_demoB_medium_247mb.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_afdc226c1c69",
+        "filename": "demoC_large_1_2gb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\dc5b35f4_demoC_large_1_2gb.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_c7d560a13bfa",
+        "filename": "demoA_small_regression.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\3f7c9627_demoA_small_regression.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_e22e0b96def5",
+        "filename": "demoB_medium_247mb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\866911bc_demoB_medium_247mb.mkv",
+        "exists": true,
+        "recorded_size": 247861323,
+        "actual_size": 247861323,
+        "sha256": "113ec3394fc0a5906c3b1e8f10b11fc92b75de8c195af95b1206020395c01988"
+      },
+      {
+        "id": "med_9d64fc8870e8",
+        "filename": "demoC_large_1_2gb.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\02067591_demoC_large_1_2gb.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_225121d96da8",
+        "filename": "demoI_conc_1_1794820603.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\86d6d6b8_demoI_conc_1_1794820603.mp4",
+        "exists": true,
+        "recorded_size": 17203,
+        "actual_size": 17203,
+        "sha256": "a6358379a038439e9e5ee2fb60abc00703f221f587120902fbf3561df9a3cfc9"
+      },
+      {
+        "id": "med_a6460c5d73cd",
+        "filename": "demoI_conc_2_1794820603.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\c89d2f19_demoI_conc_2_1794820603.mp4",
+        "exists": true,
+        "recorded_size": 21464,
+        "actual_size": 21464,
+        "sha256": "3d96566209fdde7df82540d5fda021bdaeaac53917482d917c7e988e8036525b"
+      },
+      {
+        "id": "med_d517b5e3013a",
+        "filename": "r1_gapA_1794828860_Visionquest.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\bea6528d_r1_gapA_1794828860_Visionquest.mkv",
+        "exists": true,
+        "recorded_size": 1298314363,
+        "actual_size": 1298314363,
+        "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e"
+      },
+      {
+        "id": "med_430f8016b361",
+        "filename": "r1_gapB_1794828874_subsequent.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\82d47be7_r1_gapB_1794828874_subsequent.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_4d3997fe227e",
+        "filename": "r1_gapC_1794828879_subsequent.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\6305bace_r1_gapC_1794828879_subsequent.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_d9273740b89b",
+        "filename": "demoA_network_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\acd3bc31_demoA_network_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_9843f4626af6",
+        "filename": "demoA_network_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\53be0d09_demoA_network_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_746bfbad963d",
+        "filename": "demoA_network_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\087c1344_demoA_network_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_025c65972585",
+        "filename": "demoB_server_500.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7a91a162_demoB_server_500.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_8f7cadb16b69",
+        "filename": "demoC_concurrency_429.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\96c53af6_demoC_concurrency_429.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_8dd7e6771f6d",
+        "filename": "demoD_cancel_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\66b1616f_demoD_cancel_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_142218271956",
+        "filename": "demoD_cancel_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a7dc93cd_demoD_cancel_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_362c917a708d",
+        "filename": "demoE1_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\71be26a4_demoE1_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_80f9c304c999",
+        "filename": "demoE2_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\1ae1ebee_demoE2_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_6a57e6f92d72",
+        "filename": "demoE3_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\18729a3c_demoE3_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_7833353819c2",
+        "filename": "demoA_network_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\1d4308fa_demoA_network_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_2ac9e711b85c",
+        "filename": "demoB_server_500.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\89052e14_demoB_server_500.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_5e71cbea46ad",
+        "filename": "demoC_concurrency_429.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\748a413e_demoC_concurrency_429.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_be223544fed2",
+        "filename": "demoD_cancel_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\27066a4c_demoD_cancel_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_12ca59b6fb2d",
+        "filename": "demoD_cancel_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\b93198be_demoD_cancel_retry.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_c544716e5acb",
+        "filename": "demoE1_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\2270f79a_demoE1_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_3d09c27cd091",
+        "filename": "demoE2_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7e79cbec_demoE2_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_3da62f7e12c9",
+        "filename": "demoE3_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\923e7a4a_demoE3_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_237af4cadc1c",
+        "filename": "demoE4_transient.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\d4372c7a_demoE4_transient.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_6e59775381b8",
+        "filename": "demoF_rapid_guard.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\99bd7f7e_demoF_rapid_guard.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_2571fc12cfc6",
+        "filename": "demoG_db_fail.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\63f092a6_demoG_db_fail.mp4",
+        "exists": true,
+        "recorded_size": 12711,
+        "actual_size": 12711,
+        "sha256": "d86fa0b02fb7275a2e18ced26691893f742b8692891c4881a28701c3501634f3"
+      },
+      {
+        "id": "med_3e3a8e1b92f7",
+        "filename": "demoJ_idempotent.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7dce6e45_demoJ_idempotent.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_ebc09a49ae63",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\ba342108_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_42b374ff6832",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\37285816_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_ab47686afbfb",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\623cd874_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_bed764a606ca",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\10346ed2_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_16a0d3c46c87",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\c5265689_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_32451627d1a4",
+        "filename": "demoB_multistream.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\05d8b1e1_demoB_multistream.mkv",
+        "exists": true,
+        "recorded_size": 27106,
+        "actual_size": 27106,
+        "sha256": "6114898a7f62ca1afdc6f5a887f5205364f4fa33d15815937c09189d46d6d089"
+      },
+      {
+        "id": "med_4624e9f9c7bc",
+        "filename": "demoB_multistream.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\01fb35d3_demoB_multistream.mkv",
+        "exists": true,
+        "recorded_size": 27106,
+        "actual_size": 27106,
+        "sha256": "6114898a7f62ca1afdc6f5a887f5205364f4fa33d15815937c09189d46d6d089"
+      },
+      {
+        "id": "med_4313e6952391",
+        "filename": "duplicate_name.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\76a363e9_duplicate_name.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_23914b41b4db",
+        "filename": "duplicate_name.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\fe9eabc3_duplicate_name.mp4",
+        "exists": true,
+        "recorded_size": 17012,
+        "actual_size": 17012,
+        "sha256": "c50b6f6cdcab25611b65c6200aeb4f5f2fc0719b9badd0277763e3978b744d63"
+      },
+      {
+        "id": "med_15da5a6f816f",
+        "filename": "demoJ_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\82e37a59_demoJ_retry.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_0c090c87f454",
+        "filename": "demoJ_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\901e69ff_demoJ_retry.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_59ce4a0972f6",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\0fefbe43_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_e1b7a06f02d2",
+        "filename": "demoA_valid.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\f37f5afa_demoA_valid.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_f1df7a651042",
+        "filename": "demoB_multistream.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\e7227f3a_demoB_multistream.mkv",
+        "exists": true,
+        "recorded_size": 27106,
+        "actual_size": 27106,
+        "sha256": "f5a06335375ba7d965ed7d175bbc496eb699788f6512b601b2a74388eed717d7"
+      },
+      {
+        "id": "med_d9dea9b52ee5",
+        "filename": "demoB_multistream.mkv",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\7c486af3_demoB_multistream.mkv",
+        "exists": true,
+        "recorded_size": 27106,
+        "actual_size": 27106,
+        "sha256": "f5a06335375ba7d965ed7d175bbc496eb699788f6512b601b2a74388eed717d7"
+      },
+      {
+        "id": "med_67311c64cbe1",
+        "filename": "duplicate_name.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\6e253b83_duplicate_name.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_4490ae22a60c",
+        "filename": "duplicate_name.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\a97b3b66_duplicate_name.mp4",
+        "exists": true,
+        "recorded_size": 17012,
+        "actual_size": 17012,
+        "sha256": "c50b6f6cdcab25611b65c6200aeb4f5f2fc0719b9badd0277763e3978b744d63"
+      },
+      {
+        "id": "med_8cd7336e4ffa",
+        "filename": "demoJ_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\ee42053c_demoJ_retry.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      },
+      {
+        "id": "med_24f8ae9b5032",
+        "filename": "demoJ_retry.mp4",
+        "path": "D:\\ZezEdit\\storage\\media\\default_p\\785f0798_demoJ_retry.mp4",
+        "exists": true,
+        "recorded_size": 8459,
+        "actual_size": 8459,
+        "sha256": "d9b2d051ee2b19dbec7adf5f544da80b9b9f28ac5d54427f2310cdbb7f360a4b"
+      }
+    ]
+  },
+  "exports": {
+    "count": 44,
+    "valid_physical_mp4_count": 34,
+    "records": [
+      {
+        "id": "exp_edc52185c353",
+        "status": "failed",
+        "validation_status": "unvalidated",
+        "output_path": null,
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_61efacb16822",
+        "status": "failed",
+        "validation_status": "unvalidated",
+        "output_path": null,
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_babf8b3065df",
+        "status": "failed",
+        "validation_status": "invalid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_12__9x16_3065df.mp4",
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_ca31e61dd86b",
+        "status": "failed",
+        "validation_status": "invalid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_12__1x1_1dd86b.mp4",
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_327fd9805587",
+        "status": "failed",
+        "validation_status": "unvalidated",
+        "output_path": null,
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_bb4e7d91afd2",
+        "status": "failed",
+        "validation_status": "invalid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_12__9x16_91afd2.mp4",
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_6443662c1cc0",
+        "status": "failed",
+        "validation_status": "invalid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_12__1x1_2c1cc0.mp4",
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_949ab5572f83",
+        "status": "failed",
+        "validation_status": "invalid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_12__16x9_572f83.mp4",
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_f34b7fb391e2",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__00_26__9x16_b391e2.mp4",
+        "exists": true,
+        "actual_size": 17105653,
+        "sha256": "ed4ce87237a2e61361d93721e3358de25ec70e1019bf656ca3f18e25fa3b4147"
+      },
+      {
+        "id": "exp_38ca240eb04f",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Acceptance_Script_Title_1794727717_9x16_0eb04f.mp4",
+        "exists": true,
+        "actual_size": 13528966,
+        "sha256": "6b7b766ed76444e0b0b6cec548787a1a84ce717faf2e288acb30455f509e1ba4"
+      },
+      {
+        "id": "exp_e37ba4a98522",
+        "status": "failed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Dramatic_Highlight__49_30__9x16_a98522.mp4",
+        "exists": true,
+        "actual_size": 8096944,
+        "sha256": "124715470aab8db8104ca85ae1b0671b7ceada2ad5289b37381c04a49d1a4df2"
+      },
+      {
+        "id": "exp_7162f10852a3",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Itna__Gean__where_is_the_better_9x16_0852a3.mp4",
+        "exists": true,
+        "actual_size": 11973242,
+        "sha256": "f0d6d97f355743aeed8d2c1c0e70856d8994c3483f8da6bdc289227da3b1c5f7"
+      },
+      {
+        "id": "exp_ed6b8c4391b8",
+        "status": "failed",
+        "validation_status": "unvalidated",
+        "output_path": null,
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_ae69ef2fc09f",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_happened_9x16_2fc09f.mp4",
+        "exists": true,
+        "actual_size": 9372334,
+        "sha256": "c70499b9dd509031410fe5db051d6839c16e65d767d3282c50f36c27ff79687f"
+      },
+      {
+        "id": "exp_b6574cfba7b9",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\He_has_a_lot_of_thoughts_9x16_fba7b9.mp4",
+        "exists": true,
+        "actual_size": 13039942,
+        "sha256": "3739c2da2526a817136f94cd00f24f26ea8d008d098310eace09827f295d04da"
+      },
+      {
+        "id": "exp_50a2fd8d6b02",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_is_this_9x16_8d6b02.mp4",
+        "exists": true,
+        "actual_size": 14029924,
+        "sha256": "b1f2c90091bca3a86d87b0b0149a78ed50ae7f5c56a9da04136d9ed860823697"
+      },
+      {
+        "id": "exp_952537ab2235",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Dramatic_Highlight__42_55__9x16_ab2235.mp4",
+        "exists": true,
+        "actual_size": 10977043,
+        "sha256": "1c55874a4700874afecac016d4bbf8ef7602554469253e5f2f017d831b8d3813"
+      },
+      {
+        "id": "exp_998f61c16d82",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Sister__pardon_9x16_c16d82.mp4",
+        "exists": true,
+        "actual_size": 7917712,
+        "sha256": "f466936d62078eb08af0ad967236218e1efae1ca874df89c69429e7a0d437f07"
+      },
+      {
+        "id": "exp_d0827e198c5a",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\How_will_I_become_a_manager_9x16_198c5a.mp4",
+        "exists": true,
+        "actual_size": 16148208,
+        "sha256": "bd2c88949446088cac2bea681f1c75737cdb73a602331383e150ba55b63a36bf"
+      },
+      {
+        "id": "exp_3b9d64520e61",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\You_can_never_say_anything_to_your_mothe_9x16_520e61.mp4",
+        "exists": true,
+        "actual_size": 11755003,
+        "sha256": "68f6a840b9b2980ff35f0109f165b17f6352753fb92582d338c42a538458854f"
+      },
+      {
+        "id": "exp_f7d886ef2eec",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Oh__isn_t_it_9x16_ef2eec.mp4",
+        "exists": true,
+        "actual_size": 20067774,
+        "sha256": "a34013701f391aa1061016058b3a982bbe0fbea8b34e30162221def2745f6477"
+      },
+      {
+        "id": "exp_f002661ba35a",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\My_age_9x16_1ba35a.mp4",
+        "exists": true,
+        "actual_size": 4273148,
+        "sha256": "7535629145f513df7761af45271243bcb2d806accac641edd063c4e01d734c8e"
+      },
+      {
+        "id": "exp_2fe0f2d23f47",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__22_29__9x16_d23f47.mp4",
+        "exists": true,
+        "actual_size": 5833457,
+        "sha256": "942310b5656d467e6cf74db7c383929a0132880122fb1735bb2437cc783044f4"
+      },
+      {
+        "id": "exp_219fec21aa57",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Listen__Tommy__I_am_very_happy_9x16_21aa57.mp4",
+        "exists": true,
+        "actual_size": 5016723,
+        "sha256": "64a848062ab09a4bebfb5e1e27d9add149cc6695b64746ac249829cb414cc579"
+      },
+      {
+        "id": "exp_17bc74b06eb7",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Ultron__what_did_you_say_9x16_b06eb7.mp4",
+        "exists": true,
+        "actual_size": 8248093,
+        "sha256": "35b06119d44724eda46c0c7973a907f3ca97169798af9e712c4f2aadd517b0b1"
+      },
+      {
+        "id": "exp_441db688b878",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Why_are_you_playing_for_the_whole_mornin_9x16_88b878.mp4",
+        "exists": true,
+        "actual_size": 7316647,
+        "sha256": "6c0633140efd21b828efabaa14418cbba986ca9cc6ed84ec507359a1c7ac837d"
+      },
+      {
+        "id": "exp_ec83fa95e7bb",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\You_are_mad_9x16_95e7bb.mp4",
+        "exists": true,
+        "actual_size": 8215560,
+        "sha256": "169f6364d51332a05fb77964d361aff079f65ce8a38c5307416e5064b828af5e"
+      },
+      {
+        "id": "exp_ea8d03443706",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_is_this_9x16_443706.mp4",
+        "exists": true,
+        "actual_size": 9886080,
+        "sha256": "be5cc9bd6688fbf22605cb854f3c42f1662ad97096b585d25ccd42f8e2872254"
+      },
+      {
+        "id": "exp_8dc2b8352c88",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Because__why_is_it_so_difficult_to_get_r_9x16_352c88.mp4",
+        "exists": true,
+        "actual_size": 14507562,
+        "sha256": "afe81fff7989b45b984733e97f42705b49092277eb8de8b7e7e831eb5ad3ca8f"
+      },
+      {
+        "id": "exp_9f3ee338a334",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_will_you_do_next_9x16_38a334.mp4",
+        "exists": true,
+        "actual_size": 17922897,
+        "sha256": "24523957765cf7051eca40349051c3fdcc8e394a4999f67220b6e6b32b014424"
+      },
+      {
+        "id": "exp_d99f88538966",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\You_all_will_never_be_able_to_see_your_o_9x16_538966.mp4",
+        "exists": true,
+        "actual_size": 7292920,
+        "sha256": "551a7de925a8c4fd912ce99535d1f90db66eb0f1ade654eb11fb5e2cf9d25121"
+      },
+      {
+        "id": "exp_55f1e99a77d2",
+        "status": "failed",
+        "validation_status": "unvalidated",
+        "output_path": null,
+        "exists": false,
+        "actual_size": 0,
+        "sha256": null
+      },
+      {
+        "id": "exp_38a8ffcacdda",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__02_46__9x16_cacdda.mp4",
+        "exists": true,
+        "actual_size": 6173294,
+        "sha256": "bca244878a73ccad7eddff9a1ea32cf56d53dbdd8b8b48d3e5bef8608c09d152"
+      },
+      {
+        "id": "exp_97df3b9e89ae",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_are_you_saying_9x16_9e89ae.mp4",
+        "exists": true,
+        "actual_size": 4431046,
+        "sha256": "011a1f2df3b351b0f2633ac7053381a968e96f640876c469f6275aed1ad352d3"
+      },
+      {
+        "id": "exp_e9c7adb74054",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\So__why_are_you_here_9x16_b74054.mp4",
+        "exists": true,
+        "actual_size": 4224999,
+        "sha256": "76548b95f6db1db01fdc1649a0a431b2da11192232f33c0f6d0acc0197cc547e"
+      },
+      {
+        "id": "exp_a49e234dab0f",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Raghav_9x16_4dab0f.mp4",
+        "exists": true,
+        "actual_size": 4956524,
+        "sha256": "e4fbfa23ada0e4b7dbecfe22c26247852568ad7f6f338ebec1b0070bd27e65eb"
+      },
+      {
+        "id": "exp_339b18b69ae8",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Why_are_you_looking_at_me_like_that_9x16_b69ae8.mp4",
+        "exists": true,
+        "actual_size": 3772848,
+        "sha256": "6c1e69f7ab9501427a178ee06f46061ce492a35a54c1f3635fbfdb8ef61d0809"
+      },
+      {
+        "id": "exp_99740b6df2de",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\What_happened_9x16_6df2de.mp4",
+        "exists": true,
+        "actual_size": 7531495,
+        "sha256": "6be228b43130b1ae182b370968b30015d3786f2513605c30259d6dd9f8520d52"
+      },
+      {
+        "id": "exp_d424d986896c",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Dramatic_Highlight__16_56__1x1_86896c.mp4",
+        "exists": true,
+        "actual_size": 9470207,
+        "sha256": "ecf2c269e58d2211a821d0298c224afc6e64852e2c0bc18d8713e882b8cb4dc6"
+      },
+      {
+        "id": "exp_eee3f487b632",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\My_house_is_in_my_house_1x1_87b632.mp4",
+        "exists": true,
+        "actual_size": 13034027,
+        "sha256": "d563a9c1c0980055874009c79beaa3b2f2b720c46cc3dc19ce7e17dfc7528dc3"
+      },
+      {
+        "id": "exp_b3016eaee785",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__32_02__1x1_aee785.mp4",
+        "exists": true,
+        "actual_size": 12049406,
+        "sha256": "f3eb5977fcd442a12f2796f3494014498ae4bc6242b6b541b5d9e6eba185ef34"
+      },
+      {
+        "id": "exp_a971bd63d342",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Dramatic_Highlight__16_56__9x16_63d342.mp4",
+        "exists": true,
+        "actual_size": 13272989,
+        "sha256": "4304890205dbb9e50b271f0450a0a185b2e1c07969c586935bed67a0ee2d5b46"
+      },
+      {
+        "id": "exp_9e95ada5a177",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\My_house_is_in_my_house_9x16_a5a177.mp4",
+        "exists": true,
+        "actual_size": 18402244,
+        "sha256": "5de88f58e676363dabbb22b0d4a5018b1a3c9ce06d04f07c943cc72afed7e81d"
+      },
+      {
+        "id": "exp_74c7d79d1f27",
+        "status": "completed",
+        "validation_status": "valid",
+        "output_path": "D:\\ZezEdit\\storage\\exports\\default\\Action___Motion_Highlight__32_02__9x16_9d1f27.mp4",
+        "exists": true,
+        "actual_size": 18041858,
+        "sha256": "ce628654fe42158373bce41711b4ee18f3b5c4e28e6912cd2f38db78cb33635e"
+      }
+    ]
+  },
+  "backups": {
+    "prior_existing_count": 20,
+    "prior_existing": [
+      {
+        "filename": "backup_live_m20_check_20261112T033851Z.db",
+        "size_bytes": 1888256,
+        "integrity_ok": true
+      },
+      {
+        "filename": "backup_live_test_20261111T171843Z.db",
+        "size_bytes": 73728,
+        "integrity_ok": true
+      },
+      {
+        "filename": "backup_p0_9_pre_test_20261116T034733Z.db",
+        "size_bytes": 11956224,
+        "integrity_ok": true
+      },
+      {
+        "filename": "backup_p0_9_pre_test_20261116T120524Z.db",
+        "size_bytes": 12201984,
+        "integrity_ok": true
+      },
+      {
+        "filename": "backup_p0_9_pre_test_20261116T123859Z.db",
+        "size_bytes": 12316672,
+        "integrity_ok": true
+      },
+      {
+        "filename": "backup_pre_restore_20261113T040511Z.db",
+        "size_bytes": 4354048,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0002_20261111T171831Z.db",
+        "size_bytes": 49152,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0003_20261111T175355Z.db",
+        "size_bytes": 73728,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0004_20261111T181648Z.db",
+        "size_bytes": 86016,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0005_20261111T183304Z.db",
+        "size_bytes": 176128,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0006_20261111T185342Z.db",
+        "size_bytes": 200704,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0007_20261111T190409Z.db",
+        "size_bytes": 282624,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0009_20261111T195404Z.db",
+        "size_bytes": 487424,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0010_20261112T013515Z.db",
+        "size_bytes": 1110016,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0011_20261112T032042Z.db",
+        "size_bytes": 1884160,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0012_20261112T084041Z.db",
+        "size_bytes": 4128768,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0013_20261112T092819Z.db",
+        "size_bytes": 4354048,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0015_20261113T015735Z.db",
+        "size_bytes": 4354048,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0015_20261113T040756Z.db",
+        "size_bytes": 4354048,
+        "integrity_ok": true
+      },
+      {
+        "filename": "pre_migration_0017_20261116T133556Z.db",
+        "size_bytes": 12328960,
+        "integrity_ok": true
+      }
+    ],
+    "fresh_baseline_backup": {
+      "backup_filename": "backup_p0_9_pre_test_20261116T140239Z.db",
+      "backup_path": "D:\\ZezEdit\\storage\\backups\\backup_p0_9_pre_test_20261116T140239Z.db",
+      "file_size_bytes": 12488704,
+      "created_at": "2026-11-16T14:02:39.938696+00:00",
+      "integrity_verified": true,
+      "label": "p0_9_pre_test"
+    }
+  }
+}

@@ -58,7 +58,7 @@ def generate_thumbnail(
             str(output),
             "-y",
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=20, check=False)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False)
 
         # Fallback to output seek if input seek failed (some formats / bad keyframes fail on input seek)
         if proc.returncode != 0 or not output.exists() or output.stat().st_size == 0:
@@ -73,7 +73,7 @@ def generate_thumbnail(
                 str(output),
                 "-y",
             ]
-            proc = subprocess.run(cmd_fallback, capture_output=True, text=True, timeout=20, check=False)
+            proc = subprocess.run(cmd_fallback, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, check=False)
 
         if proc.returncode != 0 or not output.exists() or output.stat().st_size == 0:
             logger.warning("Failed to generate video thumbnail for %s: %s", source.name, proc.stderr)
@@ -90,7 +90,7 @@ def generate_thumbnail(
             str(output),
             "-y",
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15, check=False)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15, check=False)
         if proc.returncode == 0 and output.exists() and output.stat().st_size > 0:
             return output
         logger.warning("Failed to generate image thumbnail for %s: %s", source.name, proc.stderr)
@@ -106,7 +106,7 @@ def generate_thumbnail(
             str(output),
             "-y",
         ]
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10, check=False)
+        proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=10, check=False)
         if proc.returncode == 0 and output.exists() and output.stat().st_size > 0:
             return output
         # Audio without art is common and normal, return None

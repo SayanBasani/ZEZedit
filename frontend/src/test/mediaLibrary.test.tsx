@@ -10,6 +10,7 @@ vi.mock('../services/apiClient', async (importOriginal) => {
     ...actual,
     importLocalMedia: vi.fn().mockResolvedValue({}),
     uploadMediaFile: vi.fn().mockResolvedValue({}),
+    uploadMediaBatch: vi.fn().mockResolvedValue({ total: 1, succeeded: 1, failed: 0, items: [] }),
     generateProxy: vi.fn().mockResolvedValue({}),
     regenerateThumbnail: vi.fn().mockResolvedValue({}),
     relinkMedia: vi.fn().mockResolvedValue({}),

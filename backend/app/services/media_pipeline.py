@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -22,10 +23,23 @@ from app.services.media_proxy import generate_proxy
 from app.services.media_thumbnail import generate_thumbnail
 from app.services.projects import ProjectService
 
+import asyncio
+import hashlib
+
 logger = logging.getLogger("zezedit.media_pipeline")
 
 STREAM_CHUNK_SIZE = 1024 * 1024  # 1 MB chunk for streaming to prevent high RAM consumption
 MIN_FREE_SPACE_BYTES = 100 * 1024 * 1024  # 100 MB safety headroom
+
+_UPLOAD_SEMAPHORE: Optional[asyncio.Semaphore] = None
+
+
+def _get_upload_semaphore(max_concurrent: int) -> asyncio.Semaphore:
+    """Return or initialize process-wide concurrency semaphore for heavy uploads."""
+    global _UPLOAD_SEMAPHORE
+    if _UPLOAD_SEMAPHORE is None:
+        _UPLOAD_SEMAPHORE = asyncio.Semaphore(max_concurrent)
+    return _UPLOAD_SEMAPHORE
 
 
 class MediaPipelineService:
@@ -44,6 +58,24 @@ class MediaPipelineService:
         self.media_service = media_service
         self.project_service = project_service
         self.job_orchestrator = job_orchestrator
+
+    def check_disk_space(self, required_bytes: int = 0) -> None:
+        """Verify storage root has sufficient free disk space including safety margin."""
+        try:
+            usage = shutil.disk_usage(self.storage.root)
+            min_free = getattr(self.settings, "min_disk_free_bytes", MIN_FREE_SPACE_BYTES)
+            if usage.free < (required_bytes + min_free):
+                raise AppError(
+                    code="INSUFFICIENT_STORAGE",
+                    message=(
+                        f"Insufficient disk space on {self.storage.root}. "
+                        f"Available: {usage.free / (1024 * 1024):.1f} MB, "
+                        f"required: {(required_bytes + min_free) / (1024 * 1024):.1f} MB."
+                    ),
+                    status_code=507,
+                )
+        except OSError as err:
+            logger.warning("Unable to verify disk usage: %s", err)
 
     def import_local_media(
         self,
@@ -214,55 +246,268 @@ class MediaPipelineService:
         generate_proxy_now: bool = False,
         generate_thumbnail_now: bool = True,
         proxy_profile: str = "480p",
+        expected_size: Optional[int] = None,
+        expected_sha256: Optional[str] = None,
+        attempt_id: Optional[str] = None,
+        test_fail_registration: bool = False,
+        test_fail_publication: bool = False,
+        require_video: bool = False,
     ) -> MediaAssetRecord:
         """
         Stream an uploaded media file in bounded chunks to managed storage.
-        Extracts metadata and optionally generates thumbnails/proxies.
+        Verifies checksum, byte counts, and media validity before atomic publication.
         """
         project = self.project_service.get_project(project_id)
-        original_filename = upload_file.filename or "uploaded_media"
+        raw_filename = upload_file.filename or "uploaded_media"
+
+        # Security validation: reject path traversal sequences
+        if ".." in raw_filename or raw_filename.startswith(("/", "\\")):
+            raise AppError(
+                code="PATH_TRAVERSAL_DETECTED",
+                message=f"Path traversal sequence detected in filename: '{raw_filename}'",
+                status_code=400,
+            )
+
+        safe_filename = Path(raw_filename).name.strip()
+        if not safe_filename:
+            safe_filename = "uploaded_media"
 
         proj_media_dir = self.storage.media / project.storage_subdir
         proj_media_dir.mkdir(parents=True, exist_ok=True)
-        clean_name = f"{uuid.uuid4().hex[:8]}_{original_filename}"
-        dest_path = proj_media_dir / clean_name
+        # Collision handling: unique 8-character prefix guarantees distinct physical path per upload
+        clean_name = f"{uuid.uuid4().hex[:8]}_{safe_filename}"
+        dest_path = (proj_media_dir / clean_name).resolve()
+        if not dest_path.is_relative_to(proj_media_dir.resolve()):
+            raise AppError(
+                code="PATH_TRAVERSAL_DETECTED",
+                message="Target destination escapes media directory.",
+                status_code=400,
+            )
 
-        job = self.job_orchestrator.create_job(
-            job_type="media_import",
-            project_id=project_id,
-            input_config={"uploaded_filename": original_filename, "destination": str(dest_path)},
-        )
-        self.job_orchestrator.transition_job_state(
-            job.id, "running", progress_pct=0.1, stage="streaming_upload"
-        )
-
-        total_bytes = 0
+        # Enforce bounded concurrent heavy uploads
+        max_conc = getattr(self.settings, "max_concurrent_uploads", 2)
+        sem = _get_upload_semaphore(max_conc)
         try:
-            with open(dest_path, "wb") as fdst:
+            await asyncio.wait_for(sem.acquire(), timeout=0.05)
+        except (asyncio.TimeoutError, TimeoutError):
+            raise AppError(
+                code="TOO_MANY_CONCURRENT_UPLOADS",
+                message=f"Server is currently handling the maximum of {max_conc} concurrent uploads. Please retry when existing uploads complete.",
+                status_code=429,
+            )
+
+        acquired = True
+        part_path = dest_path.with_suffix(dest_path.suffix + ".uploading")
+        part_created = False
+        dest_created = False
+        total_bytes = 0
+        job = None
+
+        try:
+            job = self.job_orchestrator.create_job(
+                job_type="media_import",
+                project_id=project_id,
+                input_config={
+                    "uploaded_filename": safe_filename,
+                    "destination": str(dest_path),
+                    "expected_size": expected_size,
+                    "expected_sha256": expected_sha256,
+                    "attempt_id": attempt_id,
+                },
+            )
+            self.job_orchestrator.transition_job_state(
+                job.id, "running", progress_pct=0.1, stage="streaming_upload"
+            )
+            # Pre-flight checks if size is already hinted
+            file_size_hint = getattr(upload_file, "size", None) or expected_size
+            max_size = getattr(self.settings, "max_upload_size_bytes", 2500 * 1024 * 1024)
+            if file_size_hint and file_size_hint > 0:
+                if file_size_hint > max_size:
+                    raise AppError(
+                        code="REQUEST_ENTITY_TOO_LARGE",
+                        message=f"Upload size ({file_size_hint / (1024 * 1024):.1f} MB) exceeds maximum permitted limit of {max_size / (1024 * 1024):.1f} MB.",
+                        status_code=413,
+                    )
+                self.check_disk_space(file_size_hint)
+
+            chunk_size = getattr(self.settings, "upload_chunk_size_bytes", STREAM_CHUNK_SIZE)
+            hasher = hashlib.sha256()
+            last_space_check = 0
+
+            with open(part_path, "wb") as fdst:
+                part_created = True
                 while True:
-                    chunk = await upload_file.read(STREAM_CHUNK_SIZE)
+                    chunk = await upload_file.read(chunk_size)
                     if not chunk:
                         break
                     total_bytes += len(chunk)
+                    if total_bytes > max_size:
+                        raise AppError(
+                            code="REQUEST_ENTITY_TOO_LARGE",
+                            message=f"Upload size exceeds maximum permitted limit of {max_size / (1024 * 1024):.1f} MB.",
+                            status_code=413,
+                        )
+                    if expected_size is not None and expected_size > 0 and total_bytes > expected_size:
+                        raise AppError(
+                            code="BYTE_COUNT_MISMATCH",
+                            message=f"Received byte count ({total_bytes}) exceeds declared expected size ({expected_size}).",
+                            status_code=400,
+                        )
+                    if total_bytes - last_space_check >= 50 * 1024 * 1024:
+                        self.check_disk_space(chunk_size)
+                        last_space_check = total_bytes
                     fdst.write(chunk)
+                    hasher.update(chunk)
 
             if total_bytes == 0:
-                dest_path.unlink(missing_ok=True)
+                part_path.unlink(missing_ok=True)
+                part_created = False
                 raise AppError(
                     code="EMPTY_MEDIA_FILE",
                     message="Uploaded media file is empty (0 bytes).",
                     status_code=400,
                 )
 
-            # Metadata inspection
+            # Byte-count and file-size verification on temporary staging file
+            part_stat = part_path.stat().st_size
+            if part_stat != total_bytes:
+                part_path.unlink(missing_ok=True)
+                part_created = False
+                raise AppError(
+                    code="STORAGE_WRITE_MISMATCH",
+                    message=f"Temporary staging file size ({part_stat} bytes) does not match received byte stream ({total_bytes} bytes).",
+                    status_code=500,
+                )
+
+            if expected_size is not None and expected_size > 0:
+                if total_bytes != expected_size:
+                    part_path.unlink(missing_ok=True)
+                    part_created = False
+                    raise AppError(
+                        code="BYTE_COUNT_MISMATCH",
+                        message=f"Received byte count ({total_bytes}) does not match expected size ({expected_size}).",
+                        status_code=400,
+                    )
+
+            computed_sha256 = hasher.hexdigest()
+
+            # Client expected SHA-256 verification
+            if expected_sha256 and expected_sha256.strip():
+                if computed_sha256.lower() != expected_sha256.strip().lower():
+                    part_path.unlink(missing_ok=True)
+                    part_created = False
+                    raise AppError(
+                        code="CHECKSUM_MISMATCH",
+                        message=f"Computed SHA-256 checksum '{computed_sha256}' does not match expected checksum '{expected_sha256.strip().lower()}'.",
+                        status_code=400,
+                    )
+
+            # Validate media while still in temporary staging (.uploading) prior to publication
             self.job_orchestrator.transition_job_state(
-                job.id, "running", progress_pct=0.4, stage="extracting_metadata"
+                job.id, "running", progress_pct=0.4, stage="validating_media"
             )
-            probe = probe_media_file(dest_path, ffprobe_path=self.settings.ffprobe_path)
+            probe = probe_media_file(part_path, ffprobe_path=self.settings.ffprobe_path)
+
+            if probe.media_type == "unknown":
+                part_path.unlink(missing_ok=True)
+                part_created = False
+                raise AppError(
+                    code="UNSUPPORTED_MEDIA_TYPE",
+                    message=f"File '{safe_filename}' is not a recognized video, audio, or image media file.",
+                    status_code=400,
+                )
+
+            # Minimum video criteria: must contain a usable video stream
+            video_exts = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".flv", ".wmv", ".ts", ".mts"}
+            has_video_ext = Path(safe_filename).suffix.lower() in video_exts
+            has_video_stream = (
+                probe.video_stream_count > 0
+                or (probe.media_type == "video" and (probe.width or 0) > 0 and (probe.height or 0) > 0)
+            )
+            if (require_video or has_video_ext) and (probe.media_type == "audio" or not has_video_stream):
+                part_path.unlink(missing_ok=True)
+                part_created = False
+                raise AppError(
+                    code="NO_VIDEO_STREAM",
+                    message=f"File '{safe_filename}' does not contain a valid video stream. Audio-only media cannot be accepted as video assets.",
+                    status_code=400,
+                )
+
+            if probe.media_type == "video":
+                if probe.width is None or probe.height is None or probe.width <= 0 or probe.height <= 0:
+                    part_path.unlink(missing_ok=True)
+                    part_created = False
+                    raise AppError(
+                        code="INVALID_VIDEO_DIMENSIONS",
+                        message=f"File '{safe_filename}' has invalid video dimensions ({probe.width}x{probe.height}).",
+                        status_code=400,
+                    )
+
+            # Controlled test injection for atomic publication failure
+            if test_fail_publication:
+                part_path.unlink(missing_ok=True)
+                part_created = False
+                raise AppError(
+                    code="PUBLICATION_FAILED",
+                    message="Simulated filesystem failure during atomic file publication.",
+                    status_code=500,
+                )
+
+            # Atomic publication: rename validated .uploading part file to final dest_path
+            os.replace(part_path, dest_path)
+            part_created = False
+            dest_created = True
+
+            # Verify physical finalized file size matches received byte count
+            final_stat = dest_path.stat().st_size
+            if final_stat != total_bytes:
+                dest_path.unlink(missing_ok=True)
+                dest_created = False
+                raise AppError(
+                    code="STORAGE_WRITE_MISMATCH",
+                    message=f"Published file size ({final_stat} bytes) does not match verified received bytes ({total_bytes} bytes).",
+                    status_code=500,
+                )
+
+            # Integrity contract assembly
+            now_iso = datetime.now(timezone.utc).isoformat()
+            integrity_details = {
+                "original_filename": safe_filename,
+                "expected_size_bytes": expected_size,
+                "received_bytes": total_bytes,
+                "final_size_bytes": total_bytes,
+                "sha256": computed_sha256,
+                "container_format": probe.container_format,
+                "video_codec": probe.video_codec,
+                "audio_codec": probe.audio_codec,
+                "video_stream_count": probe.video_stream_count,
+                "audio_stream_count": probe.audio_stream_count,
+                "subtitle_stream_count": probe.subtitle_stream_count,
+                "width": probe.width,
+                "height": probe.height,
+                "duration_seconds": probe.duration_seconds,
+                "validation_result": "valid",
+                "integrity_status": "verified",
+                "upload_attempt_id": attempt_id,
+                "verified_at": now_iso,
+            }
+
+            probe.raw_metadata["sha256"] = computed_sha256
+            probe.raw_metadata["integrity_details"] = integrity_details
+
+            # Controlled test injection for database registration failure
+            if test_fail_registration:
+                dest_path.unlink(missing_ok=True)
+                dest_created = False
+                raise AppError(
+                    code="DATABASE_REGISTRATION_FAILED",
+                    message="Simulated database failure during media registration.",
+                    status_code=500,
+                )
 
             asset = self.media_service.register_media_asset(
                 project_id=project_id,
-                original_filename=original_filename,
+                original_filename=safe_filename,
                 storage_path=str(dest_path),
                 is_external=False,
                 media_type=probe.media_type,
@@ -275,6 +520,10 @@ class MediaPipelineService:
                 audio_codec=probe.audio_codec,
                 metadata=probe.raw_metadata,
                 metadata_status="extracted",
+                sha256=computed_sha256,
+                integrity_status="verified",
+                upload_attempt_id=attempt_id,
+                integrity_details=integrity_details,
             )
 
             # Thumbnail
@@ -337,16 +586,33 @@ class MediaPipelineService:
                 "completed",
                 progress_pct=1.0,
                 stage="completed",
-                result_metadata={"asset_id": asset.id, "bytes": total_bytes},
+                result_metadata={"asset_id": asset.id, "bytes": total_bytes, "sha256": computed_sha256},
             )
             return self.media_service.get_media_asset(project_id, asset.id)
 
-        except Exception as exc:
-            dest_path.unlink(missing_ok=True)
-            self.job_orchestrator.transition_job_state(
-                job.id, "failed", error_message=str(exc), stage="failed"
-            )
+        except (Exception, asyncio.CancelledError) as exc:
+            if part_created:
+                try:
+                    part_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            if dest_created:
+                try:
+                    dest_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+            if job is not None:
+                self.job_orchestrator.transition_job_state(
+                    job.id, "failed", error_message=str(exc), stage="failed"
+                )
             raise
+        finally:
+            if acquired:
+                sem.release()
+            try:
+                await upload_file.close()
+            except Exception:
+                pass
 
     def generate_proxy_for_asset(
         self,
@@ -430,6 +696,8 @@ class MediaPipelineService:
         """Regenerate thumbnail for an existing media asset."""
         asset = self.media_service.get_media_asset(project_id, asset_id)
         src = Path(asset.storage_path).expanduser().resolve(strict=False)
+        if not src.is_file():
+            src = (self.storage.media / asset.storage_path).resolve(strict=False)
         if not src.is_file():
             self.media_service.mark_missing(project_id, asset_id)
             raise AppError(

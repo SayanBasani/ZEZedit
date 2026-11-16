@@ -1,0 +1,304 @@
+{
+  "task": "P1.3-R1",
+  "title": "Large Upload Acceptance Evidence Reconciliation",
+  "timestamp_utc": "2026-11-16T11:34:58.033138+00:00",
+  "results": {
+    "GAP_A_REAL_1_21GB_BROWSER_UPLOAD": {
+      "status": "PASS",
+      "run_id": "r1_gapA_1794828860",
+      "transport": "Chrome CDP Browser UI (input[type=file] -> React -> XHR)",
+      "source_file": "D:\\videos\\Visionquest S01E08.mkv",
+      "source_size_bytes": 1298314363,
+      "sha256": "1402fcd56e44ddc118a931b027e0e141b3a6df5aba40c4f08a7b3d557c4a2b5e",
+      "sha256_match": true,
+      "media_id": "med_d517b5e3013a",
+      "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\bea6528d_r1_gapA_1794828860_Visionquest.mkv",
+      "upload_duration_seconds": 9.61,
+      "throughput_mb_s": 128.84,
+      "range_request_verified_bytes": 1048576,
+      "memory": {
+        "sample_count": 38,
+        "baseline_rss_mb": 111.74,
+        "peak_rss_mb": 112.84,
+        "delta_rss_mb": 1.1,
+        "baseline_private_mb": 449.79,
+        "peak_private_mb": 451.72,
+        "delta_private_mb": 1.93,
+        "sample_summary": [
+          {
+            "timestamp": 1794828862.3188257,
+            "rss_bytes": 117170176,
+            "rss_mb": 111.74,
+            "private_bytes": 471633920,
+            "private_mb": 449.79
+          },
+          {
+            "timestamp": 1794828862.848722,
+            "rss_bytes": 117215232,
+            "rss_mb": 111.79,
+            "private_bytes": 471629824,
+            "private_mb": 449.78
+          },
+          {
+            "timestamp": 1794828863.3644605,
+            "rss_bytes": 117215232,
+            "rss_mb": 111.79,
+            "private_bytes": 471629824,
+            "private_mb": 449.78
+          },
+          {
+            "timestamp": 1794828863.8930123,
+            "rss_bytes": 117215232,
+            "rss_mb": 111.79,
+            "private_bytes": 471629824,
+            "private_mb": 449.78
+          },
+          {
+            "timestamp": 1794828864.4214773,
+            "rss_bytes": 116219904,
+            "rss_mb": 110.84,
+            "private_bytes": 471379968,
+            "private_mb": 449.54
+          },
+          {
+            "timestamp": 1794828864.9502592,
+            "rss_bytes": 116400128,
+            "rss_mb": 111.01,
+            "private_bytes": 471453696,
+            "private_mb": 449.61
+          },
+          {
+            "timestamp": 1794828865.4523687,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828865.9538589,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828866.4674757,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828866.9831297,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828867.5131595,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828868.044192,
+            "rss_bytes": 116469760,
+            "rss_mb": 111.07,
+            "private_bytes": 471539712,
+            "private_mb": 449.7
+          },
+          {
+            "timestamp": 1794828868.5465384,
+            "rss_bytes": 117555200,
+            "rss_mb": 112.11,
+            "private_bytes": 472608768,
+            "private_mb": 450.71
+          },
+          {
+            "timestamp": 1794828869.0639677,
+            "rss_bytes": 118267904,
+            "rss_mb": 112.79,
+            "private_bytes": 473665536,
+            "private_mb": 451.72
+          },
+          {
+            "timestamp": 1794828869.566261,
+            "rss_bytes": 117555200,
+            "rss_mb": 112.11,
+            "private_bytes": 472608768,
+            "private_mb": 450.71
+          },
+          {
+            "timestamp": 1794828870.0819318,
+            "rss_bytes": 117555200,
+            "rss_mb": 112.11,
+            "private_bytes": 472612864,
+            "private_mb": 450.72
+          },
+          {
+            "timestamp": 1794828870.6093566,
+            "rss_bytes": 117555200,
+            "rss_mb": 112.11,
+            "private_bytes": 472612864,
+            "private_mb": 450.72
+          },
+          {
+            "timestamp": 1794828871.1334581,
+            "rss_bytes": 116584448,
+            "rss_mb": 111.18,
+            "private_bytes": 471687168,
+            "private_mb": 449.84
+          },
+          {
+            "timestamp": 1794828871.6650398,
+            "rss_bytes": 117293056,
+            "rss_mb": 111.86,
+            "private_bytes": 471969792,
+            "private_mb": 450.11
+          }
+        ]
+      },
+      "screenshots": [
+        "r1_gapA_01_uploading.png",
+        "r1_gapA_02_processing.png",
+        "r1_gapA_03_dashboard.png"
+      ]
+    },
+    "GAP_B_LARGE_BROWSER_CANCELLATION": {
+      "status": "PASS",
+      "run_id": "r1_gapB_1794828874",
+      "filename": "r1_gapB_1794828874_BLACK_TORCH_cancel.mkv",
+      "file_size_bytes": 247861323,
+      "bytes_transmitted_before_cancellation": 15761408,
+      "elapsed_seconds_before_cancel": 2.32,
+      "ui_cancellation_confirmed": true,
+      "db_records_found": 0,
+      "partial_destination_unlinked": true,
+      "subsequent_upload_succeeded": true,
+      "subsequent_media_id": "med_430f8016b361",
+      "memory": {
+        "sample_count": 10,
+        "baseline_rss_mb": 112.15,
+        "peak_rss_mb": 113.12,
+        "delta_rss_mb": 0.97,
+        "baseline_private_mb": 450.8,
+        "peak_private_mb": 451.62,
+        "delta_private_mb": 0.82,
+        "sample_summary": [
+          {
+            "timestamp": 1794828875.4317389,
+            "rss_bytes": 117596160,
+            "rss_mb": 112.15,
+            "private_bytes": 472698880,
+            "private_mb": 450.8
+          },
+          {
+            "timestamp": 1794828875.6820183,
+            "rss_bytes": 118398976,
+            "rss_mb": 112.91,
+            "private_bytes": 473309184,
+            "private_mb": 451.38
+          },
+          {
+            "timestamp": 1794828875.9422545,
+            "rss_bytes": 118398976,
+            "rss_mb": 112.91,
+            "private_bytes": 473309184,
+            "private_mb": 451.38
+          },
+          {
+            "timestamp": 1794828876.201516,
+            "rss_bytes": 118398976,
+            "rss_mb": 112.91,
+            "private_bytes": 473309184,
+            "private_mb": 451.38
+          },
+          {
+            "timestamp": 1794828876.4637396,
+            "rss_bytes": 118398976,
+            "rss_mb": 112.91,
+            "private_bytes": 473309184,
+            "private_mb": 451.38
+          },
+          {
+            "timestamp": 1794828876.7279217,
+            "rss_bytes": 118398976,
+            "rss_mb": 112.91,
+            "private_bytes": 473309184,
+            "private_mb": 451.38
+          },
+          {
+            "timestamp": 1794828876.988481,
+            "rss_bytes": 118448128,
+            "rss_mb": 112.96,
+            "private_bytes": 473374720,
+            "private_mb": 451.45
+          },
+          {
+            "timestamp": 1794828877.250992,
+            "rss_bytes": 118448128,
+            "rss_mb": 112.96,
+            "private_bytes": 473374720,
+            "private_mb": 451.45
+          },
+          {
+            "timestamp": 1794828877.5136716,
+            "rss_bytes": 118448128,
+            "rss_mb": 112.96,
+            "private_bytes": 473378816,
+            "private_mb": 451.45
+          },
+          {
+            "timestamp": 1794828877.7703915,
+            "rss_bytes": 118611968,
+            "rss_mb": 113.12,
+            "private_bytes": 473554944,
+            "private_mb": 451.62
+          }
+        ]
+      },
+      "screenshots": [
+        "r1_gapB_01_uploading_large.png",
+        "r1_gapB_02_cancelled_large.png"
+      ]
+    },
+    "GAP_C_LARGE_CLIENT_DISCONNECT": {
+      "status": "PASS",
+      "run_id": "r1_gapC_1794828879",
+      "filename": "r1_gapC_1794828879_BLACK_TORCH_disc.mkv",
+      "file_size_bytes": 247861323,
+      "bytes_transmitted_before_disconnect": 52428800,
+      "elapsed_seconds": 0.43,
+      "db_records_found": 0,
+      "partial_storage_unlinked": true,
+      "media_library_clean": true,
+      "subsequent_upload_succeeded": true,
+      "subsequent_media_id": "med_4d3997fe227e"
+    },
+    "GAP_D1_INSUFFICIENT_STORAGE_PREFLIGHT": {
+      "status": "PASS",
+      "run_id": "r1_gapD1_1794828882",
+      "status_code": 507,
+      "error_code": "INSUFFICIENT_STORAGE",
+      "body_not_consumed": true,
+      "server_healthy": true
+    },
+    "GAP_D2_IN_FLIGHT_STORAGE_GUARD": {
+      "status": "PASS",
+      "run_id": "r1_gapD2_1794828887",
+      "status_code": 507,
+      "error_code": "INSUFFICIENT_STORAGE",
+      "guard_verified": true
+    },
+    "DATA_SAFETY_AND_INVARIANTS": {
+      "status": "PASS",
+      "foreign_key_violations": 0,
+      "sqlite_integrity": "ok",
+      "baseline_source_media_verified": 5,
+      "baseline_exports_verified": 34,
+      "hash_invariant": true
+    }
+  }
+}

@@ -1,7 +1,7 @@
 """Data models and entities for Projects, Media Assets, Jobs, Settings, and Events."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -42,6 +42,28 @@ class MediaAssetRecord:
     created_at: str
     updated_at: str
     proxy_status: str = "none"
+    sha256: Optional[str] = None
+    integrity_status: Optional[str] = None
+    upload_attempt_id: Optional[str] = None
+    integrity_details_json: Optional[str] = None
+    last_integrity_check: Optional[str] = None
+    display_filename: Optional[str] = None
+    file_extension: Optional[str] = None
+    container_format: Optional[str] = None
+    resolution_label: Optional[str] = None
+    aspect_ratio: Optional[str] = None
+    audio_stream_count: int = 0
+    subtitle_stream_count: int = 0
+    audio_languages: List[str] = field(default_factory=list)
+    subtitle_languages: List[str] = field(default_factory=list)
+    pixel_format: Optional[str] = None
+    bitrate: Optional[int] = None
+    analysis_status: str = "none"
+    is_playable: bool = True
+    thumbnail_available: bool = False
+    thumbnail_url: Optional[str] = None
+    streaming_url: Optional[str] = None
+    dashboard_url: Optional[str] = None
 
 
 @dataclass

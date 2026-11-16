@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   Eye,
@@ -35,11 +35,13 @@ import {
   getThumbnailUrl,
   importLocalMedia,
   inspectRelinkCandidate,
+  isUploadRetryable,
   regenerateThumbnail,
   relinkMedia,
   uploadMediaFile,
 } from '../../services/apiClient';
 import { MediaAssetItem, MediaStorageStats, ProjectItem } from '../../types/projects';
+import { UploadProgressPanel, UploadItem } from '../videos/UploadProgressPanel';
 
 export interface MediaLibraryViewProps {
   projects: ProjectItem[];
@@ -79,6 +81,8 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
   const [generateProxyNow, setGenerateProxyNow] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const [uploadItems, setUploadItems] = useState<UploadItem[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Post Import Action Modal state
   const [postImportOpen, setPostImportOpen] = useState(false);
@@ -172,26 +176,304 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+    const files = e.target.files ? Array.from(e.target.files) : [];
+    if (files.length === 0) return;
+
+    abortControllerRef.current?.abort();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     setIsImporting(true);
     setImportError(null);
+
     try {
-      let lastUploaded: MediaAssetItem | null = null;
-      for (let i = 0; i < files.length; i++) {
-        lastUploaded = await uploadMediaFile(currentProjectId, files[i], generateProxyNow, true);
-      }
-      setImportDialogOpen(false);
-      onRefresh();
-      if (lastUploaded) {
-        setPostImportAsset(lastUploaded);
+      if (files.length === 1) {
+        const file = files[0];
+        const initialAttemptId = `att_${Date.now()}_0_${Math.random().toString(36).slice(2, 8)}`;
+        const item: UploadItem = {
+          id: `${Date.now()}_0`,
+          file,
+          loaded: 0,
+          total: file.size > 0 ? file.size : null,
+          percentage: file.size > 0 ? 0 : null,
+          state: 'uploading',
+          error: null,
+          attemptId: initialAttemptId,
+          attemptCount: 1,
+          retryable: true,
+        };
+        setUploadItems([item]);
+
+        const asset = await uploadMediaFile(currentProjectId, file, generateProxyNow, true, {
+          signal: controller.signal,
+          attemptId: initialAttemptId,
+          attemptCount: 1,
+          onProgress: (p) => {
+            setUploadItems((prev) =>
+              prev.map((it) =>
+                it.file === file
+                  ? {
+                      ...it,
+                      loaded: p.loaded,
+                      total: p.total,
+                      percentage: p.percentage,
+                      state: p.state,
+                      error: p.error,
+                      mediaAsset: p.mediaAsset,
+                      attemptId: p.attemptId ?? it.attemptId,
+                      attemptCount: p.attemptCount ?? it.attemptCount,
+                      retryable: p.retryable ?? it.retryable,
+                    }
+                  : it
+              )
+            );
+          },
+        });
+
+        setUploadItems((prev) =>
+          prev.map((it) =>
+            it.file === file
+              ? {
+                  ...it,
+                  state: 'completed',
+                  loaded: Math.max(it.loaded, it.total ?? file.size),
+                  percentage: 100,
+                  mediaAsset: asset,
+                  retryable: false,
+                }
+              : it
+          )
+        );
+
+        setImportDialogOpen(false);
+        onRefresh();
+        setPostImportAsset(asset);
         setPostImportOpen(true);
+      } else {
+        const initialItems: UploadItem[] = files.map((file, idx) => ({
+          id: `${Date.now()}_${idx}`,
+          file,
+          loaded: 0,
+          total: file.size > 0 ? file.size : null,
+          percentage: file.size > 0 ? 0 : null,
+          state: 'queued',
+          error: null,
+          attemptId: `att_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 8)}`,
+          attemptCount: 1,
+          retryable: true,
+        }));
+        setUploadItems(initialItems);
+
+        let succeeded = 0;
+        let failed = 0;
+        const errDetails: string[] = [];
+
+        for (let i = 0; i < files.length; i++) {
+          if (controller.signal.aborted) {
+            setUploadItems((prev) =>
+              prev.map((it, idx) =>
+                idx >= i && it.state !== 'completed' && it.state !== 'failed'
+                  ? { ...it, state: 'cancelled', error: 'Upload cancelled', retryable: true }
+                  : it
+              )
+            );
+            break;
+          }
+
+          const file = files[i];
+          setUploadItems((prev) =>
+            prev.map((it, idx) => (idx === i ? { ...it, state: 'uploading' } : it))
+          );
+
+          try {
+            const asset = await uploadMediaFile(currentProjectId, file, generateProxyNow, true, {
+              signal: controller.signal,
+              onProgress: (p) => {
+                setUploadItems((prev) =>
+                  prev.map((it, idx) =>
+                    idx === i
+                      ? {
+                          ...it,
+                          loaded: p.loaded,
+                          total: p.total,
+                          percentage: p.percentage,
+                          state: p.state,
+                          error: p.error,
+                          mediaAsset: p.mediaAsset,
+                          retryable: p.retryable ?? it.retryable,
+                        }
+                      : it
+                  )
+                );
+              },
+            });
+
+            succeeded++;
+            setUploadItems((prev) =>
+              prev.map((it, idx) =>
+                idx === i
+                  ? {
+                      ...it,
+                      state: 'completed',
+                      loaded: Math.max(it.loaded, it.total ?? file.size),
+                      percentage: 100,
+                      mediaAsset: asset,
+                      retryable: false,
+                    }
+                  : it
+              )
+            );
+          } catch (err: any) {
+            const isAbort = controller.signal.aborted || err.code === 'ABORTED';
+            const retryable = isAbort ? true : isUploadRetryable(err.status ?? null, err.code);
+            if (isAbort) {
+              setUploadItems((prev) =>
+                prev.map((it, idx) =>
+                  idx >= i && it.state !== 'completed'
+                    ? { ...it, state: 'cancelled', error: 'Upload cancelled', retryable: true }
+                    : it
+                )
+              );
+              break;
+            } else {
+              failed++;
+              const msg = err.message || 'Upload failed';
+              errDetails.push(`"${file.name}" (${msg})`);
+              setUploadItems((prev) =>
+                prev.map((it, idx) =>
+                  idx === i ? { ...it, state: 'failed', error: msg, retryable } : it
+                )
+              );
+            }
+          }
+        }
+
+        onRefresh();
+        if (failed > 0) {
+          const errMsg = `Batch completed: ${succeeded} uploaded, ${failed} failed: ${errDetails.join('; ')}`;
+          setImportError(errMsg);
+        } else {
+          setImportDialogOpen(false);
+        }
       }
-    } catch (err) {
-      setImportError(err instanceof Error ? err.message : 'Upload failed');
+    } catch (err: any) {
+      const isAbort = abortControllerRef.current?.signal.aborted || err.code === 'ABORTED';
+      setImportError(isAbort ? 'Upload cancelled.' : (err instanceof Error ? err.message : 'Upload failed'));
     } finally {
       setIsImporting(false);
       if (e.target) e.target.value = '';
+    }
+  };
+
+  const handleRetryItem = async (itemId: string) => {
+    const targetItem = uploadItems.find((it) => it.id === itemId);
+    if (!targetItem) return;
+    if (
+      targetItem.state === 'uploading' ||
+      targetItem.state === 'retrying' ||
+      targetItem.state === 'processing' ||
+      targetItem.state === 'completed'
+    ) {
+      return;
+    }
+
+    if (!targetItem.file || !(targetItem.file instanceof File)) {
+      setUploadItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId
+            ? {
+                ...it,
+                state: 'failed',
+                error: 'File reference was lost on page reload. Please re-select the file.',
+                retryable: false,
+              }
+            : it
+        )
+      );
+      return;
+    }
+
+    const nextAttemptCount = (targetItem.attemptCount || 1) + 1;
+    const nextAttemptId = `att_${Date.now()}_retry_${Math.random().toString(36).slice(2, 8)}`;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    setUploadItems((prev) =>
+      prev.map((it) =>
+        it.id === itemId
+          ? {
+              ...it,
+              state: 'retrying',
+              loaded: 0,
+              percentage: 0,
+              error: null,
+              attemptId: nextAttemptId,
+              attemptCount: nextAttemptCount,
+              retryable: true,
+            }
+          : it
+      )
+    );
+    setIsImporting(true);
+
+    try {
+      const asset = await uploadMediaFile(currentProjectId, targetItem.file, generateProxyNow, true, {
+        signal: controller.signal,
+        attemptId: nextAttemptId,
+        attemptCount: nextAttemptCount,
+        onProgress: (p) => {
+          setUploadItems((prev) =>
+            prev.map((it) =>
+              it.id === itemId
+                ? {
+                    ...it,
+                    loaded: p.loaded,
+                    total: p.total,
+                    percentage: p.percentage,
+                    state: p.state,
+                    error: p.error,
+                    mediaAsset: p.mediaAsset,
+                    retryable: p.retryable ?? it.retryable,
+                  }
+                : it
+            )
+          );
+        },
+      });
+
+      setUploadItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId
+            ? {
+                ...it,
+                state: 'completed',
+                loaded: Math.max(it.loaded, it.total ?? targetItem.file.size),
+                percentage: 100,
+                mediaAsset: asset,
+                retryable: false,
+              }
+            : it
+        )
+      );
+      onRefresh();
+    } catch (err: any) {
+      const isAbort = controller.signal.aborted || err.code === 'ABORTED';
+      const retryable = isAbort ? true : isUploadRetryable(err.status ?? null, err.code);
+      setUploadItems((prev) =>
+        prev.map((it) =>
+          it.id === itemId
+            ? {
+                ...it,
+                state: isAbort ? 'cancelled' : 'failed',
+                error: isAbort ? 'Upload cancelled' : (err.message || 'Upload failed'),
+                retryable,
+              }
+            : it
+        )
+      );
+      setImportError(isAbort ? 'Upload cancelled.' : (err.message || 'Failed to upload video.'));
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -389,6 +671,29 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
           </div>
         </div>
       </div>
+
+      {uploadItems.length > 0 && (
+        <UploadProgressPanel
+          items={uploadItems}
+          isUploading={isImporting}
+          onCancel={() => abortControllerRef.current?.abort()}
+          onDismiss={() => setUploadItems([])}
+          onRetryItem={handleRetryItem}
+        />
+      )}
+
+      {importError && !importDialogOpen && (
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center justify-between">
+          <span>{importError}</span>
+          <button
+            type="button"
+            onClick={() => setImportError(null)}
+            className="text-text-muted hover:text-text-primary text-[10px]"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {integrityBanner && (
         <div className="p-3 bg-surface-hover border border-border rounded-xl text-text-primary text-xs flex items-center justify-between">

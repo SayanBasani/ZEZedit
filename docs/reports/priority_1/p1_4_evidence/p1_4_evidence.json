@@ -1,0 +1,87 @@
+{
+  "task": "P1.4 Upload Failure Handling, Retry and Recovery",
+  "timestamp": "2026-11-16T12:31:52.320926+00:00",
+  "demos": {
+    "DEMO_A_NETWORK_RETRY": {
+      "status": "PASS",
+      "media_id": "med_7833353819c2",
+      "filename": "demoA_network_retry.mp4",
+      "file_size": 12711,
+      "storage_path": "D:\\ZezEdit\\storage\\media\\default_p\\1d4308fa_demoA_network_retry.mp4",
+      "screenshots": [
+        "demoA_failed_offline.png",
+        "demoA_retry_success.png"
+      ]
+    },
+    "DEMO_B_SERVER_500_RETRY": {
+      "status": "PASS",
+      "media_id": "med_2ac9e711b85c",
+      "filename": "demoB_server_500.mp4",
+      "screenshots": [
+        "demoB_failed_500.png",
+        "demoB_retry_success.png"
+      ]
+    },
+    "DEMO_C_CONCURRENCY_429_RETRY": {
+      "status": "PASS",
+      "media_id": "med_5e71cbea46ad",
+      "filename": "demoC_concurrency_429.mp4",
+      "screenshots": [
+        "demoC_failed_429.png",
+        "demoC_retry_success.png"
+      ]
+    },
+    "DEMO_D_CANCEL_AND_RETRY": {
+      "status": "PASS",
+      "media_id": "med_12ca59b6fb2d",
+      "filename": "demoD_cancel_retry.mp4",
+      "screenshots": [
+        "demoD_cancelled.png",
+        "demoD_retry_success.png"
+      ]
+    },
+    "DEMO_E_BATCH_PARTIAL_FAILURE_RETRY": {
+      "status": "PASS",
+      "batch_total": 5,
+      "initial_succeeded": 3,
+      "initial_failed": 2,
+      "retried_item_id": "med_237af4cadc1c",
+      "screenshot": "demoE_batch_success.png"
+    },
+    "DEMO_F_DUPLICATE_GUARD": {
+      "status": "PASS",
+      "media_id": "med_6e59775381b8",
+      "filename": "demoF_rapid_guard.mp4",
+      "db_count": 1,
+      "screenshot": "demoF_guard_active.png"
+    },
+    "DEMO_G_DB_FINALIZATION_RECOVERY": {
+      "status": "PASS",
+      "media_id": "med_2571fc12cfc6",
+      "filename": "demoG_db_fail.mp4",
+      "initial_db_count": 0,
+      "final_db_count": 1
+    },
+    "DEMO_H_STARTUP_SWEEP": {
+      "status": "PASS",
+      "stale_uploading_swept": true,
+      "stale_part_swept": true
+    },
+    "DEMO_I_PAGE_RELOAD_LOST_FILE": {
+      "status": "PASS",
+      "explanation": "File reference was lost on page reload. Please re-select the file.",
+      "screenshot": "demoI_reload_explanation.png"
+    },
+    "DEMO_J_DELAYED_CALLBACK_IDEMPOTENCY": {
+      "status": "PASS",
+      "media_id": "med_3e3a8e1b92f7",
+      "filename": "demoJ_idempotent.mp4",
+      "db_count": 1
+    }
+  },
+  "summary": {
+    "total_demos": 10,
+    "passed": 10,
+    "failed": 0
+  }
+}

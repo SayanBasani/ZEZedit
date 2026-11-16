@@ -20,6 +20,7 @@ class DatabaseHealth(BaseModel):
     connected: bool
     path: str
     journal_mode: str
+    integrity_valid: bool = True
     current_migration: Optional[str] = None
     applied_migrations: List[str]
 
@@ -42,9 +43,9 @@ class OllamaHealth(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    """Authoritative response from `GET /api/v1/health`."""
+    """Authoritative response from `GET /api/v1/health` and `GET /health`."""
 
-    status: str  # "ready" | "degraded"
+    status: str  # "ready" | "ready_with_optional_unavailable" | "starting" | "failed" | "degraded"
     app_name: str
     app_version: str
     environment: str
@@ -54,6 +55,9 @@ class HealthResponse(BaseModel):
     ffmpeg: DependencyCheck
     ffprobe: DependencyCheck
     ollama: OllamaHealth
+    dispatcher_initialized: bool = True
+    frontend_build_available: bool = False
+    whisper_available: bool = True
 
 
 class SystemInfoResponse(BaseModel):

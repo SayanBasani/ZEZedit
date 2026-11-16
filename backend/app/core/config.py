@@ -29,9 +29,10 @@ class Settings(BaseSettings):
 
     api_host: str = "127.0.0.1"
     api_port: int = 8000
-    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
 
     storage_root: Path = Field(default_factory=lambda: PROJECT_ROOT / "storage")
+    frontend_dist_dir: Path = Field(default_factory=lambda: PROJECT_ROOT / "frontend" / "dist")
 
     ffmpeg_path: str = ""
     ffprobe_path: str = ""
@@ -43,6 +44,13 @@ class Settings(BaseSettings):
     max_concurrent_jobs: int = 1
     ffmpeg_threads: int = 4
     max_memory_mb: int = 8192
+
+    # Large-file ingestion and streaming configuration (P1.3)
+    max_upload_size_bytes: int = 2500 * 1024 * 1024  # 2.5 GB maximum upload limit
+    upload_chunk_size_bytes: int = 1024 * 1024  # 1 MB bounded chunk buffer
+    min_disk_free_bytes: int = 500 * 1024 * 1024  # 500 MB minimum free space headroom
+    max_concurrent_uploads: int = 2  # Bounded concurrent heavy uploads
+    upload_timeout_seconds: float = 600.0  # 10 minute timeout
 
     log_level: str = "INFO"
 

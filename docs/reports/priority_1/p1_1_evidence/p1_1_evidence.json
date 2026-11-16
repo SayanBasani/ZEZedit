@@ -1,0 +1,697 @@
+{
+  "priority": "P1.1",
+  "milestone": "Single and Multiple Video Upload",
+  "timestamp_utc": "2026-11-16T06:54:15.860774+00:00",
+  "all_demos_passed": true,
+  "demo_count": 5,
+  "demos": {
+    "DEMO_A_SINGLE_UPLOAD": {
+      "demo_id": "DEMO_A_SINGLE_UPLOAD",
+      "purpose": "Upload single video, verify response, physical file, DB row, and dashboard URL",
+      "command": "POST /api/v1/media/upload with demo_a_single.mp4",
+      "pre_state": {
+        "source_file": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\temp\\demo_a_single.mp4",
+        "file_size_bytes": 12711
+      },
+      "post_state": {
+        "asset_id": "med_937696f2e3e4",
+        "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\ad14aa76_demo_a_single.mp4",
+        "file_exists": true,
+        "db_record_found": true,
+        "dashboard_url": "/videos/med_937696f2e3e4"
+      },
+      "status": "PASSED",
+      "details": {
+        "status_code": 201,
+        "duration_seconds": 2.0,
+        "width": 320,
+        "height": 240,
+        "fps": 25.0,
+        "video_codec": "h264"
+      },
+      "timestamp_utc": "2026-11-16T06:54:12.988187+00:00"
+    },
+    "DEMO_B_MULTIPLE_BATCH_UPLOAD": {
+      "demo_id": "DEMO_B_MULTIPLE_BATCH_UPLOAD",
+      "purpose": "Select and upload multiple videos in one batch operation",
+      "command": "POST /api/v1/media/batch-upload with 3 MP4 files",
+      "pre_state": {
+        "batch_count": 3,
+        "files": [
+          "demo_b_1.mp4",
+          "demo_b_2.mp4",
+          "demo_b_3.mp4"
+        ]
+      },
+      "post_state": {
+        "total": 3,
+        "succeeded": 3,
+        "failed": 0,
+        "media_ids": [
+          "med_66edde5a1997",
+          "med_a0c7473f3338",
+          "med_fee80326de4a"
+        ],
+        "all_physical_files_exist": true
+      },
+      "status": "PASSED",
+      "details": {
+        "items": [
+          {
+            "filename": "demo_b_1.mp4",
+            "success": true,
+            "media_id": "med_66edde5a1997",
+            "asset": {
+              "id": "med_66edde5a1997",
+              "project_id": "proj_1b65d5e901fe",
+              "original_filename": "demo_b_1.mp4",
+              "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\ba5a9e1d_demo_b_1.mp4",
+              "is_external": false,
+              "media_type": "video",
+              "file_size_bytes": 8459,
+              "mime_type": null,
+              "duration_seconds": 1.0,
+              "width": 320,
+              "height": 240,
+              "fps": 25.0,
+              "video_codec": "h264",
+              "audio_codec": null,
+              "availability_status": "present",
+              "proxy_reference_path": null,
+              "thumbnail_reference_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\thumbnails\\med_66edde5a1997.jpg",
+              "proxy_status": "none",
+              "metadata_status": "extracted",
+              "metadata": {
+                "streams": [
+                  {
+                    "index": 0,
+                    "codec_name": "h264",
+                    "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                    "profile": "High",
+                    "codec_type": "video",
+                    "codec_tag_string": "avc1",
+                    "codec_tag": "0x31637661",
+                    "mime_codec_string": "avc1.64000d",
+                    "width": 320,
+                    "height": 240,
+                    "coded_width": 320,
+                    "coded_height": 240,
+                    "has_b_frames": 2,
+                    "sample_aspect_ratio": "1:1",
+                    "display_aspect_ratio": "4:3",
+                    "pix_fmt": "yuv420p",
+                    "level": 13,
+                    "chroma_location": "left",
+                    "field_order": "progressive",
+                    "is_avc": "true",
+                    "nal_length_size": "4",
+                    "id": "0x1",
+                    "r_frame_rate": "25/1",
+                    "avg_frame_rate": "25/1",
+                    "time_base": "1/12800",
+                    "start_pts": 0,
+                    "start_time": "0.000000",
+                    "duration_ts": 12800,
+                    "duration": "1.000000",
+                    "bit_rate": "58472",
+                    "bits_per_raw_sample": "8",
+                    "nb_frames": "25",
+                    "extradata_size": 46,
+                    "disposition": {
+                      "default": 1,
+                      "dub": 0,
+                      "original": 0,
+                      "comment": 0,
+                      "lyrics": 0,
+                      "karaoke": 0,
+                      "forced": 0,
+                      "hearing_impaired": 0,
+                      "visual_impaired": 0,
+                      "clean_effects": 0,
+                      "attached_pic": 0,
+                      "timed_thumbnails": 0,
+                      "non_diegetic": 0,
+                      "captions": 0,
+                      "descriptions": 0,
+                      "metadata": 0,
+                      "dependent": 0,
+                      "still_image": 0,
+                      "multilayer": 0
+                    },
+                    "tags": {
+                      "language": "und",
+                      "handler_name": "VideoHandler",
+                      "encoder": "Lavc63.1.102 libx264"
+                    }
+                  }
+                ],
+                "format": {
+                  "filename": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\ba5a9e1d_demo_b_1.mp4",
+                  "nb_streams": 1,
+                  "nb_programs": 0,
+                  "nb_stream_groups": 0,
+                  "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                  "format_long_name": "QuickTime / MOV",
+                  "start_time": "0.000000",
+                  "duration": "1.000000",
+                  "size": "8459",
+                  "bit_rate": "67672",
+                  "probe_score": 100,
+                  "tags": {
+                    "major_brand": "isom",
+                    "minor_version": "512",
+                    "compatible_brands": "isomiso2avc1mp41",
+                    "encoder": "Lavf63.1.102"
+                  }
+                }
+              },
+              "created_at": "2026-11-16T06:54:13.358272+00:00",
+              "updated_at": "2026-11-16T06:54:13.499439+00:00"
+            },
+            "error": null,
+            "error_code": null
+          },
+          {
+            "filename": "demo_b_2.mp4",
+            "success": true,
+            "media_id": "med_a0c7473f3338",
+            "asset": {
+              "id": "med_a0c7473f3338",
+              "project_id": "proj_1b65d5e901fe",
+              "original_filename": "demo_b_2.mp4",
+              "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\ce9ef494_demo_b_2.mp4",
+              "is_external": false,
+              "media_type": "video",
+              "file_size_bytes": 8459,
+              "mime_type": null,
+              "duration_seconds": 1.0,
+              "width": 320,
+              "height": 240,
+              "fps": 25.0,
+              "video_codec": "h264",
+              "audio_codec": null,
+              "availability_status": "present",
+              "proxy_reference_path": null,
+              "thumbnail_reference_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\thumbnails\\med_a0c7473f3338.jpg",
+              "proxy_status": "none",
+              "metadata_status": "extracted",
+              "metadata": {
+                "streams": [
+                  {
+                    "index": 0,
+                    "codec_name": "h264",
+                    "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                    "profile": "High",
+                    "codec_type": "video",
+                    "codec_tag_string": "avc1",
+                    "codec_tag": "0x31637661",
+                    "mime_codec_string": "avc1.64000d",
+                    "width": 320,
+                    "height": 240,
+                    "coded_width": 320,
+                    "coded_height": 240,
+                    "has_b_frames": 2,
+                    "sample_aspect_ratio": "1:1",
+                    "display_aspect_ratio": "4:3",
+                    "pix_fmt": "yuv420p",
+                    "level": 13,
+                    "chroma_location": "left",
+                    "field_order": "progressive",
+                    "is_avc": "true",
+                    "nal_length_size": "4",
+                    "id": "0x1",
+                    "r_frame_rate": "25/1",
+                    "avg_frame_rate": "25/1",
+                    "time_base": "1/12800",
+                    "start_pts": 0,
+                    "start_time": "0.000000",
+                    "duration_ts": 12800,
+                    "duration": "1.000000",
+                    "bit_rate": "58472",
+                    "bits_per_raw_sample": "8",
+                    "nb_frames": "25",
+                    "extradata_size": 46,
+                    "disposition": {
+                      "default": 1,
+                      "dub": 0,
+                      "original": 0,
+                      "comment": 0,
+                      "lyrics": 0,
+                      "karaoke": 0,
+                      "forced": 0,
+                      "hearing_impaired": 0,
+                      "visual_impaired": 0,
+                      "clean_effects": 0,
+                      "attached_pic": 0,
+                      "timed_thumbnails": 0,
+                      "non_diegetic": 0,
+                      "captions": 0,
+                      "descriptions": 0,
+                      "metadata": 0,
+                      "dependent": 0,
+                      "still_image": 0,
+                      "multilayer": 0
+                    },
+                    "tags": {
+                      "language": "und",
+                      "handler_name": "VideoHandler",
+                      "encoder": "Lavc63.1.102 libx264"
+                    }
+                  }
+                ],
+                "format": {
+                  "filename": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\ce9ef494_demo_b_2.mp4",
+                  "nb_streams": 1,
+                  "nb_programs": 0,
+                  "nb_stream_groups": 0,
+                  "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                  "format_long_name": "QuickTime / MOV",
+                  "start_time": "0.000000",
+                  "duration": "1.000000",
+                  "size": "8459",
+                  "bit_rate": "67672",
+                  "probe_score": 100,
+                  "tags": {
+                    "major_brand": "isom",
+                    "minor_version": "512",
+                    "compatible_brands": "isomiso2avc1mp41",
+                    "encoder": "Lavf63.1.102"
+                  }
+                }
+              },
+              "created_at": "2026-11-16T06:54:13.691058+00:00",
+              "updated_at": "2026-11-16T06:54:13.783881+00:00"
+            },
+            "error": null,
+            "error_code": null
+          },
+          {
+            "filename": "demo_b_3.mp4",
+            "success": true,
+            "media_id": "med_fee80326de4a",
+            "asset": {
+              "id": "med_fee80326de4a",
+              "project_id": "proj_1b65d5e901fe",
+              "original_filename": "demo_b_3.mp4",
+              "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\0622b5a2_demo_b_3.mp4",
+              "is_external": false,
+              "media_type": "video",
+              "file_size_bytes": 8459,
+              "mime_type": null,
+              "duration_seconds": 1.0,
+              "width": 320,
+              "height": 240,
+              "fps": 25.0,
+              "video_codec": "h264",
+              "audio_codec": null,
+              "availability_status": "present",
+              "proxy_reference_path": null,
+              "thumbnail_reference_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\thumbnails\\med_fee80326de4a.jpg",
+              "proxy_status": "none",
+              "metadata_status": "extracted",
+              "metadata": {
+                "streams": [
+                  {
+                    "index": 0,
+                    "codec_name": "h264",
+                    "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                    "profile": "High",
+                    "codec_type": "video",
+                    "codec_tag_string": "avc1",
+                    "codec_tag": "0x31637661",
+                    "mime_codec_string": "avc1.64000d",
+                    "width": 320,
+                    "height": 240,
+                    "coded_width": 320,
+                    "coded_height": 240,
+                    "has_b_frames": 2,
+                    "sample_aspect_ratio": "1:1",
+                    "display_aspect_ratio": "4:3",
+                    "pix_fmt": "yuv420p",
+                    "level": 13,
+                    "chroma_location": "left",
+                    "field_order": "progressive",
+                    "is_avc": "true",
+                    "nal_length_size": "4",
+                    "id": "0x1",
+                    "r_frame_rate": "25/1",
+                    "avg_frame_rate": "25/1",
+                    "time_base": "1/12800",
+                    "start_pts": 0,
+                    "start_time": "0.000000",
+                    "duration_ts": 12800,
+                    "duration": "1.000000",
+                    "bit_rate": "58472",
+                    "bits_per_raw_sample": "8",
+                    "nb_frames": "25",
+                    "extradata_size": 46,
+                    "disposition": {
+                      "default": 1,
+                      "dub": 0,
+                      "original": 0,
+                      "comment": 0,
+                      "lyrics": 0,
+                      "karaoke": 0,
+                      "forced": 0,
+                      "hearing_impaired": 0,
+                      "visual_impaired": 0,
+                      "clean_effects": 0,
+                      "attached_pic": 0,
+                      "timed_thumbnails": 0,
+                      "non_diegetic": 0,
+                      "captions": 0,
+                      "descriptions": 0,
+                      "metadata": 0,
+                      "dependent": 0,
+                      "still_image": 0,
+                      "multilayer": 0
+                    },
+                    "tags": {
+                      "language": "und",
+                      "handler_name": "VideoHandler",
+                      "encoder": "Lavc63.1.102 libx264"
+                    }
+                  }
+                ],
+                "format": {
+                  "filename": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\0622b5a2_demo_b_3.mp4",
+                  "nb_streams": 1,
+                  "nb_programs": 0,
+                  "nb_stream_groups": 0,
+                  "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+                  "format_long_name": "QuickTime / MOV",
+                  "start_time": "0.000000",
+                  "duration": "1.000000",
+                  "size": "8459",
+                  "bit_rate": "67672",
+                  "probe_score": 100,
+                  "tags": {
+                    "major_brand": "isom",
+                    "minor_version": "512",
+                    "compatible_brands": "isomiso2avc1mp41",
+                    "encoder": "Lavf63.1.102"
+                  }
+                }
+              },
+              "created_at": "2026-11-16T06:54:14.015733+00:00",
+              "updated_at": "2026-11-16T06:54:14.114016+00:00"
+            },
+            "error": null,
+            "error_code": null
+          }
+        ]
+      },
+      "timestamp_utc": "2026-11-16T06:54:14.170615+00:00"
+    },
+    "DEMO_C_MIXED_VALIDITY_BATCH": {
+      "demo_id": "DEMO_C_MIXED_VALIDITY_BATCH",
+      "purpose": "Verify partial batch failure reporting: valid item succeeds, invalid item rejected",
+      "command": "POST /api/v1/media/batch-upload with 1 valid video and 1 invalid text file",
+      "pre_state": {
+        "items": [
+          "demo_c_valid.mp4",
+          "demo_c_corrupt.mp4"
+        ]
+      },
+      "post_state": {
+        "total": 2,
+        "succeeded": 1,
+        "failed": 1,
+        "valid_item_persisted": true,
+        "invalid_item_reported": true
+      },
+      "status": "PASSED",
+      "details": {
+        "valid_id": "med_0eee30af42b2",
+        "invalid_error": "Unable to read media file 'd99a625c_demo_c_corrupt.mp4': Exit code 1",
+        "invalid_error_code": "CORRUPT_MEDIA"
+      },
+      "timestamp_utc": "2026-11-16T06:54:14.749399+00:00"
+    },
+    "DEMO_D_FILENAME_SAFETY_AND_TRAVERSAL": {
+      "demo_id": "DEMO_D_FILENAME_SAFETY_AND_TRAVERSAL",
+      "purpose": "Verify spaces, Unicode, and brackets preserved, and path traversal rejected",
+      "command": "POST /api/v1/media/upload with unicode filename and traversal sequence",
+      "pre_state": {
+        "unicode_name": "Hindi-English [BollyFlix] 01.mp4",
+        "traversal_attempt": "../../traversal_probe.mp4"
+      },
+      "post_state": {
+        "unicode_upload_status": 201,
+        "unicode_stored_filename": "Hindi-English [BollyFlix] 01.mp4",
+        "traversal_status": 400,
+        "traversal_rejected": true
+      },
+      "status": "PASSED",
+      "details": {
+        "unicode_asset_id": "med_a833f1a2f93b",
+        "unicode_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\d55cdf09_Hindi-English [BollyFlix] 01.mp4",
+        "traversal_error_response": {
+          "error": {
+            "code": "PATH_TRAVERSAL_DETECTED",
+            "message": "Path traversal sequence detected in filename: '../../traversal_probe.mp4'",
+            "details": null,
+            "request_id": "req_d28f4d4ac019"
+          }
+        }
+      },
+      "timestamp_utc": "2026-11-16T06:54:15.165908+00:00"
+    },
+    "DEMO_E_REPEATED_UPLOAD_COLLISION": {
+      "demo_id": "DEMO_E_REPEATED_UPLOAD_COLLISION",
+      "purpose": "Verify repeated upload of identical filename creates distinct records and files without overwriting",
+      "command": "POST /api/v1/media/upload with collision_test.mp4 twice",
+      "pre_state": {
+        "filename": "collision_test.mp4",
+        "size": 8459
+      },
+      "post_state": {
+        "first_upload_id": "med_6b544b40095f",
+        "first_storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\8f911929_collision_test.mp4",
+        "second_upload_id": "med_260e29a5b692",
+        "second_storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\bc263db4_collision_test.mp4",
+        "ids_distinct": true,
+        "paths_distinct": true,
+        "both_files_exist": true
+      },
+      "status": "PASSED",
+      "details": {
+        "upload1_response": {
+          "id": "med_6b544b40095f",
+          "project_id": "proj_1b65d5e901fe",
+          "original_filename": "collision_test.mp4",
+          "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\8f911929_collision_test.mp4",
+          "is_external": false,
+          "media_type": "video",
+          "file_size_bytes": 8459,
+          "mime_type": null,
+          "duration_seconds": 1.0,
+          "width": 320,
+          "height": 240,
+          "fps": 25.0,
+          "video_codec": "h264",
+          "audio_codec": null,
+          "availability_status": "present",
+          "proxy_reference_path": null,
+          "thumbnail_reference_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\thumbnails\\med_6b544b40095f.jpg",
+          "proxy_status": "none",
+          "metadata_status": "extracted",
+          "metadata": {
+            "streams": [
+              {
+                "index": 0,
+                "codec_name": "h264",
+                "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                "profile": "High",
+                "codec_type": "video",
+                "codec_tag_string": "avc1",
+                "codec_tag": "0x31637661",
+                "mime_codec_string": "avc1.64000d",
+                "width": 320,
+                "height": 240,
+                "coded_width": 320,
+                "coded_height": 240,
+                "has_b_frames": 2,
+                "sample_aspect_ratio": "1:1",
+                "display_aspect_ratio": "4:3",
+                "pix_fmt": "yuv420p",
+                "level": 13,
+                "chroma_location": "left",
+                "field_order": "progressive",
+                "is_avc": "true",
+                "nal_length_size": "4",
+                "id": "0x1",
+                "r_frame_rate": "25/1",
+                "avg_frame_rate": "25/1",
+                "time_base": "1/12800",
+                "start_pts": 0,
+                "start_time": "0.000000",
+                "duration_ts": 12800,
+                "duration": "1.000000",
+                "bit_rate": "58472",
+                "bits_per_raw_sample": "8",
+                "nb_frames": "25",
+                "extradata_size": 46,
+                "disposition": {
+                  "default": 1,
+                  "dub": 0,
+                  "original": 0,
+                  "comment": 0,
+                  "lyrics": 0,
+                  "karaoke": 0,
+                  "forced": 0,
+                  "hearing_impaired": 0,
+                  "visual_impaired": 0,
+                  "clean_effects": 0,
+                  "attached_pic": 0,
+                  "timed_thumbnails": 0,
+                  "non_diegetic": 0,
+                  "captions": 0,
+                  "descriptions": 0,
+                  "metadata": 0,
+                  "dependent": 0,
+                  "still_image": 0,
+                  "multilayer": 0
+                },
+                "tags": {
+                  "language": "und",
+                  "handler_name": "VideoHandler",
+                  "encoder": "Lavc63.1.102 libx264"
+                }
+              }
+            ],
+            "format": {
+              "filename": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\8f911929_collision_test.mp4",
+              "nb_streams": 1,
+              "nb_programs": 0,
+              "nb_stream_groups": 0,
+              "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+              "format_long_name": "QuickTime / MOV",
+              "start_time": "0.000000",
+              "duration": "1.000000",
+              "size": "8459",
+              "bit_rate": "67672",
+              "probe_score": 100,
+              "tags": {
+                "major_brand": "isom",
+                "minor_version": "512",
+                "compatible_brands": "isomiso2avc1mp41",
+                "encoder": "Lavf63.1.102"
+              }
+            }
+          },
+          "created_at": "2026-11-16T06:54:15.405596+00:00",
+          "updated_at": "2026-11-16T06:54:15.511281+00:00"
+        },
+        "upload2_response": {
+          "id": "med_260e29a5b692",
+          "project_id": "proj_1b65d5e901fe",
+          "original_filename": "collision_test.mp4",
+          "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\bc263db4_collision_test.mp4",
+          "is_external": false,
+          "media_type": "video",
+          "file_size_bytes": 8459,
+          "mime_type": null,
+          "duration_seconds": 1.0,
+          "width": 320,
+          "height": 240,
+          "fps": 25.0,
+          "video_codec": "h264",
+          "audio_codec": null,
+          "availability_status": "present",
+          "proxy_reference_path": null,
+          "thumbnail_reference_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\thumbnails\\med_260e29a5b692.jpg",
+          "proxy_status": "none",
+          "metadata_status": "extracted",
+          "metadata": {
+            "streams": [
+              {
+                "index": 0,
+                "codec_name": "h264",
+                "codec_long_name": "H.264 / AVC / MPEG-4 AVC / MPEG-4 part 10",
+                "profile": "High",
+                "codec_type": "video",
+                "codec_tag_string": "avc1",
+                "codec_tag": "0x31637661",
+                "mime_codec_string": "avc1.64000d",
+                "width": 320,
+                "height": 240,
+                "coded_width": 320,
+                "coded_height": 240,
+                "has_b_frames": 2,
+                "sample_aspect_ratio": "1:1",
+                "display_aspect_ratio": "4:3",
+                "pix_fmt": "yuv420p",
+                "level": 13,
+                "chroma_location": "left",
+                "field_order": "progressive",
+                "is_avc": "true",
+                "nal_length_size": "4",
+                "id": "0x1",
+                "r_frame_rate": "25/1",
+                "avg_frame_rate": "25/1",
+                "time_base": "1/12800",
+                "start_pts": 0,
+                "start_time": "0.000000",
+                "duration_ts": 12800,
+                "duration": "1.000000",
+                "bit_rate": "58472",
+                "bits_per_raw_sample": "8",
+                "nb_frames": "25",
+                "extradata_size": 46,
+                "disposition": {
+                  "default": 1,
+                  "dub": 0,
+                  "original": 0,
+                  "comment": 0,
+                  "lyrics": 0,
+                  "karaoke": 0,
+                  "forced": 0,
+                  "hearing_impaired": 0,
+                  "visual_impaired": 0,
+                  "clean_effects": 0,
+                  "attached_pic": 0,
+                  "timed_thumbnails": 0,
+                  "non_diegetic": 0,
+                  "captions": 0,
+                  "descriptions": 0,
+                  "metadata": 0,
+                  "dependent": 0,
+                  "still_image": 0,
+                  "multilayer": 0
+                },
+                "tags": {
+                  "language": "und",
+                  "handler_name": "VideoHandler",
+                  "encoder": "Lavc63.1.102 libx264"
+                }
+              }
+            ],
+            "format": {
+              "filename": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_1_demo_beeyeq6z\\media\\proj_1b65d5e901fe\\bc263db4_collision_test.mp4",
+              "nb_streams": 1,
+              "nb_programs": 0,
+              "nb_stream_groups": 0,
+              "format_name": "mov,mp4,m4a,3gp,3g2,mj2",
+              "format_long_name": "QuickTime / MOV",
+              "start_time": "0.000000",
+              "duration": "1.000000",
+              "size": "8459",
+              "bit_rate": "67672",
+              "probe_score": 100,
+              "tags": {
+                "major_brand": "isom",
+                "minor_version": "512",
+                "compatible_brands": "isomiso2avc1mp41",
+                "encoder": "Lavf63.1.102"
+              }
+            }
+          },
+          "created_at": "2026-11-16T06:54:15.699407+00:00",
+          "updated_at": "2026-11-16T06:54:15.809868+00:00"
+        }
+      },
+      "timestamp_utc": "2026-11-16T06:54:15.859037+00:00"
+    }
+  }
+}

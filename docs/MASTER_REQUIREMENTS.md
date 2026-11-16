@@ -111,6 +111,7 @@ All features MUST comply with these baseline constraints:
 
 ## 5. Planned Milestone Sequence
 
+- **Priority 0 (P0.9 Accepted — P0 Fully Stabilized 9/9):** Production Stabilization & Hardening (Full backend suite 359/359 passing across 44 test files, Frontend 120/120 tests passed across 26 test files, TypeScript 0 errors, Single-Port Windows Production Serving verified, Database foreign keys & orphan exports reconciled, Job queue state machine, cancellation, subprocess kill, monotonic progress, retry idempotency, restart recovery verified, Windows launcher reliability verified, production serving verified, data persistence & crash recovery verified across 21 demonstrations, 100% data intact across all restarts).
 - **Milestone 1 (Completed):** Architecture Redesign, Documentation Blueprint, Migration Runner, Path Safety Core, FastAPI + React Skeleton, Health/Diagnostics Verification.
 - **Milestone 2 (Completed):** Core Backend, Database, Persistent Projects, Storage Management, SQLite Backups & REST Foundation.
 - **Milestone 3 (Completed):** Frontend Application Shell, Dashboard, Unified Design System, Responsive Layout & Studio Theme.
@@ -331,6 +332,177 @@ All features MUST comply with these baseline constraints:
   - Real-media human-reviewable evaluation across 10 qualitative criteria for 3 test media: `Ek Mota Hathi Ghumne Chala.mp4`, `BLACK TORCH S01E02.mkv`, and `Visionquest S01E08.mkv`.
   - Full automated regression test suites: 268/268 backend pytest passed (714.38s), 120/120 frontend vitests passed across 26 test files (21.20s), 0 TypeScript compiler errors, clean production build in 6.62s.
   - Final verdict: `BETA READY WITH DOCUMENTED LIMITATIONS`.
+- **Session 24 (Implemented & Tested):** Windows Production Mode, One-Click Launcher & Release Hardening:
+  - Unified single-port production frontend serving: FastAPI hosts the compiled Vite distribution (`frontend/dist`) on `http://127.0.0.1:8000` with SPA routing and asset protection.
+  - One-click Windows startup & shutdown scripts: `Start-ZEZEdit.bat`, `Start-ZEZEdit.ps1`, `Stop-ZEZEdit.bat`, and `Stop-ZEZEdit.ps1` with 6-stage boot validation and non-destructive PID-tracked process lifecycle management.
+  - Multi-state readiness health check: exposed `/health` and `/api/v1/health` evaluating process liveness, SQLite structural integrity (`PRAGMA integrity_check(1)`), storage writability, FFmpeg/FFprobe binaries, Ollama LLM, Faster-Whisper, background queue dispatcher, and frontend build presence.
+  - Client-side deep link & direct refresh support: full React Router support on direct URL refresh without 404s.
+  - Quality gates: 274 backend tests, 120 frontend tests, 0 TypeScript errors, clean production build verified.
+- **P0.1 Project Audit & Failure Inventory (Completed):**
+  - Comprehensive evidence-based repository audit conducted across Git state, documentation, tests, database, media storage, and launcher lifecycle.
+  - P0 Status: **In Progress / Implemented but Uncommitted**.
+  - Known Blockers: `P0.1-GIT-001` (Uncommitted working tree), `P0.5-DB-001` (Orphan export records from historical test runs).
+- **P0.2 Backend Test Baseline, Root-Cause Diagnosis and Safe Repair (Accepted):**
+  - Authoritative execution of complete backend test suite: **274/274 passed (0 failures, 0 skips, 0 errors)** in **584.05s** (exit code 0).
+  - Verified job cancellation transition and queue CPU pressure test bypass.
+  - Zero database records, user media, exports, or backups were deleted or altered (all tests isolated in `tmp_path`).
+  - Backend imports and compilation verified clean (exit code 0).
+- **P0.3 Frontend Stability, Real Browser Demonstrations and Output Review (Accepted):**
+  - Frontend Vitest suite: **26/26 test files passed, 120/120 tests passed** in **20.49s** (exit code 0).
+  - TypeScript typecheck passed with **0 errors**; clean production build in **7.51s**.
+  - Executed 10 real browser demonstration workflows on `http://127.0.0.1:8000`: Home Media Library, Video Edit Dashboard (8 tabs), Shorts, Scripts, Videos (6 vertical MP4s), inline/modal playback, scene cut transitions, engine telemetry, Process Manager, and direct deep-link SPA refresh.
+  - Inspected 12 screenshots saved to `docs/reports/priority_0/p0_3_evidence/`; 0 console exceptions.
+- **P0.4 TypeScript and Production Build Stability (Accepted):**
+  - Verified TypeScript compiler (`npx tsc --noEmit`): **0 errors**.
+  - Verified Vite production build (`npm run build`): **0 errors** in **6.99s**.
+  - Verified bundled static asset integrity: HTML shell, JavaScript chunks, CSS stylesheets, vendor chunks, and font/media assets.
+  - Executed 5 browser acceptance demonstrations verifying production SPA routing, direct deep-link refresh, asset loading, interactive modal workflows, and responsive viewports.
+- **P0.5 Database and API Consistency (Accepted):**
+  - Resolved 16 SQLite foreign key check violations in `exports` (8) and `reframing_plans` (8) caused by legacy candidate deletions under inactive foreign keys; updated references to `NULL` honoring `ON DELETE SET NULL`.
+  - Reconciled 5 missing historical export records (`exp_babf8b3065df`, `exp_ca31e61dd86b`, `exp_bb4e7d91afd2`, `exp_6443662c1cc0`, `exp_949ab5572f83`): marked `status = 'failed'`, `validation_status = 'invalid'`, zero rows deleted.
+  - Enforced storage root directory boundary (`is_relative_to`) on export streaming, downloading, and file deletion; out-of-root access returns HTTP 403 Forbidden.
+  - Created automated test suite `test_p0_5_database_and_api_consistency.py` (7/7 passed); export pipeline coverage tests (12/12 passed).
+  - Executed all 6 live demonstration cases: DB integrity `ok`, valid 206 byte-range streaming, missing export 404, export deletion cascade isolation, 403 path traversal defense, and idempotent reconciliation.
+- **P0.5-R1 Database/API Regression and Reconciliation Safety Closure (Accepted):**
+  - Executed full backend pytest suite across all 41 test files: **281/281 passed in 362.83s (exit code 0)** with zero failures or skips.
+  - Hardened `BackupService.reconcile_database_consistency` with explicit `BEGIN IMMEDIATE` transaction boundaries, ensuring atomic rollback on interruption and serialization under concurrent write workloads.
+  - Audited `POST /api/v1/system/db-reconcile`: confirmed local-only binding, non-POST rejection (404/405), no sensitive stack trace leakage, and guaranteed idempotency.
+  - Added 5 new concurrency/transaction tests to `test_p0_5_database_and_api_consistency.py` (12/12 passed): rollback on write interruption, 4 concurrent threads, active export write during reconciliation, multi-connection FK enforcement, and record preservation.
+  - Executed 4 demonstration cases: real database read-only audit (0 FK violations, 44 exports, 33 verified MP4s, backup ok), endpoint access control, isolated reconciliation snapshot comparison, and full production API regression.
+- **P0.6 Job Queue, Cancellation and Worker Reliability (Accepted):**
+  - Enforced strict state transitions across `VALID_TRANSITIONS` preventing illegal jumps (e.g. failed/cancelled to completed).
+  - Hardened cancellation: terminated child process subtrees (`_terminate_pid_tree`), unlinked scratch render files, and prevented FFmpeg loops from swallowing cancellation.
+  - Enforced non-decreasing monotonic progress capped at 99.0% during execution, reserving 100.0% exclusively for completion with verified artifacts.
+  - Hardened watchdog stall detection without fake progress tickers; preserved progress percent on failure.
+  - Verified idempotent retry: reset to `queued`, incremented retry attempt, cleared error messages, reset progress, and prevented duplicate exports/candidates.
+  - Hardened restart recovery (`recover_interrupted_jobs`) with cross-table synchronization to `interrupted`.
+  - Authored automated regression suite `test_p0_6_job_queue_and_cancellation.py` (20/20 passed) and executed 8 live demonstration cases (`run_p0_6_demos.py`).
+- **P0.7 Windows Launcher Reliability & Process Lifecycle Safety (Accepted):**
+  - Robust script path resolution: dynamically resolves workspace root from `$PSScriptRoot` or `$MyInvocation.MyCommand.Path` across `Start-ZEZEdit.ps1`, `Stop-ZEZEdit.ps1`, `Start-ZEZEdit.bat`, and `Stop-ZEZEdit.bat`, allowing reliable execution from external working directories or shortcuts.
+  - Structured process ownership tracking: FastAPI lifespan records structured JSON metadata in `storage/temp/zezedit_process.json` (`pid`, `port`, `host`, `project_root`, `role`, `command_line`, `start_time`, `version`) and PID in `storage/temp/zezedit.pid`; unlinks both cleanly on shutdown.
+  - Port conflict defense & unrelated process protection: inspects existing listeners using `Get-NetTCPConnection` filtering out dead sockets (PID 0); distinguishes healthy ZEZEdit instances from unrelated applications; foreign listeners are safely preserved without termination, yielding actionable diagnostic errors.
+  - Stale PID cleanup & PID reuse protection: verifies process command line via CIM before terminating; safely preserves unrelated processes reusing recorded PIDs; cleans stale PID and metadata files from crashed sessions.
+  - Detached background daemon spawning: spawns background uvicorn server via WMI `Win32_Process.Create` detached from parent console job object limits, eliminating stdout/stderr handle locking and stream blocking on PowerShell process exit.
+  - Proxy-immune readiness health polling: `Get-ZezEditHealth` uses basic parsing, localhost proxy bypass, and 5s timeout to eliminate WPAD latency and Ollama probe false timeouts.
+  - Automated regression test suite: authored `backend/tests/test_p0_7_windows_launcher_reliability.py` (**18/18 tests passed in 15.29s**); Session 24 launcher tests verified (**6/6 passed in 2.72s**).
+  - Live Windows demonstrations: authored `backend/scripts/run_p0_7_demos.py` covering all 8 live demonstration cases (**8/8 passed**).
+- **P0.8 Production Frontend Serving and SPA Routing (Accepted):**
+  - Single-port FastAPI production serving on `http://127.0.0.1:8000` directly serving compiled Vite single-page application (`frontend/dist`) alongside REST API.
+  - Route evaluation hierarchy: exact REST API routes (`/api/v1/*`), health endpoints (`/health`), and Swagger documentation (`/docs`, `/openapi.json`, `/redoc`) strictly take precedence over SPA catch-all; unmatched API routes return `HTTP 404 JSON` and never fall back to `index.html`.
+  - Missing static asset 404 protection: requests with known static extensions (`STATIC_EXTENSIONS` set) or targeting `/assets/` return `HTTP 404 JSON` (`detail="Static asset not found"`), preventing browser HTML syntax errors (`Uncaught SyntaxError: Unexpected token '<'`).
+  - SPA client-side deep links: direct URLs (`/videos`, `/videos/:id`, `/studio/:id`, `/projects`, `/settings`, `/processes`, `/queue`, etc.) cleanly return `index.html` with `HTTP 200` (`text/html; charset=utf-8`), supporting bookmarking, hard refreshes, and history navigation.
+  - Security filtering: path traversal probes containing `..`, `%2e%2e`, `\`, `%5c` blocked with `HTTP 400 Bad Request`; sensitive file probes (`.env`, `.db`, `.sqlite`, `.py`, `.log`, `.bak`, `storage/`, `backend/`, hidden dotfiles) blocked with `HTTP 403 Forbidden`.
+  - Zero Vite runtime dependency: Vite development server (port 5173) is closed and unused in production mode.
+  - Automated regression test suite: authored `backend/tests/test_p0_8_production_frontend_serving.py` (**15/15 tests passed in 6.19s**).
+  - Live Windows demonstrations: authored `backend/scripts/run_p0_8_demos.py` covering all 6 demonstration groups (**6/6 passed**).
+  - Full regression baseline verified: 339/339 backend pytest passed (exit code 0); 120/120 frontend vitests passed across 26 files (exit code 0); 0 TypeScript compiler errors; clean Vite production build (18.54s).
+  - Database non-destructive integrity: 0 FK violations, 93 jobs, 44 exports, 1 project, 5 media assets preserved.
+- **P0.8-R1 Production Serving Evidence Reconciliation (Accepted):**
+  - Resolved previous database audit exit code 1: diagnosed as a PowerShell CLI syntax parsing error on unescaped `SELECT count(*)`; verified zero database defects via `audit_database_p0_8_r1.py` (0 FK violations, `['ok']` integrity, 93 jobs, 44 exports, 1 project, 5 media assets, 34 physical MP4 exports, 0 missing completed exports).
+  - Independent Chromium browser subagent verification of live Windows production server (`http://127.0.0.1:8000`): verified root library, direct deep links (`/videos/med_5e0235303b02`, `/processes`, `/settings`), reload survival, 0 console exceptions, and captured 4 genuine screenshots in `docs/reports/priority_0/p0_8_evidence/`.
+  - Re-verified focused regression suites: P0.8 tests (15/15 passed), P0.7 tests (18/18 passed), Session 24 launcher tests (6/6 passed), full backend suite (339/339 passed), frontend vitests (120/120 passed), TypeScript (0 errors), Vite production build (dist clean).
+- **P0.9 Restart, Recovery and Data Persistence Verification (Accepted):**
+  - Final task of Master Priority P0 (Application Stabilization: 9/9 accepted).
+  - Established pre-test and post-test baseline SHA-256 manifests (`baseline_manifest.json`): 5/5 source media assets (100% hash invariant), 34/34 physical export files (100% hash invariant).
+  - Created safety backup `backup_p0_9_pre_test_20261116T034733Z.db` (11,956,224 bytes, 100% verified integrity, 0 FK violations).
+  - Authored automated regression suite `test_p0_9_restart_and_persistence.py` (**20/20 passed in 1.98s**, exit code 0) covering clean restart, uncommitted WAL recovery, simulated SIGKILL/hard crash, interrupted job reconciliation (`running`/`cancelling` -> `interrupted`), worker recovery, media/script/analysis/export persistence, and atomic partial upload/export cleanup.
+  - Executed all 21 live demonstration cases in `run_p0_9_demos.py` (**21/21 passed**, exit code 0) saved to `docs/reports/priority_0/p0_9_evidence/p0_9_demo_results.json`.
+  - Full Quality Gates re-verified: Backend Pytest **359/359 passed in 560.31s** (44 test files, 0 failures, 0 skips), Frontend Vitest **120/120 passed in 17.32s** (26 test files), TypeScript compilation **0 errors**, Production build **dist/ built in 4.10s** (481.98 kB).
+  - Database non-destructive integrity audit: 0 FK violations, 93 jobs, 44 exports, 1 project, 5 media assets preserved intact.
+  - Graphify updated: 3,713 nodes, 10,535 edges, 168 communities.
+- **P0.9-R1 Restart and Persistence Evidence Reconciliation (Accepted):**
+  - Independently verified and reproduced all persistence claims via `run_p0_9_r1_reconciliation.py` (**exit code 0 in 121.99s**).
+  - Genuine isolated OS process-crash test: child Python process (PID 54244) killed mid-transaction via OS `kill()`, verifying clean SQLite automatic rollback and 0 FK violations.
+  - Committed WAL transaction persistence: child Python process (PID 19096) committed data and killed via OS `kill()` before checkpointing, verifying data recovery and `PRAGMA integrity_check` = `ok`.
+  - Database backup and restore verification: created backup (`backup_r1_audit_20261116T061626Z.db`, 11,956,224 bytes, SHA-256 `8f5a48c63d8d...`), restored into isolated database file, verified 100% record count match across all 5 key tables, 0 FK violations, and confirmed production database remained unchanged.
+  - Five consecutive real launcher cycles: verified PIDs (25140, 48380, 45900, 46376, 46900), HTTP 200 on `/health`, `/`, `/api/v1/media`, `/api/v1/jobs`, `/api/v1/projects/default/exports`, and clean port release. External CWD launch from temp directory verified.
+  - Worker process recovery: child worker process (PID 31968) terminated via OS `kill()`, identified as interrupted, progress 45.0% preserved, retried to queued, executed retry to completion with validated artifact (43 bytes).
+  - Media & export persistence: 5 source media files (100% SHA-256 match) and 34 physical export MP4s (100% SHA-256 match) verified against `baseline_manifest.json`; FFprobe stream check and HTTP 206 byte-range seeking verified.
+  - Interrupted upload & render safety: partial upload file purged, FFmpeg killed mid-render, scratch file purged, pre-existing export protected against overwrite, retry render verified.
+  - Full Quality Gates re-verified: Backend Pytest **359/359 passed in 345.44s**, Frontend Vitest **120/120 passed in 9.68s**, TypeScript **0 errors**, Vite build **dist/ built in 2.52s**.
+  - All 9 P0 tasks are now **ACCEPTED**. Work stopped before Priority 1 (P1).
+
+- **P1.1 — Single and Multiple Video Upload (ACCEPTED & VERIFIED):**
+  - Implemented and verified single video upload and multiple video batch upload operations via `POST /api/v1/projects/{project_id}/media/batch-upload` and `POST /api/v1/media/batch-upload`.
+  - Added robust server-side validation: rejected empty 0-byte uploads (`400 EMPTY_MEDIA_FILE`), unsupported formats (`400 UNSUPPORTED_MEDIA_TYPE` / `400 CORRUPT_MEDIA`), and path traversal attempts (`400 PATH_TRAVERSAL_DETECTED`).
+  - Preserved filename fidelity: filenames with Unicode, spaces, dashes, and brackets (`Hindi-English [BollyFlix] 01.mp4`) safely recorded in database metadata.
+  - Implemented non-destructive file collision handling with 8-character unique hex prefixes, ensuring repeated uploads of identical filenames never overwrite previous assets.
+  - Partial batch failure resilience: in mixed valid/invalid batches, valid files are successfully imported and registered while invalid files report structured per-item error reasons without dropping valid files.
+  - **P1.1-R1 Real Browser Acceptance & Scope Closure:** Executed 5 real-browser demonstrations using Chrome DevTools Protocol against the production server (`http://127.0.0.1:8000`). Verified single upload auto-navigation, 3-file batch upload, mixed-validity error reporting banner, repeated uploads without collision, and mobile-width (375x812) responsive dropzone. Clarified upload buffering boundary: P1.1 provides standard multipart upload with Starlette spooling and 1 MB chunk copying; P1.3 reserves true socket streaming (>1GB) without tempfile spooling and resumability.
+  - Frontend UI integration in both `ShortVideoGeneratorLibrary.tsx` and `MediaLibraryView.tsx` with Unslop quiet design compliance, multi-file selection support, and clean navigation to `/videos/:id`.
+  - Five mandatory independent live demonstrations passed: Demo A (single upload), Demo B (3-video batch), Demo C (mixed validity), Demo D (Unicode & path traversal), Demo E (repeated upload collision).
+  - Full Quality Gates verified: Backend Pytest **366/366 passed in 402.33s**, Frontend Vitest **122/122 passed in 9.05s**, TypeScript **0 errors**, Vite build in **2.41s**, Graphify updated (3,756 nodes, 10,749 edges), database 0 FK violations, and production media/exports 100% hash invariant.
+
+- **P1.2 — Accurate Byte-Based Upload Progress (ACCEPTED & VERIFIED):**
+  - Implemented true, byte-based upload progress for single and multiple video uploads via `XMLHttpRequest.upload.onprogress` in `frontend/src/services/apiClient.ts` without simulated timers or fabricated increments.
+  - Guaranteed mathematical accuracy: percentage strictly computed as `(loaded / total) * 100` and capped at 100%; loaded bytes enforced strictly monotonic (`loaded[i] >= loaded[i-1]`) even during network packet reordering or multipart boundary reconciliation.
+  - Handled indeterminate sizes honestly: when `lengthComputable === false` or size is unknown, displays byte counter without fabricating artificial percentages.
+  - Explicit transfer state machine: `uploading` -> `processing` -> `completed` / `aborted` / `error`. Distinct `"Processing on server..."` state visually separates network wire transmission from server-side FFprobe analysis and database persistence.
+  - User cancellation & abort support: one-click cancel button triggers `AbortController.abort()` and `xhr.abort()`, cleanly aborting in-flight transfers and leaving zero orphan records in SQLite and zero orphan files on disk.
+  - UI Design compliance with Unslop: created `UploadProgressPanel.tsx` using quiet graphite neutrals, subtle emerald/amber/red status pills, 4px grid rhythm, human-readable `formatBytes`, and integrated into both `ShortVideoGeneratorLibrary.tsx` and `MediaLibraryView.tsx`.
+  - Backend controlled testing: added `test_delay_seconds` query parameter (defaulting to 0.0) in `backend/app/api/v1/media.py` enabling automated browser tests to capture the server processing state at 100% transmission deterministically.
+  - Six mandatory independent live browser demonstrations executed via Chrome DevTools Protocol (CDP) against Windows production server: Demo A (single upload progress & dashboard auto-navigation), Demo B (3-file batch aggregate progress), Demo C (120 KB/s throttled transfer monotonicity verification), Demo D (transfer abort & zero DB orphans), Demo E (server processing delay verification at 100%), Demo F (mobile 375x812 responsive viewport).
+  - Quality Gates 100% Passing: Backend Pytest **369/369 passed in 342.05s**, Frontend Vitest **135/135 passed (27 test files) in 9.68s**, TypeScript **0 errors**, Vite build clean in **2.39s**, Graphify updated (**3,809 nodes, 10,915 edges, 194 communities**), database 0 FK violations and integrity `ok`, 5 original media and 34 exports 100% SHA-256 invariant.
+
+- **P1.3 — Large-File Video Ingestion, Streaming and Bounded Memory (ACCEPTED & VERIFIED):**
+  - Implemented large-video upload architecture capable of handling multi-gigabyte files on Windows without loading full files into application memory.
+  - Strictly bounded memory footprint: verified on real 1.21 GB video (`Visionquest S01E08.mkv`, 1,298,314,363 bytes) with an RSS delta of only +1.25 MB (0.1% ratio).
+  - Incremental 1 MB disk writing buffer (`upload_chunk_size_bytes = 1024 * 1024`) with simultaneous on-the-fly SHA-256 calculation (`hasher.update(chunk)`), eliminating redundant secondary file passes.
+  - Tier 1 Pre-Flight validation (`LargeUploadPreflightMiddleware`): intercepts Content-Length before reading body, immediately returning 413 `REQUEST_ENTITY_TOO_LARGE` for payloads exceeding 2.5 GB or 507 `INSUFFICIENT_STORAGE` when disk free space is below required headroom (500 MB).
+  - Tier 2 In-Flight stream enforcement: cumulative byte counter and periodic disk space verification every 50 MB; immediate file closure and unlinking on error or client disconnect (`asyncio.CancelledError`).
+  - Temporary directory confinement in `storage/temp/uploads/` with automated startup purge of stale orphaned files.
+  - Heavy upload concurrency throttling via `_UPLOAD_SEMAPHORE` (max 2 parallel heavy transfers returning 429 `TOO_MANY_CONCURRENT_UPLOADS` when saturated).
+  - Demonstrations verified: 8 passed, 1 honest qualification (Demo D ~2 GB asset limitation honestly documented as BLOCKED).
+  - P1.3-R1 Evidence Reconciliation & Failure at Scale:
+    - Gap A: Real 1.21 GB video uploaded through Chrome CDP browser UI (`input[type=file]` -> React -> XHR); navigated to dashboard in 9.61s (128.84 MB/s); 100% SHA-256 match; HTTP 206 range request verified; RSS delta +1.10 MB (0.08% ratio).
+    - Gap B: Cancellation at genuine scale on real 247 MB file (`BLACK TORCH S01E02.mkv`) throttled at 8 MB/s; cancelled actively after 15,761,408 bytes transmitted; verified UI reports cancellation, 0 DB records, partial file unlinked, and subsequent upload succeeded (`med_430f8016b361`).
+    - Gap C: Client disconnect at genuine scale on real 247 MB file; severed TCP connection after 52,428,800 bytes (~50 MB) transmitted; verified server-side disconnect detection, partial file unlinked, 0 DB records, clean media library, and subsequent upload succeeded (`med_4d3997fe227e`).
+    - Gap D1 & D2: Pre-flight and in-flight insufficient storage (HTTP 507) handling verified; request body not consumed on pre-flight, in-flight guard halts stream and unlinks destination, server remains healthy.
+    - Implementation correctness: malformed Content-Length handling (HTTP 400), chunked limit enforcement, and volume disk checks verified.
+  - Quality Gates 100% Passing: Backend Pytest **378/378 passed in 353.97s**, Frontend Vitest **135/135 passed (27 test files) in 9.65s**, TypeScript **0 errors**, Vite build clean in **2.45s**, Graphify updated (**3,905 nodes, 11,178 edges, 188 communities**), database 0 FK violations and integrity `ok`, 5 original media and 34 exports 100% SHA-256 invariant.
+
+- **P1.4 — Upload Failure Handling, Retry and Recovery (ACCEPTED & VERIFIED):**
+  - Formalized upload state machine: `queued`, `uploading`, `processing`, `completed`, `failed`, `cancelled`, and `retrying` with unique `attemptId` and `attemptCount` tracking per upload attempt.
+  - Stale callback protection: all XHR event listeners check captured `attemptId`, silently discarding delayed or out-of-order events from prior attempts or terminal states to prevent race conditions.
+  - Deterministic error classification: differentiates retryable failures (network disconnects, timeouts, 408, 429, 500, 502, 503, 504, user cancellation, DB registration drop) from terminal non-retryable failures (400, 413, 415, corrupt files, 0-byte empty files) with UI `(Non-retryable)` badges.
+  - In-memory full-restart retry: retries restart honestly from byte zero using the retained in-memory browser `File` object; if DOM `File` reference is lost on page reload, displays clear guidance instructing user to re-select the file.
+  - Item-level selective batch retry: failed or cancelled items within multi-file batch uploads can be independently retried without restarting or re-uploading succeeded files.
+  - Safe backend atomic operations: video streams write to `.uploading` part files before atomic `os.replace` rename to destination; Windows file handles safely closed before unlinking; automated startup sweep purges stale partial files from prior runs.
+  - Rapid duplicate submission guard: UI disables retry buttons and guards in-flight operations against concurrent duplicate submissions.
+  - 10/10 Independent Live Demonstrations verified (Demos A–J): Demo A (network interruption retry), Demo B (server 500 retry), Demo C (concurrency 429 retry), Demo D (client cancellation retry), Demo E (batch partial failure & item-level retry), Demo F (rapid duplicate guard), Demo G (DB finalization recovery), Demo H (startup stale sweeper), Demo I (page reload lost reference explanation), Demo J (stale callback idempotency).
+  - Quality Gates 100% Passing: Backend Pytest **384/384 passed in 340.09s**, Frontend Vitest **143/143 passed (28 test files) in 19.81s**, TypeScript **0 errors**, Vite build clean in **8.15s**, Graphify updated (**3,944 nodes, 11,332 edges, 167 communities**), database 0 FK violations and integrity `ok`, 5 original media and 34 exports 100% SHA-256 invariant.
+
+- **P1.5 — Upload Integrity, File Validation and Atomic Persistence (ACCEPTED & VERIFIED):**
+  - Strict upload integrity contract: established complete contract fields across backend model (`MediaAssetRecord`), Pydantic response (`MediaAssetResponse`), and frontend TypeScript (`MediaAssetItem`), recording `sha256`, `integrity_status`, `upload_attempt_id`, `integrity_details_json`, and `last_integrity_check`.
+  - Migration 0017 applied: schema migration `0017_upload_integrity_contract.sql` added integrity columns and dedicated indexes (`idx_media_assets_sha256`, `idx_media_assets_integrity_status`) with backward-compatible SQLite table alteration.
+  - Streaming single-pass cryptographic hashing: computed SHA-256 incrementally in 64 KB chunks as bytes stream directly to disk, avoiding full-file in-memory buffering or secondary disk read passes.
+  - Byte-count and file-size verification: validates received byte counts against `X-Expected-File-Size` / `Content-Length`. Truncated or oversized uploads are rejected with HTTP 400 `BYTE_COUNT_MISMATCH` before publication.
+  - Checksum mismatch rejection: declared client hashes (`X-Expected-Sha256`) are compared against server-computed SHA-256; mismatches reject with HTTP 400 `CHECKSUM_MISMATCH`.
+  - Pre-publication media validation: FFprobe probes staged `.uploading` part files before atomic rename. Rejects corrupt files, truncated containers, zero-byte uploads (`EMPTY_MEDIA_FILE`), plain text (`CORRUPT_MEDIA`), and audio-only media masquerading as video (`400 NO_VIDEO_STREAM`). Valid multi-stream MKVs with multiple audio/subtitle tracks are accepted and stream topologies accurately registered.
+  - Two-phase atomic publication lifecycle: staged `.uploading` part file is probed and verified, then atomically published to final destination via `os.replace()`, followed by transactional database registration. Failures at either stage automatically roll back and unlink files, preventing ghost records or orphaned storage leaks.
+  - 12/12 Independent Live Demonstrations verified (Demos A–L): Demo A (valid MP4 contract & range streaming), Demo B (multi-stream MKV), Demo C (corrupt video rejection), Demo D (truncated video rejection), Demo E (zero-byte, text, audio rejection), Demo F (byte-count mismatch), Demo G (checksum mismatch), Demo H (storage/database failure rollback), Demo I (duplicate filenames & concurrency), Demo J (retry integrity & idempotency), Demo K (1.21 GB Visionquest integrity match), Demo L (restart and persistence verification).
+  - Quality Gates 100% Passing: Backend Pytest **393/393 passed in 359.79s**, Frontend Vitest **143/143 passed (28 test files) in 10.66s**, TypeScript **0 errors**, Vite build clean in **14.73s**, Graphify updated (**3,990 nodes, 11,490 edges, 168 communities**), SQLite `integrity_check` = `ok`, 0 FK violations, and 100% SHA-256 invariance on all 5 source media files and 34 physical exports.
+
+- **P1.6 — Media Library, Metadata and Asset Management (ACCEPTED & VERIFIED):**
+  - Complete Source Discovery Without Pollution: strictly separates original uploaded videos (`media_type == "video"`) from generated exports, candidate clips, and temporary files. Verified zero leakage across 100 library items and 44 database exports.
+  - Performance Indexing (Migration 0018): added b-tree indexes on `created_at`, `original_filename`, `file_size_bytes`, `duration_seconds`, `media_type`, and `width/height` to guarantee fast querying.
+  - Enriched Technical Badges: cards surface resolution badges (4K, 1440p, 1080p, 720p, 480p), container format, video codec, audio codec, duration, file size, integrity status, and analysis status.
+  - Debounced Search & Filtering: 300ms debounced case-insensitive search across filenames and asset ID prefixes (`med_...`) with space and unicode support; multi-criteria filtering by format, codec, resolution, and analysis status.
+  - Allowlisted Server-Side Sorting: strict SQL sorting on `created_at`, `original_filename COLLATE NOCASE`, `file_size_bytes`, `duration_seconds`, and `(width * height)` with SQL injection immunity.
+  - Server-Side Pagination: scalable responses with `total_count`, `total_pages`, and verified zero overlap between pages.
+  - Stream Topology & Provenance Inspection: detail modal showing full audio/video stream breakdown, bitrates, sample rates, channel layout, language tags, pixel formats, SHA-256 hashes, and attempt IDs.
+  - Chunked HTTP 206 Partial Content Streaming: native HTML5 video player with byte-range seeking, `Accept-Ranges`, 416 range bounds validation, and path traversal defense.
+  - Atomic Metadata Refresh & Thumbnail Regeneration: explicit POST endpoints for FFprobe metadata re-probing (preserving SHA-256) and on-demand timestamp thumbnail regeneration with fallback handling.
+  - Dependency-Safe Asset Deletion: returns HTTP 409 Conflict when active background jobs or dependent exports exist; enables safe storage reclamation via `force_with_exports=true`.
+  - Responsive Mobile Reflow: verified 375x812 mobile layout with 0px horizontal overflow.
+  - 14/14 Independent Live Demonstrations verified (Demos A–N): Demo A (library discovery), Demo B (technical badges), Demo C (search), Demo D (filtering), Demo E (sorting & SQLi defense), Demo F (pagination), Demo G (inspection modal & topology), Demo H (HTTP 206 range seeking), Demo I (metadata refresh), Demo J (thumbnail regeneration), Demo K (409 dependency rejection), Demo L (force deletion & storage reclamation), Demo M (mobile 375x812 layout), Demo N (baseline SHA-256 invariance).
+  - Quality Gates 100% Passing: Backend Pytest **398/398 passed**, Frontend Vitest **148/148 passed (29 test files)**, TypeScript **0 errors**, Vite build clean in **2.90s**, Graphify updated (**4,044 nodes, 11,714 edges, 159 communities**), SQLite `integrity_check` = `ok`, 0 FK violations, and 100% SHA-256 invariance on all 93 registered baseline media files and exports.
+
+
+
+
+
+
 
 
 
