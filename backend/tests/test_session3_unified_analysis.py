@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.core.config import Settings
+from app.core.errors import MediaFileMissingError
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
 from app.db.migrator import run_migrations
@@ -168,33 +169,33 @@ def test_missing_media_file_graceful_failure(session3_env):
             """
         )
 
-    run_id = pipeline.create_analysis_run("med_missing", "proj_s3")
-    assert run_id.startswith("run_")
+    # In P2.1+, create_analysis_run immediately rejects missing media with MediaFileMissingError (P1.7/P2.1 contract)
+    with pytest.raises(MediaFileMissingError):
+        pipeline.create_analysis_run("med_missing", "proj_s3")
 
-    app = create_app(session3_env["settings"])
-    with TestClient(app) as client:
-        # Check run status is pending initially
-        r_resp = client.get(f"/api/v1/projects/proj_s3/media/med_missing/analysis/{run_id}")
-        assert r_resp.status_code == 200
-        assert r_resp.json()["status"] == "pending"
+    # Also verify execute_analysis on a pre-existing run whose file is missing fails gracefully and marks it failed
+    with sqlite_session(layout.db_file) as conn:
+        conn.execute(
+            """
+            INSERT INTO analysis_runs (
+                id, media_asset_id, project_id, status, profile, progress_pct,
+                created_at, updated_at
+            ) VALUES (
+                'run_missing_exec', 'med_missing', 'proj_s3', 'pending', 'fast', 0.0,
+                datetime('now'), datetime('now')
+            )
+            """
+        )
 
-        # Executing analysis should fail gracefully without crashing
-        with pytest.raises(Exception):
-            import asyncio
-            asyncio.run(pipeline.execute_analysis(run_id))
+    with pytest.raises(MediaFileMissingError):
+        import asyncio
+        asyncio.run(pipeline.execute_analysis("run_missing_exec"))
 
-        # Run must be marked failed in DB with clear error message
-        import time
-        data = {}
-        for _ in range(30):
-            r_failed = client.get(f"/api/v1/projects/proj_s3/media/med_missing/analysis/{run_id}")
-            assert r_failed.status_code == 200
-            data = r_failed.json()
-            if data["status"] == "failed":
-                break
-            time.sleep(0.1)
-        assert data["status"] == "failed"
-        assert "not found" in (data["error_message"] or "").lower()
+    # Run must be marked failed in DB with clear error message
+    with sqlite_session(layout.db_file) as conn:
+        row = conn.execute("SELECT status, error_message FROM analysis_runs WHERE id = 'run_missing_exec'").fetchone()
+        assert row[0] == "failed"
+        assert "not found" in (row[1] or "").lower()
 
 
 def test_job_orchestrator_linkage_and_telemetry(session3_env):

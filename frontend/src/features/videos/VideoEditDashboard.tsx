@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   ChevronLeft,
@@ -11,6 +12,7 @@ import {
   Eye,
   FileText,
   Film,
+  HardDrive,
   Layers,
   Loader2,
   Maximize2,
@@ -57,6 +59,7 @@ import {
   getGlobalThumbnailUrl,
   getSceneThumbnailUrl,
   getStreamMediaUrl,
+  reconcileMissingMedia,
   retryJob,
   startMediaAnalysis,
   submitBatchExport,
@@ -78,6 +81,7 @@ import {
 import { ExportItem } from '../../types/exports';
 import { JobItem, MediaAssetItem } from '../../types/projects';
 import { CandidateClipEditorModal } from '../studio/CandidateClipEditorModal';
+import { MediaRelinkModal } from '../media/MediaRelinkModal';
 
 export type VideoDashboardTab =
   | 'home'
@@ -108,6 +112,11 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   const [asset, setAsset] = useState<MediaAssetItem | null>(null);
   const [loadingAsset, setLoadingAsset] = useState(true);
   const [assetError, setAssetError] = useState<string | null>(null);
+
+  // Relink & Drive Reconnect States
+  const [isRelinkModalOpen, setIsRelinkModalOpen] = useState(false);
+  const [isReconcilingCurrent, setIsReconcilingCurrent] = useState(false);
+  const [relinkNotification, setRelinkNotification] = useState<string | null>(null);
 
   // Analysis & Job State
   const [analysisRuns, setAnalysisRuns] = useState<AnalysisRunItem[]>([]);
@@ -207,6 +216,33 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       setLoadingAsset(false);
     }
   }, [assetId, projectId]);
+
+  const handleReconcileCurrentAsset = async () => {
+    if (!asset) return;
+    setIsReconcilingCurrent(true);
+    setRelinkNotification(null);
+    try {
+      const res = await reconcileMissingMedia(asset.project_id || projectId || 'default');
+      if (res.restored_count > 0) {
+        setRelinkNotification(`Media reconnected! Restored ${res.restored_count} media file(s).`);
+        await loadAssetDetails();
+      } else {
+        setRelinkNotification('Checked storage paths: file is still not found at original location.');
+      }
+      setTimeout(() => setRelinkNotification(null), 5000);
+    } catch (err: any) {
+      setRelinkNotification(`Drive check failed: ${err?.message || 'Error occurred'}`);
+      setTimeout(() => setRelinkNotification(null), 5000);
+    } finally {
+      setIsReconcilingCurrent(false);
+    }
+  };
+
+  const handleRelinkSuccess = async () => {
+    await loadAssetDetails();
+    setRelinkNotification('Source media relinked and restored successfully!');
+    setTimeout(() => setRelinkNotification(null), 4000);
+  };
 
   // Load Intelligence Data (Runs, Scenes, Transcript, Highlights, Rendered Videos)
   const loadIntelligenceData = useCallback(async () => {
@@ -400,6 +436,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
   const handleStartAnalysis = async (forceReanalysis = false) => {
     if (!asset) return;
+    if (asset.availability_status === 'missing') {
+      alert('Cannot start analysis: source video file is missing. Please relink the file first.');
+      return;
+    }
     setAnalysisLoading(true);
     const effPid = asset.project_id || projectId || 'default';
     try {
@@ -416,6 +456,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
   // Generate Shorts from the Unified GenerateShortModal
   const handleGenerateFromModal = async (config: GenerateShortsModalConfig) => {
     if (!asset) return;
+    if (asset.availability_status === 'missing') {
+      alert('Cannot generate shorts: source video file is missing. Please relink the file first.');
+      return;
+    }
     // Dismiss modal immediately so user can navigate dashboard tabs while work runs in background
     setIsGenerateModalOpen(false);
     setGeneratingShorts(true);
@@ -538,6 +582,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
       alert('Cannot re-render: candidate clip record is missing.');
       return;
     }
+    if (asset.availability_status === 'missing') {
+      alert('Cannot render video: source video file is missing. Please relink the file first.');
+      return;
+    }
     setExportingCandidateId(video.candidate_id);
     const effPid = asset.project_id || projectId || 'default';
     try {
@@ -644,6 +692,10 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
 
   const handleBatchRenderMissingVideos = async () => {
     if (!asset || candidatesEligibleForBatchRender.length === 0) return;
+    if (asset.availability_status === 'missing') {
+      alert('Cannot render videos: source video file is missing. Please relink the file first.');
+      return;
+    }
     setIsBatchRenderingMissing(true);
     const effPid = asset.project_id || projectId || 'default';
     const cids = candidatesEligibleForBatchRender.map((c) => c.id);
@@ -1009,6 +1061,54 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
         })()}
       </header>
 
+      {/* Missing File Notice Banner */}
+      {asset?.availability_status === 'missing' && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-200">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <p className="font-semibold text-amber-300">Source Video File Missing</p>
+              <p className="text-[11px] text-text-secondary truncate" title={asset.storage_path}>
+                Physical file missing at: <span className="font-mono text-zinc-300">{asset.storage_path}</span>. Existing scripts and exports remain fully accessible, but rendering new clips requires relinking.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-amber-300 border-amber-500/40 hover:bg-amber-500/20"
+              onClick={() => setIsRelinkModalOpen(true)}
+              leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+            >
+              Relink Source File
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={handleReconcileCurrentAsset}
+              isLoading={isReconcilingCurrent}
+              leftIcon={<HardDrive className="w-3.5 h-3.5" />}
+              title="Check if reconnected drive restored file"
+            >
+              Check Reconnection
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {relinkNotification && (
+        <div className="bg-indigo-500/15 border-b border-indigo-500/30 px-5 py-2.5 flex items-center justify-between text-xs text-indigo-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-indigo-400" />
+            <span>{relinkNotification}</span>
+          </div>
+          <button onClick={() => setRelinkNotification(null)} className="hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ==================== TAB CONTENT AREA ==================== */}
       <main className="flex-1 overflow-y-auto p-5">
         {/* TAB 1: HOME (ONLY PLAYER + PURE TECHNICAL METADATA) */}
@@ -1017,65 +1117,101 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Player Container */}
               <div className="lg:col-span-2 space-y-3">
-                <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-border shadow-xl">
-                  <video
-                    ref={videoRef}
-                    src={videoStreamSrc}
-                    className="w-full h-full object-contain"
-                    onTimeUpdate={() => videoRef.current && setCurrentTime(videoRef.current.currentTime)}
-                    onLoadedMetadata={() => videoRef.current && setDuration(videoRef.current.duration)}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                  />
-
-                  {/* Player Overlay Controls */}
-                  <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 flex flex-col gap-2">
-                    <input
-                      type="range"
-                      min={0}
-                      max={duration || 100}
-                      value={currentTime}
-                      onChange={(e) => handleSeek(parseFloat(e.target.value))}
-                      className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                {asset.availability_status === 'missing' ? (
+                  <div className="relative aspect-video bg-zinc-950 rounded-2xl overflow-hidden border border-amber-500/30 p-6 flex flex-col items-center justify-center text-center space-y-3 shadow-xl">
+                    <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-semibold text-text-primary">Source Video File Missing</h3>
+                      <p className="text-xs text-text-muted mt-1 max-w-md">
+                        The physical video file is not available at its expected storage path. Relink the source video or reconnect the external drive to restore preview playback and new video rendering.
+                      </p>
+                    </div>
+                    <p className="text-[11px] font-mono text-zinc-300 bg-black/60 px-3 py-1.5 rounded-lg border border-border truncate max-w-lg" title={asset.storage_path}>
+                      Expected Path: {asset.storage_path}
+                    </p>
+                    <div className="flex items-center gap-3 pt-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => setIsRelinkModalOpen(true)}
+                        leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                      >
+                        Relink Source Video
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleReconcileCurrentAsset}
+                        isLoading={isReconcilingCurrent}
+                        leftIcon={<HardDrive className="w-3.5 h-3.5" />}
+                      >
+                        Check Drive Reconnect
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative aspect-video bg-black rounded-2xl overflow-hidden border border-border shadow-xl">
+                    <video
+                      ref={videoRef}
+                      src={videoStreamSrc}
+                      className="w-full h-full object-contain"
+                      onTimeUpdate={() => videoRef.current && setCurrentTime(videoRef.current.currentTime)}
+                      onLoadedMetadata={() => videoRef.current && setDuration(videoRef.current.duration)}
+                      onPlay={() => setIsPlaying(true)}
+                      onPause={() => setIsPlaying(false)}
                     />
 
-                    <div className="flex items-center justify-between text-xs text-white">
-                      <div className="flex items-center gap-3">
-                        <button onClick={togglePlay} className="p-1 hover:text-indigo-400">
-                          {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
-                        </button>
-                        <span className="font-mono text-[11px]">
-                          {formatSeconds(currentTime)} / {formatSeconds(duration || asset.duration_seconds)}
-                        </span>
-                      </div>
+                    {/* Player Overlay Controls */}
+                    <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 flex flex-col gap-2">
+                      <input
+                        type="range"
+                        min={0}
+                        max={duration || 100}
+                        value={currentTime}
+                        onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                        className="w-full h-1 bg-white/30 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                      />
 
-                      <div className="flex items-center gap-2 font-mono text-[11px]">
-                        <button
-                          onClick={() => {
-                            const rates = [1, 1.25, 1.5, 2];
-                            const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
-                            setPlaybackRate(next);
-                            if (videoRef.current) videoRef.current.playbackRate = next;
-                          }}
-                          className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20"
-                        >
-                          {playbackRate}x
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (videoRef.current) {
-                              videoRef.current.muted = !isMuted;
-                              setIsMuted(!isMuted);
-                            }
-                          }}
-                          className="p-1 hover:text-indigo-400"
-                        >
-                          {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
-                        </button>
+                      <div className="flex items-center justify-between text-xs text-white">
+                        <div className="flex items-center gap-3">
+                          <button onClick={togglePlay} className="p-1 hover:text-indigo-400">
+                            {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current" />}
+                          </button>
+                          <span className="font-mono text-[11px]">
+                            {formatSeconds(currentTime)} / {formatSeconds(duration || asset.duration_seconds)}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 font-mono text-[11px]">
+                          <button
+                            onClick={() => {
+                              const rates = [1, 1.25, 1.5, 2];
+                              const next = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+                              setPlaybackRate(next);
+                              if (videoRef.current) videoRef.current.playbackRate = next;
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20"
+                          >
+                            {playbackRate}x
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (videoRef.current) {
+                                videoRef.current.muted = !isMuted;
+                                setIsMuted(!isMuted);
+                              }
+                            }}
+                            className="p-1 hover:text-indigo-400"
+                          >
+                            {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Pure Technical Metadata ONLY */}
@@ -1125,10 +1261,25 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
                 </Card>
 
                 <Card className="p-4 space-y-2 text-xs">
-                  <span className="text-text-muted uppercase text-[10px] block font-semibold">Storage Location</span>
-                  <p className="font-mono text-[11px] text-text-secondary break-all bg-canvas-subtle p-2 rounded-lg border border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-text-muted uppercase text-[10px] block font-semibold">Storage Location</span>
+                    <Badge variant={asset.availability_status === 'missing' ? 'warning' : 'success'} className="text-[10px]">
+                      {asset.availability_status?.toUpperCase() || 'PRESENT'}
+                    </Badge>
+                  </div>
+                  <p className="font-mono text-[11px] text-text-secondary break-all bg-canvas-subtle p-2 rounded-lg border border-border" title={asset.storage_path}>
                     {asset.storage_path}
                   </p>
+                  {asset.relinked_at && (
+                    <div className="pt-1 text-[11px] font-mono text-indigo-400">
+                      Relinked: {new Date(asset.relinked_at).toLocaleString()} ({asset.relink_match_status || 'verified'})
+                    </div>
+                  )}
+                  {asset.previous_storage_path && (
+                    <p className="text-[10px] text-text-muted font-mono truncate" title={asset.previous_storage_path}>
+                      Previous: {asset.previous_storage_path}
+                    </p>
+                  )}
                 </Card>
               </div>
             </div>
@@ -2810,6 +2961,14 @@ export const VideoEditDashboard: React.FC<VideoEditDashboardProps> = ({
           </div>
         </div>
       )}
+      {/* Relink Missing Media Modal */}
+      <MediaRelinkModal
+        isOpen={isRelinkModalOpen}
+        onClose={() => setIsRelinkModalOpen(false)}
+        asset={asset}
+        projectId={projectId}
+        onSuccess={handleRelinkSuccess}
+      />
     </div>
   );
 };

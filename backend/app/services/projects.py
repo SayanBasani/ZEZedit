@@ -180,7 +180,44 @@ class ProjectService:
             )
         self.get_project(project_id)
         with sqlite_session(self.db_path) as conn:
+            # Query all media assets belonging to this project before deletion
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            stored_file_ids = set()
+            if "media_assets" in tables:
+                assets = conn.execute(
+                    "SELECT id, stored_file_id, storage_path, is_external, sha256 FROM media_assets WHERE project_id = ?",
+                    (project_id,),
+                ).fetchall()
+                for a in assets:
+                    if "stored_file_id" in a.keys() and a["stored_file_id"]:
+                        stored_file_ids.add(a["stored_file_id"])
+
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
+
+            # Reconcile reference counts for affected stored media files
+            if "stored_media_files" in tables and stored_file_ids:
+                now = datetime.now(timezone.utc).isoformat()
+                for sf_id in stored_file_ids:
+                    rem_row = conn.execute(
+                        "SELECT COUNT(*) FROM media_assets WHERE stored_file_id = ? AND availability_status != 'deleted'",
+                        (sf_id,),
+                    ).fetchone()
+                    rem = rem_row[0] if rem_row else 0
+                    if rem > 0:
+                        conn.execute(
+                            "UPDATE stored_media_files SET reference_count = ?, updated_at = ? WHERE id = ?",
+                            (rem, now, sf_id),
+                        )
+                    else:
+                        sf = conn.execute("SELECT storage_path, is_external FROM stored_media_files WHERE id = ?", (sf_id,)).fetchone()
+                        if sf and not sf["is_external"]:
+                            p = Path(sf["storage_path"])
+                            if p.is_file():
+                                try:
+                                    p.unlink(missing_ok=True)
+                                except Exception:
+                                    pass
+                        conn.execute("DELETE FROM stored_media_files WHERE id = ?", (sf_id,))
 
     def get_events(self, project_id: str, limit: int = 50) -> List[ProjectEventRecord]:
         """Fetch project activity event history."""

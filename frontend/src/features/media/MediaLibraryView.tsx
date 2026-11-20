@@ -27,6 +27,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Input, SearchInput } from '../../components/ui/Input';
 import { EmptyState, Skeleton } from '../../components/ui/States';
 import { PostImportModal } from './PostImportModal';
+import { MediaRelinkModal } from './MediaRelinkModal';
 import {
   checkProjectMediaIntegrity,
   deleteMediaAsset,
@@ -34,10 +35,8 @@ import {
   getProxyUrl,
   getThumbnailUrl,
   importLocalMedia,
-  inspectRelinkCandidate,
   isUploadRetryable,
   regenerateThumbnail,
-  relinkMedia,
   uploadMediaFile,
 } from '../../services/apiClient';
 import { MediaAssetItem, MediaStorageStats, ProjectItem } from '../../types/projects';
@@ -90,15 +89,6 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
 
   const [selectedAsset, setSelectedAsset] = useState<MediaAssetItem | null>(null);
   const [relinkTargetAsset, setRelinkTargetAsset] = useState<MediaAssetItem | null>(null);
-  const [relinkNewPath, setRelinkNewPath] = useState('');
-  const [relinkInspection, setRelinkInspection] = useState<{
-    match_status: 'exact' | 'compatible' | 'mismatch';
-    warnings: string[];
-    comparison: Record<string, any>;
-  } | null>(null);
-  const [isInspecting, setIsInspecting] = useState(false);
-  const [forceRelink, setForceRelink] = useState(false);
-  const [isRelinking, setIsRelinking] = useState(false);
   const [isVerifyingMedia, setIsVerifyingMedia] = useState(false);
   const [integrityBanner, setIntegrityBanner] = useState<string | null>(null);
 
@@ -498,19 +488,6 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
     }
   };
 
-  const handleInspectCandidate = async () => {
-    if (!relinkTargetAsset || !relinkNewPath.trim()) return;
-    setIsInspecting(true);
-    try {
-      const res = await inspectRelinkCandidate(currentProjectId, relinkTargetAsset.id, relinkNewPath.trim());
-      setRelinkInspection(res);
-    } catch (err) {
-      alert(`Candidate inspection failed: ${err instanceof Error ? err.message : 'Invalid candidate'}`);
-    } finally {
-      setIsInspecting(false);
-    }
-  };
-
   const handleVerifyMedia = async () => {
     if (!currentProjectId) return;
     setIsVerifyingMedia(true);
@@ -525,23 +502,6 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
       alert(`Media verification failed: ${err instanceof Error ? err.message : 'Error'}`);
     } finally {
       setIsVerifyingMedia(false);
-    }
-  };
-
-  const handleRelinkConfirm = async () => {
-    if (!relinkTargetAsset || !relinkNewPath.trim()) return;
-    setIsRelinking(true);
-    try {
-      await relinkMedia(currentProjectId, relinkTargetAsset.id, relinkNewPath.trim(), forceRelink);
-      setRelinkTargetAsset(null);
-      setRelinkNewPath('');
-      setRelinkInspection(null);
-      setForceRelink(false);
-      onRefresh();
-    } catch (err) {
-      alert(`Relinking failed: ${err instanceof Error ? err.message : 'File not found'}`);
-    } finally {
-      setIsRelinking(false);
     }
   };
 
@@ -919,7 +879,6 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                       onClick={(e) => {
                         e.stopPropagation();
                         setRelinkTargetAsset(asset);
-                        setRelinkNewPath(asset.storage_path);
                       }}
                       className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white text-[10px] font-medium mt-1"
                     >
@@ -952,6 +911,12 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                       <>
                         <span>•</span>
                         <span>{Math.round(asset.fps)}fps</span>
+                      </>
+                    )}
+                    {asset.reference_count && asset.reference_count > 1 && (
+                      <>
+                        <span>•</span>
+                        <span className="text-blue-400 font-semibold">Shared ({asset.reference_count})</span>
                       </>
                     )}
                   </div>
@@ -1472,7 +1437,6 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
                     const target = selectedAsset;
                     setSelectedAsset(null);
                     setRelinkTargetAsset(target);
-                    setRelinkNewPath(target.storage_path);
                   }}
                   leftIcon={<Link2 className="w-3.5 h-3.5 text-amber-400" />}
                 >
@@ -1496,125 +1460,16 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
       )}
 
       {/* Relink Modal */}
-      <Dialog
+      <MediaRelinkModal
         isOpen={!!relinkTargetAsset}
-        onClose={() => {
+        onClose={() => setRelinkTargetAsset(null)}
+        asset={relinkTargetAsset}
+        projectId={currentProjectId}
+        onSuccess={() => {
           setRelinkTargetAsset(null);
-          setRelinkInspection(null);
-          setForceRelink(false);
+          onRefresh();
         }}
-        title="Relink Media File with Integrity Check"
-      >
-        <div className="space-y-4">
-          <p className="text-xs text-text-secondary leading-relaxed">
-            The media file <strong>{relinkTargetAsset?.original_filename}</strong> was moved or could not be found
-            at its previous path. Provide its new location on disk to restore access without losing project metadata.
-          </p>
-
-          <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <Input
-                label="New Absolute Path on Disk"
-                value={relinkNewPath}
-                onChange={(e) => setRelinkNewPath(e.target.value)}
-                placeholder="e.g. D:\Videos\interview_take_1.mp4"
-                required
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleInspectCandidate}
-              isLoading={isInspecting}
-              disabled={!relinkNewPath.trim()}
-            >
-              Verify Candidate
-            </Button>
-          </div>
-
-          {/* Inspection Comparison Results */}
-          {relinkInspection && (
-            <div className="p-3 bg-canvas-subtle border border-border rounded-xl space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-semibold text-text-primary">Candidate Verification:</span>
-                <Badge
-                  variant={
-                    relinkInspection.match_status === 'exact'
-                      ? 'success'
-                      : relinkInspection.match_status === 'compatible'
-                      ? 'warning'
-                      : 'danger'
-                  }
-                >
-                  {relinkInspection.match_status.toUpperCase()}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                <div>
-                  <span className="text-text-muted block">Original Duration:</span>
-                  <span>{relinkInspection.comparison.original_duration?.toFixed(2) || 'N/A'}s</span>
-                </div>
-                <div>
-                  <span className="text-text-muted block">Candidate Duration:</span>
-                  <span>{relinkInspection.comparison.candidate_duration?.toFixed(2) || 'N/A'}s</span>
-                </div>
-                <div>
-                  <span className="text-text-muted block">Original Resolution:</span>
-                  <span>{relinkInspection.comparison.original_resolution || 'N/A'}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted block">Candidate Resolution:</span>
-                  <span>{relinkInspection.comparison.candidate_resolution || 'N/A'}</span>
-                </div>
-              </div>
-
-              {relinkInspection.warnings.length > 0 && (
-                <div className="p-2 bg-amber-500/10 border border-amber-500/30 rounded-lg space-y-1">
-                  <span className="text-[11px] font-semibold text-amber-400 block">Discrepancy Warnings:</span>
-                  {relinkInspection.warnings.map((w, idx) => (
-                    <p key={idx} className="text-[10px] text-amber-300 font-mono">• {w}</p>
-                  ))}
-                  {relinkInspection.match_status === 'mismatch' && (
-                    <label className="flex items-center gap-2 pt-1 text-[11px] text-text-primary cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={forceRelink}
-                        onChange={(e) => setForceRelink(e.target.checked)}
-                        className="rounded border-border text-brand"
-                      />
-                      <span>Force relink despite duration mismatch</span>
-                    </label>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setRelinkTargetAsset(null);
-                setRelinkInspection(null);
-                setForceRelink(false);
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleRelinkConfirm}
-              isLoading={isRelinking}
-              disabled={!relinkNewPath.trim() || (relinkInspection?.match_status === 'mismatch' && !forceRelink)}
-            >
-              Relink &amp; Restore
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      />
 
       {/* Delete Confirmation Dialog */}
       <Dialog
@@ -1629,6 +1484,8 @@ export const MediaLibraryView: React.FC<MediaLibraryViewProps> = ({
           <p className="text-text-secondary leading-relaxed">
             {deleteTargetAsset?.is_external
               ? 'Removing this external reference will unlink it from the project. Your original source file on disk will NOT be touched or deleted.'
+              : deleteTargetAsset?.reference_count && deleteTargetAsset.reference_count > 1
+              ? `This asset is shared by ${deleteTargetAsset.reference_count} assets. Deleting this asset unlinks it from the project; the underlying physical video file will be preserved on disk for the other ${deleteTargetAsset.reference_count - 1} reference(s).`
               : 'Removing this asset unlinks it from the project and purges generated thumbnails and proxies.'}
           </p>
 

@@ -156,6 +156,13 @@ class ExportService:
                     "output_filename": existing_active["output_filename"],
                 }
 
+            # Pre-flight quota check on generated video storage (P1.9)
+            from app.services.storage import StorageService
+            storage_svc = StorageService(self.settings)
+            allowed, quota_err = storage_svc.check_quota_for_operation("generated_video", incoming_bytes=10 * 1024 * 1024)
+            if not allowed and quota_err:
+                raise AppError(code="QUOTA_EXCEEDED", message=quota_err, status_code=507)
+
             export_id = f"exp_{uuid.uuid4().hex[:12]}"
             title = request.title or cand["title"] or cand["suggested_title"] or f"Short_{cand['id'][:8]}"
             clean_title = re.sub(r'[^a-zA-Z0-9_\-]', '_', title)[:40]

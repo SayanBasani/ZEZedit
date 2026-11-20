@@ -1,0 +1,85 @@
+{
+  "task": "P1.7 Media Relinking, Missing File Recovery and External Media Handling",
+  "timestamp": "2026-11-16T18:42:39.687236+00:00",
+  "scenarios": {
+    "scenario_a_file_moved": {
+      "status": "PASSED",
+      "media_id": "med_4de011ef0745",
+      "original_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_7_demos_d0w0dl_k\\scenario_a_original.mp4",
+      "moved_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_7_demos_d0w0dl_k\\relocated_media\\vacation_vlog_renamed.mp4",
+      "original_sha256": "bd6d291a697736411773f0cd27d8f080b136ed93cf939300f9f475aec8601ca5",
+      "stream_status_code": 206,
+      "previous_storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_7_demos_d0w0dl_k\\scenario_a_original.mp4",
+      "previous_sha256": "bd6d291a697736411773f0cd27d8f080b136ed93cf939300f9f475aec8601ca5",
+      "relink_match_status": "exact",
+      "relinked_at": "2026-11-16T18:42:40.175585+00:00"
+    },
+    "scenario_b_external_drive_reconciliation": {
+      "status": "PASSED",
+      "media_id": "med_450146c1be80",
+      "external_mount_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_7_demos_d0w0dl_k\\simulated_external_drive_E\\field_interview.mp4",
+      "reconcile_offline_result": {
+        "total_checked": 2,
+        "restored_count": 0,
+        "still_missing_count": 1,
+        "restored_assets": [],
+        "still_missing_assets": [
+          "med_450146c1be80"
+        ]
+      },
+      "reconcile_online_result": {
+        "total_checked": 2,
+        "restored_count": 1,
+        "still_missing_count": 0,
+        "restored_assets": [
+          "med_450146c1be80"
+        ],
+        "still_missing_assets": []
+      },
+      "restored_availability": "present",
+      "restored_integrity": "verified"
+    },
+    "scenario_c_forced_relink_discrepancy": {
+      "status": "PASSED",
+      "media_id": "med_debb362f3650",
+      "original_duration": 2.0,
+      "altered_duration": 5.0,
+      "duration_difference": 3.0,
+      "discrepancy_warnings": [
+        "Duration mismatch: Candidate has 5.00s, original had 2.00s (difference: 3.00s).",
+        "Resolution mismatch: Candidate is 1280x720, original was 640x360.",
+        "SHA-256 checksum mismatch: Candidate hash 'cbb3ad2e...' differs from original 'bd6d291a...'."
+      ],
+      "rejected_without_force_status": 400,
+      "succeeded_with_force_status": 200,
+      "relink_match_status": "mismatch",
+      "updated_duration": 5.0,
+      "updated_resolution": "1280x720"
+    },
+    "scenario_d_aborted_relink_safety": {
+      "status": "PASSED",
+      "media_id": "med_d04e9b742a42",
+      "text_file_rejection_code": 400,
+      "missing_file_rejection_code": 400,
+      "system_path_rejection_code": 403,
+      "database_unpolluted": true,
+      "storage_path_unchanged": true,
+      "relinked_at_is_null": true
+    },
+    "scenario_e_upload_relink": {
+      "status": "PASSED",
+      "media_id": "med_7271a45547e5",
+      "uploaded_sha256": "bd6d291a697736411773f0cd27d8f080b136ed93cf939300f9f475aec8601ca5",
+      "previous_sha256": "bd6d291a697736411773f0cd27d8f080b136ed93cf939300f9f475aec8601ca5",
+      "new_storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_7_demos_d0w0dl_k\\storage\\media\\proj_7e6074984196\\relinked_8f68e713_replacement_e_upload.mp4",
+      "stream_206_length": 512,
+      "relinked_at": "2026-11-16T18:42:42.416342+00:00"
+    }
+  },
+  "summary": {
+    "total_scenarios": 5,
+    "passed_scenarios": 5,
+    "failed_scenarios": 0
+  },
+  "completed_at": "2026-11-16T18:42:42.509519+00:00"
+}

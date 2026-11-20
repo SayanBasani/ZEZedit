@@ -14,7 +14,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from app.core.config import Settings, get_settings
-from app.core.errors import NotFoundError, ProcessingError
+from app.core.errors import NotFoundError, ProcessingError, MediaFileMissingError, StorageQuotaExceededError
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
 from app.services.analysis_pipeline import VideoAnalysisPipeline
@@ -23,6 +23,7 @@ from app.services.temporal_aggregator import get_temporal_context_at
 logger = logging.getLogger("zezedit.api.analysis")
 
 router = APIRouter(prefix="/projects/{project_id}/media/{media_asset_id}", tags=["video-analysis"])
+global_analysis_router = APIRouter(prefix="/media/{media_asset_id}", tags=["global-video-analysis"])
 
 
 def _now_utc() -> str:
@@ -73,6 +74,7 @@ class AnalysisRunResponse(BaseModel):
     source_signature: Optional[str] = None
     stage_details: Optional[Dict[str, Any]] = None
     checkpoint_data: Optional[Dict[str, Any]] = None
+    stored_file_id: Optional[str] = None
 
 
 def _format_run_response(row: sqlite3.Row) -> dict:
@@ -216,6 +218,16 @@ async def start_analysis(
         )
     except NotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
+    except MediaFileMissingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "MEDIA_FILE_MISSING", "message": exc.message, "details": exc.details},
+        )
+    except StorageQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "STORAGE_QUOTA_EXCEEDED", "message": exc.message, "details": exc.details},
+        )
 
     # Check if run was already completed (from cache)
     with sqlite_session(db_path) as conn:
@@ -280,7 +292,6 @@ def get_analysis_run(
         if not row:
             raise HTTPException(status_code=404, detail=f"Analysis run '{run_id}' not found.")
         return _format_run_response(row)
-        return dict(row)
 
 
 @router.get("/analysis/{run_id}/transcript")
@@ -674,3 +685,248 @@ def delete_transcript_correction(
 
         conn.execute("DELETE FROM transcript_corrections WHERE id = ?", (correction_id,))
     return {"message": "Transcript correction reverted successfully.", "correction_id": correction_id}
+
+
+# ==================== GLOBAL MEDIA ANALYSIS ENDPOINTS (/media/{media_asset_id}) ====================
+
+@global_analysis_router.post("/analysis", response_model=AnalysisRunResponse, status_code=status.HTTP_202_ACCEPTED)
+async def start_analysis_global(
+    media_asset_id: str,
+    payload: StartAnalysisRequest,
+    background_tasks: BackgroundTasks,
+    pipeline: VideoAnalysisPipeline = Depends(get_analysis_pipeline),
+    db_path: Path = Depends(get_db_path),
+):
+    """Trigger a new video analysis run or return cached completed run without project_id."""
+    try:
+        run_id = pipeline.create_analysis_run(
+            media_asset_id=media_asset_id,
+            project_id=None,
+            profile=payload.profile,
+            config=payload.config,
+            force_reanalysis=payload.force_reanalysis,
+        )
+    except NotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except MediaFileMissingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "MEDIA_FILE_MISSING", "message": exc.message, "details": exc.details},
+        )
+    except StorageQuotaExceededError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error_code": "STORAGE_QUOTA_EXCEEDED", "message": exc.message, "details": exc.details},
+        )
+
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM analysis_runs WHERE id = ?", (run_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=500, detail="Failed to fetch analysis run.")
+        run_data = _format_run_response(row)
+
+    if run_data.get("status") == "completed":
+        return run_data
+
+    if payload.run_synchronously:
+        await pipeline.execute_analysis(run_id)
+    else:
+        background_tasks.add_task(_run_analysis_worker, pipeline, run_id)
+
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT * FROM analysis_runs WHERE id = ?", (run_id,)).fetchone()
+        return _format_run_response(row)
+
+
+@global_analysis_router.get("/analysis", response_model=List[AnalysisRunResponse])
+def list_analysis_runs_global(
+    media_asset_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """List all analysis runs for a media asset across any project."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            """
+            SELECT * FROM analysis_runs
+            WHERE media_asset_id = ?
+            ORDER BY created_at DESC
+            """,
+            (media_asset_id,),
+        ).fetchall()
+        return [_format_run_response(r) for r in rows]
+
+
+@global_analysis_router.get("/analysis/{run_id}", response_model=AnalysisRunResponse)
+def get_analysis_run_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get status and stage information for a specific analysis run."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            """
+            SELECT * FROM analysis_runs
+            WHERE id = ? AND media_asset_id = ?
+            """,
+            (run_id, media_asset_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Analysis run '{run_id}' not found.")
+        return _format_run_response(row)
+
+
+@global_analysis_router.get("/analysis/{run_id}/transcript")
+def get_transcript_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get all transcript segments with applied non-destructive corrections."""
+    return get_transcript(project_id="", media_asset_id=media_asset_id, run_id=run_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/scenes", response_model=List[VideoSceneItem])
+def get_scenes_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get detected scene boundaries with thumbnail paths."""
+    return get_scenes(project_id="", media_asset_id=media_asset_id, run_id=run_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/frames", response_model=List[SampledFrameItem])
+def get_sampled_frames_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get sampled keyframes metadata."""
+    return get_sampled_frames(project_id="", media_asset_id=media_asset_id, run_id=run_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/visual-observations", response_model=List[VisualObservationItem])
+def get_visual_observations_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get visual observations."""
+    return get_visual_observations(project_id="", media_asset_id=media_asset_id, run_id=run_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/audio", response_model=Optional[AudioAnalysisItem])
+def get_audio_analysis_global(
+    media_asset_id: str,
+    run_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Get audio analysis metadata and silence intervals."""
+    return get_audio_analysis(project_id="", media_asset_id=media_asset_id, run_id=run_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/context")
+def get_context_global(
+    media_asset_id: str,
+    run_id: str,
+    timestamp: float = Query(..., ge=0.0, description="Timestamp in seconds to query"),
+    window: float = Query(15.0, ge=1.0, le=60.0, description="Window size in seconds"),
+    db_path: Path = Depends(get_db_path),
+):
+    """Get unified multimodal temporal context around a timestamp."""
+    return get_context(project_id="", media_asset_id=media_asset_id, run_id=run_id, timestamp=timestamp, window=window, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/{run_id}/telemetry")
+def get_analysis_telemetry_global(
+    media_asset_id: str,
+    run_id: str,
+    pipeline: VideoAnalysisPipeline = Depends(get_analysis_pipeline),
+):
+    """Retrieve granular stage progress, telemetry, and linked job state for a run."""
+    return get_analysis_telemetry(project_id="", media_asset_id=media_asset_id, run_id=run_id, pipeline=pipeline)
+
+
+@global_analysis_router.post("/analysis/{run_id}/cancel")
+def cancel_analysis_global(
+    media_asset_id: str,
+    run_id: str,
+    pipeline: VideoAnalysisPipeline = Depends(get_analysis_pipeline),
+):
+    """Cancel an active or pending analysis run."""
+    return cancel_analysis(project_id="", media_asset_id=media_asset_id, run_id=run_id, pipeline=pipeline)
+
+
+@global_analysis_router.post("/analysis/{run_id}/retry")
+async def retry_analysis_global(
+    media_asset_id: str,
+    run_id: str,
+    background_tasks: BackgroundTasks,
+    pipeline: VideoAnalysisPipeline = Depends(get_analysis_pipeline),
+):
+    """Retry a failed, cancelled, or interrupted analysis run."""
+    return await retry_analysis(project_id="", media_asset_id=media_asset_id, run_id=run_id, background_tasks=background_tasks, pipeline=pipeline)
+
+
+@global_analysis_router.get("/analysis/{run_id}/cache")
+def get_analysis_cache_global(
+    media_asset_id: str,
+    run_id: str,
+    pipeline: VideoAnalysisPipeline = Depends(get_analysis_pipeline),
+):
+    """Retrieve cache validity and component count information for an analysis run."""
+    return get_analysis_cache(project_id="", media_asset_id=media_asset_id, run_id=run_id, pipeline=pipeline)
+
+
+@global_analysis_router.get("/analysis/frame-image/{frame_id}")
+def get_frame_image_global(
+    media_asset_id: str,
+    frame_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Stream a sampled frame image as JPEG."""
+    return get_frame_image(project_id="", media_asset_id=media_asset_id, frame_id=frame_id, db_path=db_path)
+
+
+@global_analysis_router.get("/analysis/scene-thumbnail/{scene_id}")
+def get_scene_thumbnail_global(
+    media_asset_id: str,
+    scene_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Stream a scene representative thumbnail JPEG."""
+    return get_scene_thumbnail(project_id="", media_asset_id=media_asset_id, scene_id=scene_id, db_path=db_path)
+
+
+@global_analysis_router.post("/transcript/corrections", response_model=TranscriptCorrectionItem)
+def create_or_update_transcript_correction_global(
+    media_asset_id: str,
+    payload: TranscriptCorrectionCreate,
+    db_path: Path = Depends(get_db_path),
+):
+    """Create or update a non-destructive transcript text correction."""
+    return create_or_update_transcript_correction(project_id="", media_asset_id=media_asset_id, payload=payload, db_path=db_path)
+
+
+@global_analysis_router.get("/transcript/corrections", response_model=List[TranscriptCorrectionItem])
+def list_transcript_corrections_global(
+    media_asset_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """List all non-destructive transcript text corrections for a media asset."""
+    return list_transcript_corrections(project_id="", media_asset_id=media_asset_id, db_path=db_path)
+
+
+@global_analysis_router.delete("/transcript/corrections/{correction_id}")
+def delete_transcript_correction_global(
+    media_asset_id: str,
+    correction_id: str,
+    db_path: Path = Depends(get_db_path),
+):
+    """Revert a non-destructive transcript text correction."""
+    return delete_transcript_correction(project_id="", media_asset_id=media_asset_id, correction_id=correction_id, db_path=db_path)

@@ -5,7 +5,7 @@ import math
 from pathlib import Path
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 
 from app.core.config import Settings, get_settings
@@ -18,9 +18,11 @@ from app.schemas.core import (
     MediaAssetUpdateRequest,
     MediaBatchUploadItemResult,
     MediaBatchUploadResponse,
+    MediaDeduplicationStatsResponse,
     MediaImportLocalRequest,
     MediaIntegrityCheckResult,
     MediaProxyGenerateRequest,
+    MediaReconcileResponse,
     MediaRelinkRequest,
     MediaRelinkResponse,
     MediaStorageStatsResponse,
@@ -305,6 +307,8 @@ async def upload_media_batch(
                     success=True,
                     media_id=rec.id,
                     asset=asset_resp,
+                    is_deduplicated=rec.is_deduplicated,
+                    reference_count=rec.reference_count,
                 )
             )
             succeeded_count += 1
@@ -410,6 +414,27 @@ def get_media_stats(
 ) -> MediaStorageStatsResponse:
     """Get project storage statistics for media, proxies, and thumbnails."""
     return pipeline.get_project_media_stats(project_id)
+
+
+@router.get("/deduplication/stats", response_model=MediaDeduplicationStatsResponse)
+@router.get("/deduplication-stats", response_model=MediaDeduplicationStatsResponse)
+def get_deduplication_stats_project(
+    project_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaDeduplicationStatsResponse:
+    """Get global media deduplication and reference statistics."""
+    stats = service.get_deduplication_stats()
+    return MediaDeduplicationStatsResponse(**stats)
+
+
+@router.post("/deduplication/reconcile")
+@router.post("/reconcile-references")
+def reconcile_references_project(
+    project_id: str,
+    service: MediaService = Depends(get_media_service),
+):
+    """Reconcile and synchronize stored media reference counts."""
+    return service.reconcile_reference_counts()
 
 
 @router.get("/{asset_id}", response_model=MediaAssetResponse)
@@ -658,7 +683,44 @@ def relink_media(
         match_status=inspection["match_status"],
         warnings=inspection["warnings"],
         comparison=inspection["comparison"],
+        relinked_at=asset_rec.relinked_at,
     )
+
+
+@router.post("/{asset_id}/relink/upload", response_model=MediaRelinkResponse)
+async def relink_media_upload(
+    project_id: str,
+    asset_id: str,
+    file: UploadFile = File(...),
+    force: bool = Form(False),
+    expected_sha256: Optional[str] = Form(None),
+    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+) -> MediaRelinkResponse:
+    """Relink an asset using streamed file upload with atomic staging and verification."""
+    res = await pipeline.relink_uploaded_media(
+        project_id=project_id,
+        asset_id=asset_id,
+        upload_file=file,
+        force=force,
+        expected_sha256=expected_sha256,
+    )
+    return MediaRelinkResponse(
+        asset=MediaAssetResponse(**res["asset"].__dict__),
+        match_status=res["match_status"],
+        warnings=res["warnings"],
+        comparison=res["comparison"],
+        relinked_at=res["relinked_at"],
+    )
+
+
+@router.post("/reconcile-availability", response_model=MediaReconcileResponse)
+def reconcile_project_availability(
+    project_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaReconcileResponse:
+    """Reconcile missing files for project (e.g. after external drive is reconnected)."""
+    res = service.reconcile_missing_media(project_id=project_id)
+    return MediaReconcileResponse(**res)
 
 
 # -------------------- WORKFLOW LIFECYCLE --------------------
@@ -875,6 +937,8 @@ async def upload_media_batch_global(
                     success=True,
                     media_id=rec.id,
                     asset=asset_resp,
+                    is_deduplicated=rec.is_deduplicated,
+                    reference_count=rec.reference_count,
                 )
             )
             succeeded_count += 1
@@ -1068,5 +1132,114 @@ def delete_media_global(
 ) -> None:
     """Safely remove media asset across all projects, checking active operations and dependent exports."""
     service.delete_media_asset("all", asset_id, delete_source=delete_source, force_with_exports=force_with_exports)
+
+
+@global_media_router.post("/{asset_id}/mark-missing", response_model=MediaAssetResponse)
+def mark_media_missing_global(
+    asset_id: str,
+    service: MediaService = Depends(get_media_service),
+) -> MediaAssetResponse:
+    """Explicitly mark asset as missing across all projects."""
+    rec = service.mark_missing("all", asset_id)
+    return MediaAssetResponse(**rec.__dict__)
+
+
+@global_media_router.post("/{asset_id}/relink/inspect")
+def inspect_relink_global(
+    asset_id: str,
+    req: MediaRelinkRequest,
+    service: MediaService = Depends(get_media_service),
+):
+    """Inspect and compare candidate replacement path globally without modifying database."""
+    res = service.inspect_relink_candidate(
+        project_id="all",
+        asset_id=asset_id,
+        new_storage_path=req.new_storage_path,
+    )
+    return {
+        "match_status": res["match_status"],
+        "warnings": res["warnings"],
+        "comparison": res["comparison"],
+    }
+
+
+@global_media_router.post("/{asset_id}/relink", response_model=MediaRelinkResponse)
+def relink_media_global(
+    asset_id: str,
+    req: MediaRelinkRequest,
+    service: MediaService = Depends(get_media_service),
+) -> MediaRelinkResponse:
+    """Relink an asset to a new filesystem path globally with comparison verification."""
+    inspection = service.inspect_relink_candidate(
+        project_id="all",
+        asset_id=asset_id,
+        new_storage_path=req.new_storage_path,
+    )
+    asset_rec = service.relink_media(
+        project_id="all",
+        asset_id=asset_id,
+        new_storage_path=req.new_storage_path,
+        force=req.force,
+    )
+    return MediaRelinkResponse(
+        asset=MediaAssetResponse(**asset_rec.__dict__),
+        match_status=inspection["match_status"],
+        warnings=inspection["warnings"],
+        comparison=inspection["comparison"],
+        relinked_at=asset_rec.relinked_at,
+    )
+
+
+@global_media_router.post("/{asset_id}/relink/upload", response_model=MediaRelinkResponse)
+async def relink_media_upload_global(
+    asset_id: str,
+    file: UploadFile = File(...),
+    force: bool = Form(False),
+    expected_sha256: Optional[str] = Form(None),
+    pipeline: MediaPipelineService = Depends(get_pipeline_service),
+) -> MediaRelinkResponse:
+    """Relink an asset globally using streamed file upload with atomic staging and verification."""
+    res = await pipeline.relink_uploaded_media(
+        project_id="all",
+        asset_id=asset_id,
+        upload_file=file,
+        force=force,
+        expected_sha256=expected_sha256,
+    )
+    return MediaRelinkResponse(
+        asset=MediaAssetResponse(**res["asset"].__dict__),
+        match_status=res["match_status"],
+        warnings=res["warnings"],
+        comparison=res["comparison"],
+        relinked_at=res["relinked_at"],
+    )
+
+
+@global_media_router.post("/reconcile-availability", response_model=MediaReconcileResponse)
+def reconcile_availability_global(
+    service: MediaService = Depends(get_media_service),
+) -> MediaReconcileResponse:
+    """Reconcile missing files across all media assets (e.g. after external drive reconnection)."""
+    res = service.reconcile_missing_media(project_id="all")
+    return MediaReconcileResponse(**res)
+
+
+@global_media_router.get("/deduplication/stats", response_model=MediaDeduplicationStatsResponse)
+@global_media_router.get("/deduplication-stats", response_model=MediaDeduplicationStatsResponse)
+def get_deduplication_stats_global(
+    service: MediaService = Depends(get_media_service),
+) -> MediaDeduplicationStatsResponse:
+    """Get global media deduplication and reference statistics."""
+    stats = service.get_deduplication_stats()
+    return MediaDeduplicationStatsResponse(**stats)
+
+
+@global_media_router.post("/deduplication/reconcile")
+@global_media_router.post("/reconcile-references")
+def reconcile_references_global(
+    service: MediaService = Depends(get_media_service),
+):
+    """Reconcile and synchronize stored media reference counts."""
+    return service.reconcile_reference_counts()
 
 

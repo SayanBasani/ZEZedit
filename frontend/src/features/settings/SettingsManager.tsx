@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   Archive,
   CheckCircle2,
+  CheckSquare,
   Clock,
   Cpu,
   Database,
@@ -16,8 +17,11 @@ import {
   RotateCcw,
   Save,
   Server,
+  Shield,
   ShieldAlert,
   ShieldCheck,
+  Sliders,
+  Square,
   Sun,
   Trash2,
   Wrench,
@@ -32,25 +36,35 @@ import {
   clearAllUserData,
   createBackup,
   executeCacheCleanup,
+  executeMaintenanceCleanup,
   fetchAppSettings,
   fetchBackups,
+  fetchCleanupHistory,
   fetchDbIntegrity,
   fetchHealth,
   fetchRecoveryStatus,
   fetchStorageBreakdown,
+  fetchStorageQuotas,
   fetchUserDataCleanupPreview,
   previewCacheCleanup,
+  previewMaintenanceCleanup,
+  recoverStaleArtifacts,
   restoreBackup,
   updateAppSettings,
+  updateStorageQuotas,
 } from '../../services/apiClient';
 import { HealthResponse } from '../../types/health';
 import { AppSettingsData } from '../../types/projects';
 import {
   BackupItem,
+  CleanupAuditItem,
   CleanupPreview,
   DbIntegrityReport,
+  MaintenanceCleanupExecution,
+  MaintenanceCleanupPreview,
   RecoveryStatus,
   StorageBreakdown,
+  StorageQuotaStatus,
 } from '../../types/system';
 
 type SettingsTab = 'general' | 'performance' | 'storage' | 'backups' | 'providers' | 'diagnostics';
@@ -90,6 +104,29 @@ export const SettingsManager: React.FC = () => {
   const [tokenInput, setTokenInput] = useState('');
   const [cleaning, setCleaning] = useState(false);
 
+  // P1.9 Storage Quota states
+  const [quotaStatus, setQuotaStatus] = useState<StorageQuotaStatus | null>(null);
+  const [storageLimitGb, setStorageLimitGb] = useState<string>('');
+  const [genVideoLimitGb, setGenVideoLimitGb] = useState<string>('');
+  const [tempStorageLimitGb, setTempStorageLimitGb] = useState<string>('');
+  const [warningThresholdPct, setWarningThresholdPct] = useState<number>(85);
+  const [autoPruneEnabled, setAutoPruneEnabled] = useState<boolean>(false);
+  const [autoPruneRetentionHours, setAutoPruneRetentionHours] = useState<number>(24);
+  const [savingQuotas, setSavingQuotas] = useState<boolean>(false);
+
+  // P1.9 Maintenance Cleanup & Candidate states
+  const [maintPreview, setMaintPreview] = useState<MaintenanceCleanupPreview | null>(null);
+  const [selectedCleanupCategories, setSelectedCleanupCategories] = useState<string[]>([
+    'orphaned_uploads',
+    'abandoned_ffmpeg',
+    'failed_renders',
+    'expired_temp_files',
+  ]);
+  const [maintCleaning, setMaintCleaning] = useState<boolean>(false);
+  const [maintResult, setMaintResult] = useState<MaintenanceCleanupExecution | null>(null);
+  const [cleanupHistory, setCleanupHistory] = useState<CleanupAuditItem[]>([]);
+  const [recoveringStale, setRecoveringStale] = useState<boolean>(false);
+
   // Clear All Data states
   const [clearAllModalOpen, setClearAllModalOpen] = useState(false);
   const [clearAllInput, setClearAllInput] = useState('');
@@ -106,18 +143,33 @@ export const SettingsManager: React.FC = () => {
     setLoading(true);
     setErrorToast(null);
     try {
-      const [s, h, st, bk, rec, dbi] = await Promise.all([
+      const [s, h, st, bk, rec, dbi, q, hist] = await Promise.all([
         fetchAppSettings(),
         fetchHealth().catch(() => null),
         fetchStorageBreakdown().catch(() => null),
         fetchBackups().catch(() => []),
         fetchRecoveryStatus().catch(() => null),
         fetchDbIntegrity().catch(() => null),
+        fetchStorageQuotas().catch(() => null),
+        fetchCleanupHistory(20).catch(() => []),
       ]);
       setSettings(s);
       setHealth(h);
       setStorageData(st);
       setBackups(bk);
+      setRecoveryStatus(rec);
+      setDbIntegrity(dbi);
+      if (q && q.quota_settings) {
+        setQuotaStatus(q);
+        const qs = q.quota_settings;
+        setStorageLimitGb(qs.storage_limit_bytes ? (qs.storage_limit_bytes / (1024 * 1024 * 1024)).toString() : '');
+        setGenVideoLimitGb(qs.generated_video_limit_bytes ? (qs.generated_video_limit_bytes / (1024 * 1024 * 1024)).toString() : '');
+        setTempStorageLimitGb(qs.temp_storage_limit_bytes ? (qs.temp_storage_limit_bytes / (1024 * 1024 * 1024)).toString() : '');
+        setWarningThresholdPct(qs.warning_threshold_percent || 85);
+        setAutoPruneEnabled(qs.auto_prune_enabled || false);
+        setAutoPruneRetentionHours(qs.auto_prune_retention_hours || 24);
+      }
+      setCleanupHistory(hist);
       setRecoveryStatus(rec);
       setDbIntegrity(dbi);
 
@@ -193,6 +245,101 @@ export const SettingsManager: React.FC = () => {
       setErrorToast(err instanceof Error ? err.message : 'Failed to execute cache cleanup');
     } finally {
       setCleaning(false);
+    }
+  };
+
+  const handleSaveQuotas = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setSavingQuotas(true);
+    setErrorToast(null);
+    try {
+      const storageBytes = storageLimitGb.trim() ? Math.round(parseFloat(storageLimitGb) * 1024 * 1024 * 1024) : null;
+      const genBytes = genVideoLimitGb.trim() ? Math.round(parseFloat(genVideoLimitGb) * 1024 * 1024 * 1024) : null;
+      const tempBytes = tempStorageLimitGb.trim() ? Math.round(parseFloat(tempStorageLimitGb) * 1024 * 1024 * 1024) : null;
+
+      await updateStorageQuotas({
+        storage_limit_bytes: storageBytes,
+        generated_video_limit_bytes: genBytes,
+        temp_storage_limit_bytes: tempBytes,
+        warning_threshold_percent: warningThresholdPct,
+        auto_prune_enabled: autoPruneEnabled,
+        auto_prune_retention_hours: autoPruneRetentionHours,
+        auto_prune_categories: selectedCleanupCategories,
+      });
+
+      const [updatedStatus, updatedBreakdown] = await Promise.all([
+        fetchStorageQuotas().catch(() => null),
+        fetchStorageBreakdown().catch(() => null),
+      ]);
+      if (updatedStatus) setQuotaStatus(updatedStatus);
+      if (updatedBreakdown) setStorageData(updatedBreakdown);
+      setSuccessToast('Storage quotas and pruning policies saved successfully');
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : 'Failed to save storage quotas');
+    } finally {
+      setSavingQuotas(false);
+    }
+  };
+
+  const handlePreviewMaintenanceCleanup = async () => {
+    setMaintCleaning(true);
+    setErrorToast(null);
+    try {
+      const prev = await previewMaintenanceCleanup(selectedCleanupCategories);
+      setMaintPreview(prev);
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : 'Failed to preview maintenance cleanup');
+    } finally {
+      setMaintCleaning(false);
+    }
+  };
+
+  const handleExecuteMaintenanceCleanup = async () => {
+    if (!maintPreview) return;
+    setMaintCleaning(true);
+    setErrorToast(null);
+    try {
+      const eligibleCandidateIds = maintPreview.candidates
+        .filter((c) => !c.is_blocked && selectedCleanupCategories.includes(c.category))
+        .map((c) => c.candidate_id);
+
+      const res = await executeMaintenanceCleanup(
+        eligibleCandidateIds,
+        selectedCleanupCategories
+      );
+
+      setMaintResult(res);
+      setMaintPreview(null);
+      const [updatedSt, updatedHist] = await Promise.all([
+        fetchStorageBreakdown().catch(() => null),
+        fetchCleanupHistory(20).catch(() => []),
+      ]);
+      if (updatedSt) setStorageData(updatedSt);
+      setCleanupHistory(updatedHist);
+      setSuccessToast(`Safely deleted ${res.deleted_count} files, reclaiming ${formatBytes(res.bytes_reclaimed)}.`);
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : 'Failed to execute maintenance cleanup');
+    } finally {
+      setMaintCleaning(false);
+    }
+  };
+
+  const handleRecoverStale = async () => {
+    setRecoveringStale(true);
+    setErrorToast(null);
+    try {
+      const res = await recoverStaleArtifacts();
+      const [updatedSt, updatedHist] = await Promise.all([
+        fetchStorageBreakdown().catch(() => null),
+        fetchCleanupHistory(20).catch(() => []),
+      ]);
+      if (updatedSt) setStorageData(updatedSt);
+      setCleanupHistory(updatedHist);
+      setSuccessToast(`Recovered ${res.recovered_files_count} stale artifacts (${res.formatted_bytes_reclaimed} reclaimed).`);
+    } catch (err) {
+      setErrorToast(err instanceof Error ? err.message : 'Failed to recover stale artifacts');
+    } finally {
+      setRecoveringStale(false);
     }
   };
 
@@ -572,6 +719,47 @@ export const SettingsManager: React.FC = () => {
             </div>
           )}
 
+          {/* Low Storage or Quota Warning Banners */}
+          {storageData?.is_low_storage && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-3">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Low Physical Disk Storage Warning: Less than 5 GB Free</p>
+                <p className="text-text-muted mt-0.5">
+                  Your system has {formatBytes(storageData.free_disk_space_bytes)} available. Run safe maintenance cleanup below to free disk space.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {quotaStatus?.is_exceeded && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center gap-3">
+              <ShieldAlert className="w-5 h-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Storage Quota Exceeded</p>
+                <ul className="list-disc pl-4 mt-0.5 space-y-0.5 text-text-secondary">
+                  {quotaStatus.warning_reasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {quotaStatus?.is_warning && !quotaStatus?.is_exceeded && (
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-400 text-xs flex items-center gap-3">
+              <AlertTriangle className="w-5 h-5 shrink-0" />
+              <div>
+                <p className="font-semibold">Storage Quota Warning Threshold Reached</p>
+                <ul className="list-disc pl-4 mt-0.5 space-y-0.5 text-text-secondary">
+                  {quotaStatus.warning_reasons.map((r, i) => (
+                    <li key={i}>{r}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+
           {/* Disk Overview */}
           <Card className="space-y-4">
             <div className="flex items-center justify-between border-b border-border pb-2.5">
@@ -586,8 +774,12 @@ export const SettingsManager: React.FC = () => {
                   variant="ghost"
                   size="sm"
                   onClick={async () => {
-                    const st = await fetchStorageBreakdown().catch(() => null);
+                    const [st, q] = await Promise.all([
+                      fetchStorageBreakdown().catch(() => null),
+                      fetchStorageQuotas().catch(() => null),
+                    ]);
                     if (st) setStorageData(st);
+                    if (q) setQuotaStatus(q);
                   }}
                   className="text-xs h-7 px-2"
                   leftIcon={<RefreshCw className="w-3 h-3" />}
@@ -620,28 +812,69 @@ export const SettingsManager: React.FC = () => {
                 </span>
               </div>
             </div>
+
+            {/* Quota Progress Bars */}
+            {quotaStatus && quotaStatus.quota_settings && (
+              <div className="pt-2 border-t border-border space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-text-secondary">Storage Quota Tracking &amp; Utilization</span>
+                  {quotaStatus.quota_settings.storage_limit_bytes && (
+                    <span className="font-mono text-text-muted">
+                      {formatBytes(quotaStatus.total_usage_bytes)} / {formatBytes(quotaStatus.quota_settings.storage_limit_bytes)} ({quotaStatus.total_utilization_pct || 0}%)
+                    </span>
+                  )}
+                </div>
+
+                {quotaStatus.quota_settings.storage_limit_bytes && (
+                  <div className="space-y-1">
+                    <div className="w-full bg-border/40 rounded-full h-2 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-300 ${
+                          (quotaStatus.total_utilization_pct || 0) >= 100
+                            ? 'bg-red-500'
+                            : (quotaStatus.total_utilization_pct || 0) >= quotaStatus.quota_settings.warning_threshold_percent
+                            ? 'bg-amber-500'
+                            : 'bg-brand'
+                        }`}
+                        style={{ width: `${Math.min(quotaStatus.total_utilization_pct || 0, 100)}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </Card>
 
           {/* Categorized Breakdown */}
           <Card className="space-y-4">
-            <div className="flex items-center gap-2 border-b border-border pb-2.5">
-              <Layers className="w-4 h-4 text-indigo-400" />
-              <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
-                Managed Storage Category Breakdown
-              </h2>
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-400" />
+                <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                  Managed Storage Category Breakdown
+                </h2>
+              </div>
+              {Boolean(storageData?.categories?.canonical_shared_media_bytes) && (
+                <Badge variant="purple">
+                  Deduplication Active
+                </Badge>
+              )}
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
-                { label: 'Source Media', bytes: storageData?.categories.source_media_bytes || 0, desc: 'Original imported videos' },
-                { label: 'Proxies', bytes: storageData?.categories.proxies_bytes || 0, desc: 'Scrub preview transcodes' },
-                { label: 'Thumbnails', bytes: storageData?.categories.thumbnails_bytes || 0, desc: 'Video & candidate images' },
-                { label: 'Extracted Frames', bytes: storageData?.categories.extracted_frames_bytes || 0, desc: 'Sampled analysis frames' },
-                { label: 'Temporary Cache', bytes: storageData?.categories.temp_cache_bytes || 0, desc: 'Disposable render & audio chunks' },
-                { label: 'Rendered Exports', bytes: storageData?.categories.exports_bytes || 0, desc: 'Finished short videos' },
-                { label: 'Database (WAL)', bytes: storageData?.categories.database_bytes || 0, desc: 'SQLite DB & WAL log' },
-                { label: 'Backups', bytes: storageData?.categories.backups_bytes || 0, desc: 'Verified snapshots' },
-                { label: 'System Logs', bytes: storageData?.categories.logs_bytes || 0, desc: 'Application event logs' },
+                { label: 'Source Media', bytes: storageData?.categories.source_media_bytes || 0, desc: 'Original imported video assets' },
+                { label: 'Canonical Shared Media', bytes: storageData?.categories.canonical_shared_media_bytes || 0, desc: 'Deduplicated physical assets' },
+                { label: 'Logical Assets (Virtual)', bytes: storageData?.categories.logical_media_assets_bytes || 0, desc: 'Total references across projects' },
+                { label: 'Generated Shorts', bytes: storageData?.categories.generated_video_bytes || 0, desc: 'AI-generated vertical clips' },
+                { label: 'Rendered Exports', bytes: storageData?.categories.rendered_exports_bytes || storageData?.categories.exports_bytes || 0, desc: 'Completed burn-in exports' },
+                { label: 'Extracted Audio', bytes: storageData?.categories.extracted_audio_bytes || 0, desc: '16kHz mono Whisper tracks' },
+                { label: 'Keyframes & Thumbs', bytes: storageData?.categories.keyframes_and_thumbnails_bytes || storageData?.categories.thumbnails_bytes || 0, desc: 'Thumbnails & sampled frames' },
+                { label: 'Analysis & Transcripts', bytes: storageData?.categories.transcripts_and_analysis_bytes || storageData?.categories.extracted_frames_bytes || 0, desc: 'AI scenes & dialogue data' },
+                { label: 'Temporary Uploads', bytes: storageData?.categories.temporary_uploads_bytes || 0, desc: 'Staged chunk buffers' },
+                { label: 'Temporary Renders', bytes: storageData?.categories.temporary_rendering_bytes || 0, desc: 'FFmpeg scratch & sub workspaces' },
+                { label: 'Database & Backups', bytes: storageData?.categories.database_and_backups_bytes || storageData?.categories.database_bytes || 0, desc: 'SQLite DB & snapshots' },
+                { label: 'Proxies & Cache', bytes: storageData?.categories.proxies_bytes || 0, desc: 'Fast scrub transcodes' },
               ].map((c) => (
                 <div key={c.label} className="p-3 bg-canvas-subtle rounded-xl border border-border">
                   <span className="text-xs font-semibold text-text-primary block">{c.label}</span>
@@ -726,6 +959,356 @@ export const SettingsManager: React.FC = () => {
                   <p className="text-xs text-emerald-400">No disposable cache files found. Storage is clean.</p>
                 )}
               </div>
+            )}
+          </Card>
+
+          {/* Section: Storage Quotas & Automatic Pruning Configuration Form */}
+          <Card className="space-y-4">
+            <div className="flex items-center gap-2 border-b border-border pb-2.5">
+              <Sliders className="w-4 h-4 text-emerald-400" />
+              <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                Storage Quotas &amp; Automatic Pruning Policies
+              </h2>
+            </div>
+
+            <form onSubmit={handleSaveQuotas} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Overall Storage Limit (GB)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    placeholder="Unlimited"
+                    value={storageLimitGb}
+                    onChange={(e) => setStorageLimitGb(e.target.value)}
+                    className="w-full bg-canvas-subtle border border-border rounded-lg text-xs text-text-primary px-3 py-2"
+                  />
+                  <span className="text-[10px] text-text-muted mt-0.5 block">Leave blank for unlimited.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Generated Video Limit (GB)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="1"
+                    placeholder="Unlimited"
+                    value={genVideoLimitGb}
+                    onChange={(e) => setGenVideoLimitGb(e.target.value)}
+                    className="w-full bg-canvas-subtle border border-border rounded-lg text-xs text-text-primary px-3 py-2"
+                  />
+                  <span className="text-[10px] text-text-muted mt-0.5 block">AI shorts &amp; clips quota.</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Temporary Storage Limit (GB)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    placeholder="Unlimited"
+                    value={tempStorageLimitGb}
+                    onChange={(e) => setTempStorageLimitGb(e.target.value)}
+                    className="w-full bg-canvas-subtle border border-border rounded-lg text-xs text-text-primary px-3 py-2"
+                  />
+                  <span className="text-[10px] text-text-muted mt-0.5 block">Uploads &amp; render staging buffer.</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border">
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Warning Threshold Percentage ({warningThresholdPct}%)
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="95"
+                    step="5"
+                    value={warningThresholdPct}
+                    onChange={(e) => setWarningThresholdPct(Number(e.target.value))}
+                    className="w-full accent-brand cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-text-muted mt-1">
+                    <span>50%</span>
+                    <span>80%</span>
+                    <span>85% (Default)</span>
+                    <span>95%</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">
+                    Automatic Pruning Retention (Hours)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="720"
+                    value={autoPruneRetentionHours}
+                    onChange={(e) => setAutoPruneRetentionHours(Number(e.target.value))}
+                    className="w-full bg-canvas-subtle border border-border rounded-lg text-xs text-text-primary px-3 py-2"
+                  />
+                  <span className="text-[10px] text-text-muted mt-0.5 block">
+                    Stale temporary files older than this will be eligible for pruning.
+                  </span>
+                </div>
+              </div>
+
+              <div className="pt-2 border-t border-border">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoPruneEnabled}
+                    onChange={(e) => setAutoPruneEnabled(e.target.checked)}
+                    className="rounded border-border text-brand focus:ring-brand"
+                  />
+                  <span className="text-xs font-medium text-text-primary">
+                    Enable Automatic Pruning of Stale Temporary Files
+                  </span>
+                </label>
+                <p className="text-[11px] text-text-muted mt-1 pl-6">
+                  Disabled by default. When enabled, only transient files exceeding the retention window are safely removed. Original source media and active projects are strictly protected.
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  size="sm"
+                  onClick={handleSaveQuotas}
+                  isLoading={savingQuotas}
+                  leftIcon={<Save className="w-3.5 h-3.5" />}
+                >
+                  Save Quotas &amp; Policies
+                </Button>
+              </div>
+            </form>
+          </Card>
+
+          {/* Section: Granular Maintenance Cleanup & Stale Artifacts */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+              <div className="flex items-center gap-2">
+                <Trash2 className="w-4 h-4 text-amber-400" />
+                <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                  Safe Maintenance Cleanup &amp; Crash Recovery
+                </h2>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isLoading={recoveringStale}
+                  onClick={handleRecoverStale}
+                  leftIcon={<Shield className="w-3.5 h-3.5 text-brand" />}
+                >
+                  Recover Stale Artifacts
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handlePreviewMaintenanceCleanup}
+                  leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                >
+                  Scan Cleanup Candidates
+                </Button>
+              </div>
+            </div>
+
+            <p className="text-xs text-text-secondary leading-relaxed">
+              Scan for orphaned upload chunks, abandoned FFmpeg temporary files, and failed renders.
+              Original source media and canonical shared assets with active references are <strong className="text-text-primary">strictly protected</strong>.
+            </p>
+
+            {/* Category selection filters */}
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
+              {[
+                { id: 'orphaned_uploads', label: 'Orphaned Uploads (.part, .uploading)' },
+                { id: 'abandoned_ffmpeg', label: 'Abandoned Render Workspaces' },
+                { id: 'failed_renders', label: 'Failed Render Outputs' },
+                { id: 'expired_temp_files', label: 'Expired Temp Files' },
+              ].map((cat) => {
+                const isSelected = selectedCleanupCategories.includes(cat.id);
+                return (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCleanupCategories((prev) =>
+                        isSelected ? prev.filter((c) => c !== cat.id) : [...prev, cat.id]
+                      );
+                    }}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                      isSelected
+                        ? 'border-brand bg-brand-subtle text-text-primary'
+                        : 'border-border bg-canvas-subtle text-text-muted hover:border-border-focus'
+                    }`}
+                  >
+                    {isSelected ? <CheckSquare className="w-3.5 h-3.5 text-brand" /> : <Square className="w-3.5 h-3.5" />}
+                    <span>{cat.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Candidates Preview Table */}
+            {maintPreview && (
+              <div className="p-4 bg-canvas-subtle border border-amber-500/30 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-semibold text-text-primary block">
+                      Discovered Cleanup Candidates ({maintPreview.total_candidates} total)
+                    </span>
+                    <span className="text-[11px] text-text-muted">
+                      Eligible: {maintPreview.eligible_candidates_count} ({formatBytes(maintPreview.total_eligible_bytes)}) |
+                      Protected/Blocked: {maintPreview.blocked_candidates_count} ({formatBytes(maintPreview.total_blocked_bytes)})
+                    </span>
+                  </div>
+                  <Badge variant="warning">
+                    {formatBytes(maintPreview.total_eligible_bytes)} Reclaimable
+                  </Badge>
+                </div>
+
+                {maintPreview.candidates && maintPreview.candidates.length > 0 ? (
+                  <div className="space-y-3 pt-2 border-t border-border">
+                    <div className="overflow-x-auto max-h-60 overflow-y-auto">
+                      <table className="w-full text-left text-xs font-mono">
+                        <thead>
+                          <tr className="border-b border-border text-text-muted text-[10px] uppercase">
+                            <th className="py-2 px-2">Path</th>
+                            <th className="py-2 px-2">Category</th>
+                            <th className="py-2 px-2">Size</th>
+                            <th className="py-2 px-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {maintPreview.candidates.map((c) => (
+                            <tr key={c.candidate_id} className="hover:bg-surface/50">
+                              <td className="py-1.5 px-2 text-text-primary truncate max-w-xs" title={c.relative_path}>
+                                {c.relative_path}
+                              </td>
+                              <td className="py-1.5 px-2 text-text-secondary">{c.category}</td>
+                              <td className="py-1.5 px-2 font-semibold text-text-primary">{formatBytes(c.size_bytes)}</td>
+                              <td className="py-1.5 px-2">
+                                {c.is_blocked ? (
+                                  <Badge variant="danger" size="sm">
+                                    Protected: {c.protection_reason || 'Active reference'}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="success" size="sm">
+                                    Eligible
+                                  </Badge>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-2 border-t border-border">
+                      <span className="text-[11px] text-text-muted">
+                        Preview generated at {new Date(maintPreview.generated_at).toLocaleTimeString()}.
+                      </span>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={handleExecuteMaintenanceCleanup}
+                        isLoading={maintCleaning}
+                        disabled={maintPreview.eligible_candidates_count === 0}
+                        leftIcon={<Trash2 className="w-3.5 h-3.5" />}
+                      >
+                        Execute Safe Cleanup ({formatBytes(maintPreview.total_eligible_bytes)})
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-xs text-emerald-400">No removable files found. Storage is clean.</p>
+                )}
+              </div>
+            )}
+
+            {/* Execution Result Banner */}
+            {maintResult && (
+              <div className="p-3.5 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs space-y-1 text-emerald-400">
+                <div className="flex items-center gap-2 font-semibold">
+                  <CheckCircle2 className="w-4 h-4 shrink-0" />
+                  <span>Cleanup Completed Successfully</span>
+                </div>
+                <p className="text-text-secondary">
+                  Deleted {maintResult.deleted_count} files, reclaiming {formatBytes(maintResult.bytes_reclaimed)}.
+                  {maintResult.skipped_count > 0 && ` (${maintResult.skipped_count} items skipped/protected)`}
+                </p>
+              </div>
+            )}
+          </Card>
+
+          {/* Section: Cleanup Audit History */}
+          <Card className="space-y-4">
+            <div className="flex items-center justify-between border-b border-border pb-2.5">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-brand" />
+                <h2 className="text-xs font-semibold text-text-primary uppercase tracking-wider">
+                  Recent Storage Cleanup Audit History
+                </h2>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={async () => {
+                  const hist = await fetchCleanupHistory(20).catch(() => []);
+                  setCleanupHistory(hist);
+                }}
+                className="text-xs h-7 px-2"
+                leftIcon={<RefreshCw className="w-3 h-3" />}
+              >
+                Refresh Log
+              </Button>
+            </div>
+
+            {cleanupHistory && cleanupHistory.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs font-mono">
+                  <thead>
+                    <tr className="border-b border-border text-text-muted text-[10px] uppercase">
+                      <th className="py-2 px-2">Operation ID</th>
+                      <th className="py-2 px-2">Timestamp</th>
+                      <th className="py-2 px-2">Category</th>
+                      <th className="py-2 px-2">Files Deleted</th>
+                      <th className="py-2 px-2">Bytes Reclaimed</th>
+                      <th className="py-2 px-2">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {cleanupHistory.map((item) => (
+                      <tr key={item.id} className="hover:bg-canvas-subtle/50">
+                        <td className="py-2 px-2 text-text-primary font-medium">{item.operation_id}</td>
+                        <td className="py-2 px-2 text-text-muted font-sans text-[11px]">
+                          {new Date(item.timestamp).toLocaleString()}
+                        </td>
+                        <td className="py-2 px-2 text-text-secondary">{item.cleanup_category}</td>
+                        <td className="py-2 px-2 text-text-primary">{item.files_deleted}</td>
+                        <td className="py-2 px-2 text-emerald-400 font-semibold">{formatBytes(item.bytes_reclaimed)}</td>
+                        <td className="py-2 px-2">
+                          <Badge variant={item.is_automatic ? 'purple' : 'default'} size="sm">
+                            {item.is_automatic ? 'Automatic' : 'Manual'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted italic py-2">No storage cleanup operations recorded yet.</p>
             )}
           </Card>
 

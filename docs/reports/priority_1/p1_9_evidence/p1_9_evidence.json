@@ -1,0 +1,156 @@
+{
+  "timestamp": "2026-11-20T10:28:18.622461+00:00",
+  "milestone": "P1.9",
+  "description": "Evidence records for P1.9 storage management, quotas, safe cleanup & automatic pruning",
+  "demos": {
+    "demo_a": {
+      "status": "PASSED",
+      "breakdown": {
+        "storage_root": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage",
+        "total_disk_space_bytes": 253023817728,
+        "free_disk_space_bytes": 50498183168,
+        "used_disk_space_bytes": 202525634560,
+        "total_application_storage_bytes": 643072,
+        "recoverable_storage_bytes": 0,
+        "protected_storage_bytes": 643072,
+        "is_low_storage": false,
+        "low_storage_threshold_bytes": 5368709120,
+        "categories": {
+          "source_media_bytes": 0,
+          "canonical_shared_media_bytes": 0,
+          "logical_media_assets_bytes": 0,
+          "generated_video_bytes": 0,
+          "rendered_exports_bytes": 0,
+          "extracted_audio_bytes": 0,
+          "keyframes_and_thumbnails_bytes": 0,
+          "transcripts_and_analysis_bytes": 0,
+          "temporary_uploads_bytes": 0,
+          "temporary_rendering_bytes": 0,
+          "database_and_backups_bytes": 643072,
+          "proxies_bytes": 0,
+          "logs_bytes": 0,
+          "characters_bytes": 0,
+          "timelines_bytes": 0,
+          "temp_cache_bytes": 0
+        },
+        "directories": {
+          "media": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\media",
+          "proxies": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\proxies",
+          "thumbnails": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\thumbnails",
+          "analysis": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\analysis",
+          "timelines": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\timelines",
+          "shorts": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\shorts",
+          "exports": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\exports",
+          "temp": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\temp",
+          "backups": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\backups",
+          "logs": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\logs",
+          "db": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_9_demos_nn4f0pc0\\storage\\db"
+        },
+        "quota_status": {
+          "quota_settings": {
+            "id": "default",
+            "storage_limit_bytes": null,
+            "generated_video_limit_bytes": null,
+            "temp_storage_limit_bytes": null,
+            "warning_threshold_percent": 85,
+            "auto_prune_enabled": false,
+            "auto_prune_retention_hours": 24,
+            "auto_prune_categories": [
+              "orphaned_uploads",
+              "abandoned_ffmpeg",
+              "failed_renders",
+              "expired_temp_files"
+            ],
+            "max_temp_storage_bytes": null,
+            "updated_at": "2026-11-20 10:28:18"
+          },
+          "total_usage_bytes": 643072,
+          "total_utilization_pct": null,
+          "generated_video_usage_bytes": 0,
+          "generated_video_utilization_pct": null,
+          "temp_storage_usage_bytes": 0,
+          "temp_storage_utilization_pct": null,
+          "is_warning": false,
+          "is_exceeded": false,
+          "warning_reasons": []
+        }
+      }
+    },
+    "demo_b": {
+      "status": "PASSED",
+      "logical_bytes": 54958,
+      "canonical_bytes": 27479,
+      "single_stored_file_verified": true
+    },
+    "demo_c": {
+      "status": "PASSED",
+      "candidates_found": 1,
+      "total_reclaimable_bytes": 25000,
+      "file_retained_on_disk": true
+    },
+    "demo_d": {
+      "status": "PASSED",
+      "active_upload_blocked": true,
+      "active_job_render_blocked": true,
+      "files_survived_attempted_cleanup": true
+    },
+    "demo_e": {
+      "status": "PASSED",
+      "media_record_preserved": true,
+      "availability_status": "present"
+    },
+    "demo_f": {
+      "status": "PASSED",
+      "deleted_count": 1,
+      "bytes_reclaimed": 25000,
+      "file_deleted": true
+    },
+    "demo_g": {
+      "status": "PASSED",
+      "traversals_tested": {
+        "../../Windows/System32/cmd.exe": "REJECTED",
+        "../../../etc/passwd": "REJECTED",
+        "..\\..\\system.ini": "REJECTED",
+        "/absolute/outside/file.txt": "REJECTED"
+      }
+    },
+    "demo_h": {
+      "status": "PASSED",
+      "persisted_storage_limit": 53687091200,
+      "persisted_auto_prune_enabled": true,
+      "persisted_retention_hours": 36
+    },
+    "demo_i": {
+      "status": "PASSED",
+      "status_code": 507,
+      "error_response": {
+        "error": {
+          "code": "QUOTA_EXCEEDED",
+          "message": "OVERALL_QUOTA_EXCEEDED: Operation requiring 30.89 KB would exceed overall storage quota of 100.00 B (current usage: 752.83 KB)."
+        }
+      }
+    },
+    "demo_j": {
+      "status": "PASSED",
+      "deleted_count": 1,
+      "bytes_reclaimed": 12000,
+      "stale_pruned": true,
+      "fresh_retained": true
+    },
+    "demo_k": {
+      "status": "PASSED",
+      "recovered_files_count": 2,
+      "bytes_reclaimed": 23000,
+      "crashed_upload_cleaned": true,
+      "dead_workspace_cleaned": true
+    },
+    "demo_l": {
+      "status": "PASSED",
+      "total_audit_records": 4,
+      "sqlite_integrity_check": [
+        "ok"
+      ],
+      "sqlite_foreign_key_check": []
+    }
+  }
+}

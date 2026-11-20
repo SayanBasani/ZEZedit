@@ -1,8 +1,10 @@
 """Media metadata domain service managing media asset records, availability states, and relinking."""
 
+import hashlib
 import json
 import logging
 import shutil
+import sqlite3
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -12,10 +14,12 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
-from app.models.entities import MediaAssetRecord
+from app.models.entities import MediaAssetRecord, StoredMediaFileRecord
 from app.services.media_probe import probe_media_file
 
 logger = logging.getLogger("zezedit.media_service")
+
+SUPPORTED_VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm", ".flv", ".wmv", ".m4v"}
 
 
 class MediaService:
@@ -49,6 +53,7 @@ class MediaService:
         integrity_status: Optional[str] = None,
         upload_attempt_id: Optional[str] = None,
         integrity_details: Optional[dict] = None,
+        stored_file_id: Optional[str] = None,
     ) -> MediaAssetRecord:
         """Register a media asset record associated with a project."""
         asset_id = f"med_{uuid.uuid4().hex[:12]}"
@@ -66,48 +71,113 @@ class MediaService:
                     status_code=404,
                 )
 
+            # If sha256 is present and stored_file_id is not given, register or link stored file
+            actual_stored_file_id = stored_file_id
+            if sha256 and not actual_stored_file_id:
+                smf = self.get_stored_media_file_by_sha256(sha256)
+                if not smf:
+                    smf = self.register_or_update_stored_file(
+                        sha256=sha256,
+                        storage_path=storage_path,
+                        file_size_bytes=file_size_bytes,
+                        mime_type=mime_type,
+                        duration_seconds=duration_seconds,
+                        width=width,
+                        height=height,
+                        fps=fps,
+                        video_codec=video_codec,
+                        audio_codec=audio_codec,
+                        is_external=is_external,
+                    )
+                actual_stored_file_id = smf.id
+
             cols = [col[1] for col in conn.execute("PRAGMA table_info(media_assets)").fetchall()]
+            has_stored_file_col = "stored_file_id" in cols
             if "sha256" in cols and "upload_attempt_id" in cols:
-                conn.execute(
-                    """
-                    INSERT INTO media_assets (
-                        id, project_id, original_filename, storage_path, is_external,
-                        media_type, file_size_bytes, mime_type, duration_seconds,
-                        width, height, fps, video_codec, audio_codec, availability_status,
-                        proxy_reference_path, thumbnail_reference_path, metadata_status,
-                        metadata_json, created_at, updated_at, proxy_status,
-                        sha256, integrity_status, upload_attempt_id, integrity_details_json, last_integrity_check
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        asset_id,
-                        project_id,
-                        original_filename,
-                        storage_path,
-                        1 if is_external else 0,
-                        media_type,
-                        file_size_bytes,
-                        mime_type,
-                        duration_seconds,
-                        width,
-                        height,
-                        fps,
-                        video_codec,
-                        audio_codec,
-                        proxy_reference_path,
-                        thumbnail_reference_path,
-                        metadata_status,
-                        meta_json,
-                        now,
-                        now,
-                        proxy_status,
-                        sha256,
-                        integrity_status or "verified",
-                        upload_attempt_id,
-                        integ_json,
-                        now if integrity_status else None,
-                    ),
-                )
+                if has_stored_file_col:
+                    conn.execute(
+                        """
+                        INSERT INTO media_assets (
+                            id, project_id, original_filename, storage_path, is_external,
+                            media_type, file_size_bytes, mime_type, duration_seconds,
+                            width, height, fps, video_codec, audio_codec, availability_status,
+                            proxy_reference_path, thumbnail_reference_path, metadata_status,
+                            metadata_json, created_at, updated_at, proxy_status,
+                            sha256, integrity_status, upload_attempt_id, integrity_details_json, last_integrity_check,
+                            stored_file_id
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            asset_id,
+                            project_id,
+                            original_filename,
+                            storage_path,
+                            1 if is_external else 0,
+                            media_type,
+                            file_size_bytes,
+                            mime_type,
+                            duration_seconds,
+                            width,
+                            height,
+                            fps,
+                            video_codec,
+                            audio_codec,
+                            proxy_reference_path,
+                            thumbnail_reference_path,
+                            metadata_status,
+                            meta_json,
+                            now,
+                            now,
+                            proxy_status,
+                            sha256,
+                            integrity_status or "verified",
+                            upload_attempt_id,
+                            integ_json,
+                            now if integrity_status else None,
+                            actual_stored_file_id,
+                        ),
+                    )
+                else:
+                    conn.execute(
+                        """
+                        INSERT INTO media_assets (
+                            id, project_id, original_filename, storage_path, is_external,
+                            media_type, file_size_bytes, mime_type, duration_seconds,
+                            width, height, fps, video_codec, audio_codec, availability_status,
+                            proxy_reference_path, thumbnail_reference_path, metadata_status,
+                            metadata_json, created_at, updated_at, proxy_status,
+                            sha256, integrity_status, upload_attempt_id, integrity_details_json, last_integrity_check
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'present', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            asset_id,
+                            project_id,
+                            original_filename,
+                            storage_path,
+                            1 if is_external else 0,
+                            media_type,
+                            file_size_bytes,
+                            mime_type,
+                            duration_seconds,
+                            width,
+                            height,
+                            fps,
+                            video_codec,
+                            audio_codec,
+                            proxy_reference_path,
+                            thumbnail_reference_path,
+                            metadata_status,
+                            meta_json,
+                            now,
+                            now,
+                            proxy_status,
+                            sha256,
+                            integrity_status or "verified",
+                            upload_attempt_id,
+                            integ_json,
+                            now if integrity_status else None,
+                        ),
+                    )
             else:
                 conn.execute(
                     """
@@ -159,7 +229,269 @@ class MediaService:
                 ),
             )
 
+        if actual_stored_file_id:
+            try:
+                self.recalculate_stored_file_reference_count(actual_stored_file_id)
+            except Exception as ref_err:
+                logger.warning("Could not recalculate reference count for stored file %s: %s", actual_stored_file_id, ref_err)
+
         return self.get_media_asset(project_id, asset_id)
+
+    def _row_to_stored_file(self, row) -> StoredMediaFileRecord:
+        keys = row.keys() if hasattr(row, "keys") else []
+        return StoredMediaFileRecord(
+            id=row["id"],
+            sha256=row["sha256"],
+            storage_path=row["storage_path"],
+            file_size_bytes=row["file_size_bytes"],
+            mime_type=row["mime_type"] if "mime_type" in keys else None,
+            container_format=row["container_format"] if "container_format" in keys else None,
+            duration_seconds=row["duration_seconds"] if "duration_seconds" in keys else None,
+            width=row["width"] if "width" in keys else None,
+            height=row["height"] if "height" in keys else None,
+            fps=row["fps"] if "fps" in keys else None,
+            video_codec=row["video_codec"] if "video_codec" in keys else None,
+            audio_codec=row["audio_codec"] if "audio_codec" in keys else None,
+            is_external=bool(row["is_external"]) if "is_external" in keys else False,
+            reference_count=row["reference_count"] if "reference_count" in keys else 1,
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+            last_verified_at=row["last_verified_at"] if "last_verified_at" in keys else None,
+        )
+
+    def get_stored_media_file_by_sha256(self, sha256: str) -> Optional[StoredMediaFileRecord]:
+        """Fetch canonical stored media file record by SHA-256."""
+        if not sha256 or not sha256.strip():
+            return None
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return None
+            row = conn.execute("SELECT * FROM stored_media_files WHERE sha256 = ?", (sha256.strip().lower(),)).fetchone()
+            if not row:
+                return None
+            return self._row_to_stored_file(row)
+
+    def get_stored_media_file_by_id(self, stored_file_id: str) -> Optional[StoredMediaFileRecord]:
+        """Fetch canonical stored media file record by ID."""
+        if not stored_file_id or not stored_file_id.strip():
+            return None
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return None
+            row = conn.execute("SELECT * FROM stored_media_files WHERE id = ?", (stored_file_id.strip(),)).fetchone()
+            if not row:
+                return None
+            return self._row_to_stored_file(row)
+
+    def register_or_update_stored_file(
+        self,
+        sha256: str,
+        storage_path: str,
+        file_size_bytes: int,
+        mime_type: Optional[str] = None,
+        container_format: Optional[str] = None,
+        duration_seconds: Optional[float] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        fps: Optional[float] = None,
+        video_codec: Optional[str] = None,
+        audio_codec: Optional[str] = None,
+        is_external: bool = False,
+    ) -> StoredMediaFileRecord:
+        """Register or atomically return existing canonical stored media file record keyed by sha256."""
+        now = datetime.now(timezone.utc).isoformat()
+        clean_sha = sha256.strip().lower()
+        file_id = f"smf_{clean_sha[:16]}"
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return StoredMediaFileRecord(
+                    id=file_id,
+                    sha256=clean_sha,
+                    storage_path=storage_path,
+                    file_size_bytes=file_size_bytes,
+                    created_at=now,
+                    updated_at=now,
+                )
+
+            existing = conn.execute(
+                "SELECT * FROM stored_media_files WHERE sha256 = ?", (clean_sha,)
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    """
+                    UPDATE stored_media_files
+                    SET last_verified_at = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (now, now, existing["id"]),
+                )
+                return self._row_to_stored_file(existing)
+
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO stored_media_files (
+                        id, sha256, storage_path, file_size_bytes, mime_type, container_format,
+                        duration_seconds, width, height, fps, video_codec, audio_codec,
+                        is_external, reference_count, created_at, updated_at, last_verified_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                    """,
+                    (
+                        file_id,
+                        clean_sha,
+                        storage_path,
+                        file_size_bytes,
+                        mime_type,
+                        container_format,
+                        duration_seconds,
+                        width,
+                        height,
+                        fps,
+                        video_codec,
+                        audio_codec,
+                        1 if is_external else 0,
+                        now,
+                        now,
+                        now,
+                    ),
+                )
+            except sqlite3.IntegrityError:
+                existing = conn.execute(
+                    "SELECT * FROM stored_media_files WHERE sha256 = ?", (clean_sha,)
+                ).fetchone()
+                if existing:
+                    return self._row_to_stored_file(existing)
+
+            created = conn.execute(
+                "SELECT * FROM stored_media_files WHERE id = ?", (file_id,)
+            ).fetchone()
+            return self._row_to_stored_file(created)
+
+    def recalculate_stored_file_reference_count(self, stored_file_id: str) -> int:
+        """Atomically recount active media assets referencing this stored file and update reference_count."""
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return 1
+            sf = conn.execute("SELECT sha256 FROM stored_media_files WHERE id = ?", (stored_file_id,)).fetchone()
+            sha = sf[0] if sf else ""
+            row = conn.execute(
+                """
+                SELECT COUNT(*) FROM media_assets
+                WHERE (stored_file_id = ? OR (sha256 IS NOT NULL AND sha256 != '' AND sha256 = ?))
+                  AND availability_status != 'deleted'
+                """,
+                (stored_file_id, sha),
+            ).fetchone()
+            count = row[0] if row else 0
+            conn.execute(
+                "UPDATE stored_media_files SET reference_count = ?, updated_at = ? WHERE id = ?",
+                (count, now, stored_file_id),
+            )
+            return count
+
+    def reconcile_reference_counts(self) -> Dict[str, Any]:
+        """
+        Reconcile and synchronize reference counts across all stored media files
+        against actual active media assets in the database.
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        total_reconciled = 0
+        orphaned_files = 0
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return {"total_stored_files": 0, "updated_counts": 0, "orphaned_files": 0, "reconciled_at": now}
+            stored_files = conn.execute("SELECT id, sha256, storage_path, reference_count FROM stored_media_files").fetchall()
+            for sf in stored_files:
+                sf_id = sf["id"]
+                sf_sha = sf["sha256"]
+                actual = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM media_assets
+                    WHERE (stored_file_id = ? OR (sha256 IS NOT NULL AND sha256 != '' AND sha256 = ?))
+                      AND availability_status != 'deleted'
+                    """,
+                    (sf_id, sf_sha),
+                ).fetchone()[0]
+
+                if actual != sf["reference_count"]:
+                    conn.execute(
+                        "UPDATE stored_media_files SET reference_count = ?, updated_at = ? WHERE id = ?",
+                        (actual, now, sf_id),
+                    )
+                    total_reconciled += 1
+                if actual == 0:
+                    orphaned_files += 1
+
+        return {
+            "total_stored_files": len(stored_files),
+            "updated_counts": total_reconciled,
+            "orphaned_files": orphaned_files,
+            "reconciled_at": now,
+        }
+
+    def get_deduplication_stats(self) -> Dict[str, Any]:
+        """
+        Compute global deduplication statistics:
+        - Total logical media assets
+        - Unique stored physical files
+        - Shared stored files (reference_count > 1)
+        - Deduplicated assets count
+        - Total logical bytes vs actual physical bytes
+        - Total storage bytes saved and deduplication ratio
+        """
+        with sqlite_session(self.db_path) as conn:
+            tables = [r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            if "stored_media_files" not in tables:
+                return {
+                    "total_media_assets": 0,
+                    "unique_stored_files": 0,
+                    "shared_stored_files": 0,
+                    "deduplicated_assets_count": 0,
+                    "total_logical_bytes": 0,
+                    "actual_physical_bytes": 0,
+                    "saved_bytes": 0,
+                    "deduplication_ratio": 1.0,
+                }
+            total_assets = conn.execute(
+                "SELECT COUNT(*), COALESCE(SUM(file_size_bytes), 0) FROM media_assets WHERE availability_status != 'deleted'"
+            ).fetchone()
+            total_media_assets = total_assets[0] if total_assets else 0
+            total_logical_bytes = total_assets[1] if total_assets else 0
+
+            stored_stats = conn.execute(
+                """
+                SELECT
+                    COUNT(*),
+                    COALESCE(SUM(file_size_bytes), 0),
+                    COALESCE(SUM(CASE WHEN reference_count > 1 THEN 1 ELSE 0 END), 0)
+                FROM stored_media_files
+                """
+            ).fetchone()
+            unique_stored_files = stored_stats[0] if stored_stats else 0
+            actual_physical_bytes = stored_stats[1] if stored_stats else 0
+            shared_stored_files = stored_stats[2] if stored_stats else 0
+
+            saved_instances = max(0, total_media_assets - unique_stored_files)
+            saved_bytes = max(0, total_logical_bytes - actual_physical_bytes)
+            ratio = round(total_logical_bytes / actual_physical_bytes, 2) if actual_physical_bytes > 0 else 1.0
+
+        return {
+            "total_media_assets": total_media_assets,
+            "unique_stored_files": unique_stored_files,
+            "shared_stored_files": shared_stored_files,
+            "deduplicated_assets_count": saved_instances,
+            "total_logical_bytes": total_logical_bytes,
+            "actual_physical_bytes": actual_physical_bytes,
+            "saved_bytes": saved_bytes,
+            "deduplication_ratio": ratio,
+        }
 
     def list_media_assets(
         self,
@@ -311,7 +643,16 @@ class MediaService:
         with sqlite_session(self.db_path) as conn:
             total_count = conn.execute(count_sql, params).fetchone()[0]
 
-            query = f"SELECT * FROM media_assets WHERE {where_sql} ORDER BY {order_by}"
+            query = f"""
+                SELECT media_assets.*,
+                       COALESCE(
+                           (SELECT reference_count FROM stored_media_files WHERE id = media_assets.stored_file_id),
+                           1
+                       ) AS reference_count
+                FROM media_assets
+                WHERE {where_sql}
+                ORDER BY {order_by}
+            """
             query_params = list(params)
             if page_size is not None and page_size > 0:
                 p = max(1, page)
@@ -353,12 +694,28 @@ class MediaService:
         with sqlite_session(self.db_path) as conn:
             if project_id and project_id != "all":
                 row = conn.execute(
-                    "SELECT * FROM media_assets WHERE project_id = ? AND id = ?",
+                    """
+                    SELECT m.*,
+                           COALESCE(
+                               (SELECT reference_count FROM stored_media_files WHERE id = m.stored_file_id),
+                               1
+                           ) AS reference_count
+                    FROM media_assets m
+                    WHERE m.project_id = ? AND m.id = ?
+                    """,
                     (project_id, asset_id),
                 ).fetchone()
             else:
                 row = conn.execute(
-                    "SELECT * FROM media_assets WHERE id = ?",
+                    """
+                    SELECT m.*,
+                           COALESCE(
+                               (SELECT reference_count FROM stored_media_files WHERE id = m.stored_file_id),
+                               1
+                           ) AS reference_count
+                    FROM media_assets m
+                    WHERE m.id = ?
+                    """,
                     (asset_id,),
                 ).fetchone()
 
@@ -490,35 +847,81 @@ class MediaService:
         except Exception as e:
             logger.warning("Could not cancel jobs for asset %s: %s", asset_id, e)
 
-        # 4. Reclaim managed disk files (only if within storage_root!)
-        try:
-            # Managed source video (if not external original)
-            if not asset.is_external and asset.storage_path:
-                src_file = layout.media / asset.storage_path
-                if not src_file.is_file():
-                    src_file = Path(asset.storage_path)
-                if src_file.exists() and src_file.is_file():
-                    # Check path traversal
-                    try:
-                        resolved_src = src_file.resolve()
-                        resolved_root = layout.root.resolve()
-                        if resolved_src.is_relative_to(resolved_root) or str(resolved_src).lower().startswith(str(resolved_root).lower()):
-                            src_file.unlink(missing_ok=True)
-                    except Exception as unlink_err:
-                        logger.warning("Failed to unlink source file '%s': %s", src_file, unlink_err)
+        # 4. Check remaining references to the underlying physical file (P1.8 Reference Counting)
+        stored_file = None
+        if asset.stored_file_id:
+            stored_file = self.get_stored_media_file_by_id(asset.stored_file_id)
+        if not stored_file and asset.sha256:
+            stored_file = self.get_stored_media_file_by_sha256(asset.sha256)
 
-            # Proxies matching asset_id
+        remaining_references = 0
+        with sqlite_session(self.db_path) as conn:
+            if stored_file:
+                rem_row = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM media_assets
+                    WHERE (stored_file_id = ? OR (sha256 IS NOT NULL AND sha256 != '' AND sha256 = ?))
+                      AND id != ?
+                      AND availability_status != 'deleted'
+                    """,
+                    (stored_file.id, stored_file.sha256, asset_id),
+                ).fetchone()
+                remaining_references = rem_row[0] if rem_row else 0
+            elif asset.storage_path:
+                rem_row = conn.execute(
+                    """
+                    SELECT COUNT(*) FROM media_assets
+                    WHERE storage_path = ?
+                      AND id != ?
+                      AND availability_status != 'deleted'
+                    """,
+                    (asset.storage_path, asset_id),
+                ).fetchone()
+                remaining_references = rem_row[0] if rem_row else 0
+
+        physical_file_retained = False
+        if remaining_references > 0:
+            physical_file_retained = True
+            logger.info(
+                "Preserving physical file for asset '%s': %d other reference(s) exist.",
+                asset_id,
+                remaining_references,
+            )
+        else:
+            # Reclaim managed disk files (only if within storage_root!)
+            try:
+                # Managed source video (if not external original)
+                if not asset.is_external and asset.storage_path:
+                    src_file = layout.media / asset.storage_path
+                    if not src_file.is_file():
+                        src_file = Path(asset.storage_path)
+                    if src_file.exists() and src_file.is_file():
+                        # Check path traversal
+                        try:
+                            resolved_src = src_file.resolve()
+                            resolved_root = layout.root.resolve()
+                            if resolved_src.is_relative_to(resolved_root) or str(resolved_src).lower().startswith(str(resolved_root).lower()):
+                                src_file.unlink(missing_ok=True)
+                        except Exception as unlink_err:
+                            logger.warning("Failed to unlink source file '%s': %s", src_file, unlink_err)
+
+                if stored_file:
+                    with sqlite_session(self.db_path) as conn:
+                        conn.execute("DELETE FROM stored_media_files WHERE id = ?", (stored_file.id,))
+            except Exception as file_err:
+                logger.warning("Error deleting managed media files for %s: %s", asset_id, file_err)
+
+        # Asset-specific proxies, thumbnails, and analysis files are always reclaimed
+        try:
             for p in layout.proxies.glob(f"{asset_id}*"):
                 p.unlink(missing_ok=True)
-            # Thumbnails matching asset_id
             for t in layout.thumbnails.glob(f"{asset_id}*"):
                 t.unlink(missing_ok=True)
-            # Analysis directory for asset
             analysis_dir = layout.analysis / asset_id
             if analysis_dir.exists():
                 shutil.rmtree(analysis_dir, ignore_errors=True)
         except Exception as file_err:
-            logger.warning("Error deleting managed media files for %s: %s", asset_id, file_err)
+            logger.warning("Error deleting managed proxy/thumb files for %s: %s", asset_id, file_err)
 
         # 5. Delete database records across related tables
         with sqlite_session(self.db_path) as conn:
@@ -570,7 +973,18 @@ class MediaService:
             except Exception:
                 pass
 
-        return {"deleted": True, "asset_id": asset_id}
+        if stored_file and remaining_references > 0:
+            try:
+                self.recalculate_stored_file_reference_count(stored_file.id)
+            except Exception as ref_err:
+                logger.warning("Could not recalculate reference count after deleting %s: %s", asset_id, ref_err)
+
+        return {
+            "deleted": True,
+            "asset_id": asset_id,
+            "remaining_references": remaining_references,
+            "physical_file_retained": physical_file_retained,
+        }
 
     def refresh_media_metadata(self, project_id: Optional[str], asset_id: str) -> MediaAssetRecord:
         """
@@ -776,10 +1190,11 @@ class MediaService:
     def inspect_relink_candidate(
         self, project_id: str, asset_id: str, new_storage_path: str
     ) -> Dict[str, Any]:
-        """Probe replacement candidate and compare against original media attributes."""
+        """Probe replacement candidate and compare against original media attributes with SHA-256 validation."""
         asset = self.get_media_asset(project_id, asset_id)
         candidate_path = Path(new_storage_path).expanduser().resolve(strict=False)
 
+        # 1. Existence and regular file checks
         if not candidate_path.exists():
             raise AppError(
                 code="FILE_NOT_FOUND",
@@ -793,31 +1208,85 @@ class MediaService:
                 status_code=400,
             )
 
-        probe = None
+        # 2. Path security validation: forbid system-critical directories
+        resolved_str = str(candidate_path.resolve()).lower()
+        disallowed_prefixes = [
+            "c:\\windows", "c:\\program files", "c:\\program files (x86)",
+            "/etc", "/bin", "/sbin", "/usr", "/sys", "/dev", "/proc"
+        ]
+        if any(resolved_str.startswith(p) for p in disallowed_prefixes):
+            raise AppError(
+                code="SECURITY_VIOLATION",
+                message="Access to restricted system paths is prohibited.",
+                status_code=403,
+            )
+
+        # 3. Video format validation
+        ext = candidate_path.suffix.lower()
+        if ext not in SUPPORTED_VIDEO_EXTS:
+            raise AppError(
+                code="UNSUPPORTED_MEDIA_TYPE",
+                message=f"Unsupported video file format '{ext}'. Supported formats: {sorted(SUPPORTED_VIDEO_EXTS)}.",
+                status_code=400,
+            )
+
+        # 4. Readability and FFprobe stream inspection
         warnings: List[str] = []
         try:
             probe = probe_media_file(candidate_path, ffprobe_path=self.settings.ffprobe_path)
         except Exception as probe_err:
-            warnings.append(f"Media stream probing notice: {probe_err}")
+            raise AppError(
+                code="INVALID_VIDEO_FILE",
+                message=f"Replacement video file is corrupt or unreadable by FFprobe: {probe_err}",
+                status_code=400,
+            )
 
+        if not probe.width or not probe.height or not probe.video_codec:
+            raise AppError(
+                code="NO_VIDEO_STREAM",
+                message="Replacement media file does not contain a valid readable video stream.",
+                status_code=400,
+            )
+
+        # 5. Incremental SHA-256 calculation (bounded memory chunks)
+        candidate_sha = None
+        try:
+            hasher = hashlib.sha256()
+            with open(candidate_path, "rb") as f:
+                while chunk := f.read(64 * 1024):
+                    hasher.update(chunk)
+            candidate_sha = hasher.hexdigest()
+        except Exception as hash_err:
+            logger.warning("Could not compute candidate SHA-256: %s", hash_err)
+
+        # 6. Metadata comparison & identity check
         dur_diff = 0.0
-        if probe:
-            if asset.duration_seconds is not None and probe.duration_seconds is not None:
-                dur_diff = round(abs(probe.duration_seconds - asset.duration_seconds), 3)
-                if dur_diff > 1.0:
-                    warnings.append(
-                        f"Duration mismatch: Candidate has {probe.duration_seconds:.2f}s, original had {asset.duration_seconds:.2f}s (difference: {dur_diff:.2f}s)."
-                    )
+        if asset.duration_seconds is not None and probe.duration_seconds is not None:
+            dur_diff = round(abs(probe.duration_seconds - asset.duration_seconds), 3)
+            if dur_diff > 1.0:
+                warnings.append(
+                    f"Duration mismatch: Candidate has {probe.duration_seconds:.2f}s, original had {asset.duration_seconds:.2f}s (difference: {dur_diff:.2f}s)."
+                )
 
-            if asset.width and asset.height and probe.width and probe.height:
-                if (probe.width, probe.height) != (asset.width, asset.height):
-                    warnings.append(
-                        f"Resolution mismatch: Candidate is {probe.width}x{probe.height}, original was {asset.width}x{asset.height}."
-                    )
+        if asset.width and asset.height and probe.width and probe.height:
+            if (probe.width, probe.height) != (asset.width, asset.height):
+                warnings.append(
+                    f"Resolution mismatch: Candidate is {probe.width}x{probe.height}, original was {asset.width}x{asset.height}."
+                )
+
+        sha256_match = None
+        if asset.sha256 and candidate_sha:
+            if asset.sha256.lower() == candidate_sha.lower():
+                sha256_match = True
+            else:
+                sha256_match = False
+                warnings.append(
+                    f"SHA-256 checksum mismatch: Candidate hash '{candidate_sha[:8]}...' differs from original '{asset.sha256[:8]}...'."
+                )
 
         if dur_diff > 1.0:
             match_status = "mismatch"
-        elif len(warnings) > 0:
+        elif sha256_match is False or len(warnings) > 0:
             match_status = "compatible"
         else:
             match_status = "exact"
@@ -833,8 +1302,12 @@ class MediaService:
             "candidate_resolution": f"{probe.width}x{probe.height}" if probe and probe.width else None,
             "original_size_bytes": asset.file_size_bytes,
             "candidate_size_bytes": probe.file_size_bytes if probe else candidate_path.stat().st_size,
+            "original_sha256": asset.sha256,
+            "candidate_sha256": candidate_sha,
+            "sha256_match": sha256_match,
             "candidate_video_codec": probe.video_codec if probe else None,
             "candidate_audio_codec": probe.audio_codec if probe else None,
+            "candidate_fps": probe.fps if probe else None,
         }
 
         return {
@@ -843,20 +1316,34 @@ class MediaService:
             "comparison": comparison,
             "probe": probe,
             "candidate_path": candidate_path,
+            "candidate_sha256": candidate_sha,
         }
 
     def relink_media(
         self, project_id: str, asset_id: str, new_storage_path: str, force: bool = False
     ) -> MediaAssetRecord:
-        """Relink an asset to a new filesystem path with comparison and user audit."""
+        """Relink an asset to a new filesystem path with comparison, atomic update, and user audit."""
         inspection = self.inspect_relink_candidate(project_id, asset_id, new_storage_path)
         candidate_path = inspection["candidate_path"]
         probe = inspection["probe"]
         warnings = inspection["warnings"]
         match_status = inspection["match_status"]
         comparison = inspection["comparison"]
+        candidate_sha = inspection.get("candidate_sha256")
 
+        if match_status == "mismatch" and not force:
+            raise AppError(
+                code="RELINK_MISMATCH",
+                message=f"Candidate replacement video has significant discrepancies ({'; '.join(warnings)}). Explicit confirmation (force=true) is required.",
+                status_code=400,
+                details=comparison,
+            )
+
+        asset = self.get_media_asset(project_id, asset_id)
         now = datetime.now(timezone.utc).isoformat()
+        prev_path = asset.storage_path
+        prev_sha = asset.sha256
+
         probe_size = probe.file_size_bytes if probe else candidate_path.stat().st_size
         probe_dur = probe.duration_seconds if probe else None
         probe_w = probe.width if probe else None
@@ -865,37 +1352,127 @@ class MediaService:
         probe_vc = probe.video_codec if probe else None
         probe_ac = probe.audio_codec if probe else None
 
+        is_candidate_external = True
+        try:
+            is_candidate_external = not candidate_path.resolve().is_relative_to(self.settings.storage_root.resolve())
+        except Exception:
+            is_candidate_external = True
+
+        old_stored_file_id = asset.stored_file_id
+        new_stored_file_id = None
+        if candidate_sha:
+            smf = self.get_stored_media_file_by_sha256(candidate_sha)
+            if not smf:
+                smf = self.register_or_update_stored_file(
+                    sha256=candidate_sha,
+                    storage_path=str(candidate_path),
+                    file_size_bytes=probe_size or 0,
+                    mime_type=f"{probe.media_type}/{probe.container_format}" if probe else None,
+                    container_format=probe.container_format if probe else None,
+                    duration_seconds=probe_dur,
+                    width=probe_w,
+                    height=probe_h,
+                    fps=probe_fps,
+                    video_codec=probe_vc,
+                    audio_codec=probe_ac,
+                    is_external=is_candidate_external,
+                )
+            new_stored_file_id = smf.id
+
         with sqlite_session(self.db_path) as conn:
-            conn.execute(
-                """
-                UPDATE media_assets
-                SET storage_path = ?,
-                    availability_status = 'present',
-                    file_size_bytes = COALESCE(?, file_size_bytes),
-                    duration_seconds = COALESCE(?, duration_seconds),
-                    width = COALESCE(?, width),
-                    height = COALESCE(?, height),
-                    fps = COALESCE(?, fps),
-                    video_codec = COALESCE(?, video_codec),
-                    audio_codec = COALESCE(?, audio_codec),
-                    last_integrity_check = ?,
-                    updated_at = ?
-                WHERE id = ?
-                """,
-                (
-                    str(candidate_path),
-                    probe_size,
-                    probe_dur,
-                    probe_w,
-                    probe_h,
-                    probe_fps,
-                    probe_vc,
-                    probe_ac,
-                    now,
-                    now,
-                    asset_id,
-                ),
-            )
+            cols = [col[1] for col in conn.execute("PRAGMA table_info(media_assets)").fetchall()]
+            if "stored_file_id" in cols:
+                conn.execute(
+                    """
+                    UPDATE media_assets
+                    SET storage_path = ?,
+                        is_external = ?,
+                        availability_status = 'present',
+                        integrity_status = ?,
+                        file_size_bytes = COALESCE(?, file_size_bytes),
+                        duration_seconds = COALESCE(?, duration_seconds),
+                        width = COALESCE(?, width),
+                        height = COALESCE(?, height),
+                        fps = COALESCE(?, fps),
+                        video_codec = COALESCE(?, video_codec),
+                        audio_codec = COALESCE(?, audio_codec),
+                        sha256 = COALESCE(?, sha256),
+                        relinked_at = ?,
+                        previous_storage_path = ?,
+                        previous_sha256 = ?,
+                        relink_match_status = ?,
+                        last_integrity_check = ?,
+                        updated_at = ?,
+                        stored_file_id = COALESCE(?, stored_file_id)
+                    WHERE id = ?
+                    """,
+                    (
+                        str(candidate_path),
+                        1 if is_candidate_external else 0,
+                        "verified" if match_status in ("exact", "compatible") else "online",
+                        probe_size,
+                        probe_dur,
+                        probe_w,
+                        probe_h,
+                        probe_fps,
+                        probe_vc,
+                        probe_ac,
+                        candidate_sha,
+                        now,
+                        prev_path,
+                        prev_sha,
+                        match_status,
+                        now,
+                        now,
+                        new_stored_file_id,
+                        asset_id,
+                    ),
+                )
+            else:
+                conn.execute(
+                    """
+                    UPDATE media_assets
+                    SET storage_path = ?,
+                        is_external = ?,
+                        availability_status = 'present',
+                        integrity_status = ?,
+                        file_size_bytes = COALESCE(?, file_size_bytes),
+                        duration_seconds = COALESCE(?, duration_seconds),
+                        width = COALESCE(?, width),
+                        height = COALESCE(?, height),
+                        fps = COALESCE(?, fps),
+                        video_codec = COALESCE(?, video_codec),
+                        audio_codec = COALESCE(?, audio_codec),
+                        sha256 = COALESCE(?, sha256),
+                        relinked_at = ?,
+                        previous_storage_path = ?,
+                        previous_sha256 = ?,
+                        relink_match_status = ?,
+                        last_integrity_check = ?,
+                        updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        str(candidate_path),
+                        1 if is_candidate_external else 0,
+                        "verified" if match_status in ("exact", "compatible") else "online",
+                        probe_size,
+                        probe_dur,
+                        probe_w,
+                        probe_h,
+                        probe_fps,
+                        probe_vc,
+                        probe_ac,
+                        candidate_sha,
+                        now,
+                        prev_path,
+                        prev_sha,
+                        match_status,
+                        now,
+                        now,
+                        asset_id,
+                    ),
+                )
             event_id = f"evt_{uuid.uuid4().hex[:12]}"
             conn.execute(
                 """
@@ -904,20 +1481,140 @@ class MediaService:
                 """,
                 (
                     event_id,
-                    project_id,
+                    asset.project_id,
                     f"Media asset '{asset_id}' relinked to '{candidate_path}' (match: {match_status})",
                     json.dumps({
                         "asset_id": asset_id,
                         "new_path": str(candidate_path),
+                        "previous_path": prev_path,
+                        "previous_sha256": prev_sha,
+                        "candidate_sha256": candidate_sha,
                         "match_status": match_status,
                         "warnings": warnings,
                         "comparison": comparison,
+                        "force": force,
+                        "relinked_at": now,
                     }),
                     now,
                 ),
             )
 
+        # Regenerate thumbnail
+        try:
+            from app.services.media_thumbnail import generate_thumbnail
+            layout = StorageLayout.from_root(self.settings.storage_root)
+            thumb_path = layout.thumbnails / f"{asset_id}.jpg"
+            generate_thumbnail(
+                candidate_path,
+                thumb_path,
+                media_type="video",
+                duration=probe_dur or asset.duration_seconds,
+            )
+            with sqlite_session(self.db_path) as conn:
+                conn.execute(
+                    "UPDATE media_assets SET thumbnail_reference_path = ? WHERE id = ?",
+                    (f"thumbnails/{thumb_path.name}", asset_id),
+                )
+        except Exception as thumb_err:
+            logger.warning("Could not regenerate thumbnail during relink for asset %s: %s", asset_id, thumb_err)
+
+        if old_stored_file_id:
+            try:
+                self.recalculate_stored_file_reference_count(old_stored_file_id)
+            except Exception as ref_err:
+                logger.warning("Could not recalculate reference count for old stored file %s: %s", old_stored_file_id, ref_err)
+
+        if new_stored_file_id:
+            try:
+                self.recalculate_stored_file_reference_count(new_stored_file_id)
+            except Exception as ref_err:
+                logger.warning("Could not recalculate reference count for new stored file %s: %s", new_stored_file_id, ref_err)
+
         return self.get_media_asset(project_id, asset_id)
+
+    def reconcile_missing_media(
+        self, project_id: Optional[str] = "all"
+    ) -> Dict[str, Any]:
+        """
+        Reconcile missing media files by checking disk availability.
+        Restores assets where the file has returned (e.g. external drive reconnected).
+        """
+        now = datetime.now(timezone.utc).isoformat()
+        with sqlite_session(self.db_path) as conn:
+            if project_id and project_id != "all":
+                rows = conn.execute(
+                    "SELECT * FROM media_assets WHERE project_id = ?",
+                    (project_id,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM media_assets"
+                ).fetchall()
+
+        restored_assets: List[str] = []
+        still_missing: List[str] = []
+        layout = StorageLayout.from_root(self.settings.storage_root)
+
+        for row in rows:
+            asset_id = row["id"]
+            storage_path = row["storage_path"]
+            prev_avail = row["availability_status"]
+            prev_integ = row["integrity_status"]
+            if not storage_path:
+                still_missing.append(asset_id)
+                continue
+
+            path = Path(storage_path)
+            if not path.is_file():
+                if (layout.media / storage_path).is_file():
+                    path = layout.media / storage_path
+                elif (layout.root / storage_path).is_file():
+                    path = layout.root / storage_path
+
+            if path.is_file():
+                # If it was missing or unverified, verify and restore
+                if prev_avail == "missing" or prev_integ == "missing":
+                    try:
+                        probe = probe_media_file(path, ffprobe_path=self.settings.ffprobe_path)
+                        with sqlite_session(self.db_path) as conn:
+                            conn.execute(
+                                """
+                                UPDATE media_assets
+                                SET availability_status = 'present',
+                                    integrity_status = 'verified',
+                                    last_integrity_check = ?,
+                                    updated_at = ?
+                                WHERE id = ?
+                                """,
+                                (now, now, asset_id),
+                            )
+                        restored_assets.append(asset_id)
+                        logger.info("Restored missing media asset '%s' at '%s'", asset_id, path)
+                    except Exception as probe_err:
+                        still_missing.append(asset_id)
+                        logger.warning("File found for asset '%s' but unreadable: %s", asset_id, probe_err)
+            else:
+                # File not found on disk
+                with sqlite_session(self.db_path) as conn:
+                    conn.execute(
+                        """
+                        UPDATE media_assets
+                        SET availability_status = 'missing',
+                            integrity_status = 'missing',
+                            updated_at = ?
+                        WHERE id = ?
+                        """,
+                        (now, asset_id),
+                    )
+                still_missing.append(asset_id)
+
+        return {
+            "total_checked": len(rows),
+            "restored_count": len(restored_assets),
+            "still_missing_count": len(still_missing),
+            "restored_assets": restored_assets,
+            "still_missing_assets": still_missing,
+        }
 
     def _row_to_record(self, row, analysis_status_override: Optional[str] = None) -> MediaAssetRecord:
         keys = row.keys() if hasattr(row, "keys") else []
@@ -1006,7 +1703,28 @@ class MediaService:
                 if not (layout.root / row["storage_path"]).is_file() and not (layout.media / row["storage_path"]).is_file():
                     file_missing = True
         is_playable = not file_missing
+        effective_avail = "missing" if file_missing else row["availability_status"]
+        effective_integrity = "missing" if file_missing else (row["integrity_status"] if "integrity_status" in keys else None)
         analysis_stat = analysis_status_override or "none"
+
+        relinked_at = row["relinked_at"] if "relinked_at" in keys else None
+        previous_storage_path = row["previous_storage_path"] if "previous_storage_path" in keys else None
+        previous_sha256 = row["previous_sha256"] if "previous_sha256" in keys else None
+        relink_match_status = row["relink_match_status"] if "relink_match_status" in keys else None
+
+        stored_file_id = row["stored_file_id"] if "stored_file_id" in keys else None
+        ref_count = row["reference_count"] if "reference_count" in keys and row["reference_count"] is not None else 1
+        is_shared = (ref_count > 1)
+        is_dedup = False
+        if "integrity_details_json" in keys and row["integrity_details_json"]:
+            try:
+                det = json.loads(row["integrity_details_json"])
+                if isinstance(det, dict) and det.get("deduplicated"):
+                    is_dedup = True
+            except Exception:
+                pass
+        if not is_dedup and is_shared:
+            is_dedup = True
 
         return MediaAssetRecord(
             id=row["id"],
@@ -1023,7 +1741,7 @@ class MediaService:
             fps=row["fps"],
             video_codec=row["video_codec"],
             audio_codec=row["audio_codec"],
-            availability_status=row["availability_status"],
+            availability_status=effective_avail,
             proxy_reference_path=row["proxy_reference_path"],
             thumbnail_reference_path=row["thumbnail_reference_path"],
             proxy_status=row["proxy_status"] if "proxy_status" in keys else "none",
@@ -1032,7 +1750,7 @@ class MediaService:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             sha256=row["sha256"] if "sha256" in keys else None,
-            integrity_status=row["integrity_status"] if "integrity_status" in keys else None,
+            integrity_status=effective_integrity,
             upload_attempt_id=row["upload_attempt_id"] if "upload_attempt_id" in keys else None,
             integrity_details_json=row["integrity_details_json"] if "integrity_details_json" in keys else None,
             last_integrity_check=row["last_integrity_check"] if "last_integrity_check" in keys else None,
@@ -1053,4 +1771,12 @@ class MediaService:
             thumbnail_url=thumb_url,
             streaming_url=stream_url,
             dashboard_url=dash_url,
+            relinked_at=relinked_at,
+            previous_storage_path=previous_storage_path,
+            previous_sha256=previous_sha256,
+            relink_match_status=relink_match_status,
+            stored_file_id=stored_file_id,
+            reference_count=ref_count,
+            is_shared=is_shared,
+            is_deduplicated=is_dedup,
         )

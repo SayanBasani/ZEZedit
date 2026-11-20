@@ -1,0 +1,126 @@
+{
+  "timestamp": "2026-11-20T13:02:58.976014+00:00",
+  "scoring_version": "2.0.0-m6",
+  "signal_dimensions": [
+    "speech_interest",
+    "emotional_intensity",
+    "audio_activity",
+    "visual_interest",
+    "context_completeness",
+    "narrative_coherence",
+    "distinctiveness"
+  ],
+  "demos": {
+    "demo_1": {
+      "status": "PASSED",
+      "candidates_count": 5,
+      "top_candidate": {
+        "id": "cand_62eb59a08480",
+        "rank_position": 1,
+        "quality_score": 86.6,
+        "title": "Why do video editors spend hours trimming clips manually ...",
+        "signal_scores": {
+          "speech_interest": 90.0,
+          "emotional_intensity": 60.0,
+          "audio_activity": 91.0,
+          "visual_interest": 83.5,
+          "context_completeness": 100.0,
+          "narrative_coherence": 100.0,
+          "distinctiveness": 80.0
+        },
+        "evidence_coverage": 1.0
+      }
+    },
+    "demo_2": {
+      "status": "PASSED",
+      "candidates_count": 2,
+      "evidence_coverage": 0.67,
+      "missing_evidence": [
+        "audio_track_missing"
+      ],
+      "audio_activity_score": 0.0
+    },
+    "demo_3": {
+      "status": "PASSED",
+      "clean_candidate_completeness": 100.0,
+      "dangling_candidate_completeness": 55.0
+    },
+    "demo_4": {
+      "status": "PASSED",
+      "creative_direction": "podcast",
+      "custom_weights_persisted": {
+        "speech_interest": 0.4,
+        "emotional_intensity": 0.3,
+        "audio_activity": 0.1,
+        "visual_interest": 0.1,
+        "context_completeness": 0.05,
+        "narrative_coherence": 0.03,
+        "distinctiveness": 0.02
+      },
+      "top_candidate_score": 43.5
+    },
+    "demo_5": {
+      "status": "PASSED",
+      "lead_id": "cand_lead_cut",
+      "alt_id": "cand_alt_cut",
+      "alternative_of_id": "cand_lead_cut",
+      "overlap_group_id": "group_cand_lead_cut"
+    },
+    "demo_6": {
+      "status": "PASSED",
+      "ranks": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "scores": [
+        86.6,
+        83.3,
+        81.5,
+        55.9,
+        53.9
+      ]
+    },
+    "demo_7": {
+      "status": "PASSED",
+      "cache_latency_ms": 1.64,
+      "cached_count": 1
+    },
+    "demo_8": {
+      "status": "PASSED",
+      "runs_before": 2,
+      "runs_after": 3
+    },
+    "demo_9": {
+      "status": "PASSED",
+      "paged_candidates": [
+        {
+          "rank_position": 1,
+          "quality_score": 86.6,
+          "title": "Why do video editors spend hours trimming clips manually ...",
+          "category": "Dramatic"
+        },
+        {
+          "rank_position": 1,
+          "quality_score": 43.5,
+          "title": "Because it works whenever you click the button",
+          "category": "Highlight"
+        }
+      ]
+    },
+    "demo_10": {
+      "status": "PASSED",
+      "status_code": 200,
+      "recommendations_returned": 3
+    },
+    "demo_11": {
+      "status": "PASSED",
+      "integrity_check": [
+        "ok"
+      ],
+      "foreign_key_violations": []
+    }
+  }
+}

@@ -4,6 +4,264 @@ This checklist tracks concrete verification criteria per milestone. Items may on
 
 ---
 
+## Priority 2 (P2.3) — Smart Reframing, Subject Tracking & Portrait Composition
+- [x] Mathematical Parity between Interactive Crop Preview and FFmpeg Render:
+  - Exact crop dimension calculation `calculate_crop_dimensions(width, height, aspect_ratio)` with integer floor even rounding (`round_to_even`).
+  - Piecewise continuous keyframe evaluation `FramingEngine.interpolate_crop_at(keyframes, timestamp)` strictly mirrors FFmpeg filtergraph expression `ReframingRenderer.build_crop_filter_expression` (`if(lt(t, t1), x0, ...)`), eliminating preview-render desynchronization.
+- [x] Scene-Cut Boundary Awareness & Instant Snapping:
+  - Moving-average temporal smoothing (`calculate_framing_keyframes`) stops smoothing across scene transition boundaries (`video_scenes`).
+  - Framing snaps instantly at cut timestamps without blurring or panning across unrelated scenes.
+- [x] Multi-Strategy Portrait Framing Selection:
+  - `single_speaker`: Focuses bounding box tightly on active or solitary speaker face/body with headroom offset.
+  - `two_person_dialogue`: Frames conversation partners together or dynamically tracks primary speaker.
+  - `group`: Encompasses multi-subject bounding box safely with padding within 9:16 boundaries.
+  - `central_fallback`: Centers crop when visual observations or faces are absent.
+  - `pinned_focus`: Anchors crop to a specific user-designated coordinate or region of interest.
+- [x] Non-Destructive Manual Overrides & Revision Lineage:
+  - `save_manual_overrides` preserves underlying AI plan and creates a new versioned revision record in `reframing_revisions` (`rev_...`, `_rev1.mp4`, `_rev2.mp4`).
+  - Supports restoring historical revisions without overwriting or destroying original AI analysis keyframes.
+- [x] Storage Quota Enforcement (P1.9 Alignment):
+  - Preflight quota check in `analyze_and_create_plan` via `StorageService.check_quota_for_operation("temp", 10 * 1024 * 1024)`.
+  - Preflight quota check in `render_revision` via `StorageService.check_quota_for_operation("generated_video", 15 * 1024 * 1024)`.
+  - Raises `StorageQuotaExceededError` (HTTP 400 `STORAGE_QUOTA_EXCEEDED`) when quota is breached.
+- [x] Missing Media Protection (P1.7 Alignment):
+  - Verifies physical presence of source file on disk (`avail_status == "missing" or not media_path.exists()`).
+  - Rejects analysis and render requests immediately with `MediaFileMissingError` (HTTP 400 `MEDIA_FILE_MISSING`), preventing corrupt rendering attempts.
+- [x] Direct Global Media Reframing Endpoints & Router Parity:
+  - Full router parity between project-scoped routes (`/api/v1/projects/{project_id}/...`) and global routes (`/api/v1/media/{media_asset_id}/reframing/*` and `/api/v1/reframing/*`).
+  - Authorization check enforces project isolation when `project_id` is supplied.
+  - Safe path traversal containment verification on rendered video serving via `resolve_contained_path`.
+- [x] Real FFmpeg Portrait Video Render Execution:
+  - Renders 9:16 portrait video (`libx264`, `aac`, faststart `moov` atom).
+  - Updates revision metadata (`rendered_video_path`, `rendered_duration`, `rendered_file_size_bytes`, `rendered_at`).
+  - Supports HTTP 206 byte-range seeking for rendered preview playback.
+- [x] Frontend Client Integration (`apiClient.ts`):
+  - Added global reframing client methods: `globalAnalyzeReframing`, `fetchMediaReframingPlans`, `globalFetchReframingPlan`, `globalFetchCropPreview`, `globalSaveCropOverrides`, `globalRenderReframingRevision`, `getGlobalRenderedVideoUrl`.
+- [x] Quality Gates & Test Verification:
+  - Dedicated P2.3 backend test suite `backend/tests/test_p2_3_smart_reframing.py`: **12/12 passed**.
+  - Dedicated P2.3 frontend test suite `frontend/src/test/smartReframingP23.test.tsx`: **4/4 passed**.
+  - Re-verified existing milestone tests: `test_milestone7_reframing.py` (6/6 passed) and `reframing.test.tsx` (5/5 passed).
+  - Full backend priority regression suite: **98/98 passed** (1 skipped).
+  - Full frontend vitest suite: **178/178 passed across 35 test files**.
+  - Production build: `npm run build` completed clean with 0 TypeScript compiler errors.
+  - Database integrity: `PRAGMA integrity_check = ['ok']`, `PRAGMA foreign_key_check = []`.
+- [x] Reproducible Live Demonstrations (`backend/scripts/run_p2_3_demos.py`):
+  - **11/11 demonstrations passed** recorded in `docs/reports/priority_2/p2_3_evidence/p2_3_evidence.json`.
+
+---
+
+## Priority 2 (P2.2) — Multimodal Highlight Discovery & Candidate Ranking
+- [x] Schema Migration 0023 (`0023_highlight_discovery_and_multimodal_ranking.sql`):
+  - Adds `rank_position`, `evidence_coverage`, `signal_scores_json`, `generation_reason`, `transcript_excerpt` to `shorts_candidates`.
+  - Creates `candidate_generation_runs` table tracking `source_signature`, `score_weights_json`, `min_score`, `min_separation_seconds`, `is_novelty_exhausted`.
+  - Verified clean execution and migration version bump to `'0023'` with 0 FK violations and SQLite integrity ok.
+- [x] 7-Dimension Multimodal Scoring Engine:
+  - Evaluates every candidate across 7 distinct bounded dimensions [0.0, 100.0]:
+    1. `speech_interest`: Speaker turn counts, dialogue density, question prompts, words-per-second pacing.
+    2. `emotional_intensity`: Speech exclamations, dramatic keywords, sentiment peaks, visual action cues.
+    3. `audio_activity`: Speech percentage, RMS audio energy, multi-turn dynamics.
+    4. `visual_interest`: Scene cut density, visual observation confidence, gesture/action presence.
+    5. `context_completeness`: Beginning clarity, penalizes dangling pronouns ("Because it...", "And so...") and trailing incomplete clauses.
+    6. `narrative_coherence`: Flow between connected turns, dialogue continuity, self-contained thought.
+    7. `distinctiveness`: Novelty against historical runs, uniqueness within current candidate pool.
+- [x] Missing Modality Handling without Phantom Data:
+  - Gracefully processes footage missing audio tracks or speech transcripts (e.g., silent drone footage or action montage).
+  - Flags missing modalities in `missing_evidence` (`audio_track_missing`, `transcript_missing`).
+  - Computes `evidence_coverage` ratio (e.g. 0.67 or 0.33) and renormalizes weights across available modalities so quality score remains meaningful and honest without phantom data.
+- [x] Natural Boundary Snapping & Context Completeness:
+  - Snaps clip start/end boundaries to natural sentence and speech pauses rather than abrupt mid-word cuts.
+  - Automatically identifies dialogue beginnings and penalizes dependent clauses.
+- [x] Configurable Creative Directions & Custom Weights:
+  - Built-in presets: `best_overall`, `viral_punchy`, `dramatic`, `podcast`, `action_sports`, `gaming`, `educational`.
+  - Supports user-defined `custom_weights` (normalized to 1.0) and persists them in generation run history.
+- [x] Overlapping Candidate Clustering & Alternative Temporal Cuts:
+  - Detects high temporal overlap between candidates (tIoU >= 0.50).
+  - Groups them under shared `overlap_group_id` with `alternative_of_candidate_id` assigned to tighter or extended cuts.
+  - Filters alternative cuts out of primary recommendation batches while keeping them accessible for user inspection.
+- [x] Deterministic Ranking & Reproducible Tie-Breaking:
+  - Assigns explicit `rank_position` (1..N) sorted by `(-quality_score, start_time, id)` ensuring identical runs produce identical rankings.
+- [x] Zero-Redundancy Cache & Controlled Forced Rediscovery:
+  - Retrieval from cache on unchanged source in < 2ms (under 50ms requirement).
+  - Forced rediscovery via `force_rediscovery=True` generates fresh candidates and tracks new generation run.
+- [x] Rich Filtering, Pagination, and Rank Sorting API:
+  - `GET /api/v1/projects/{project_id}/media/{media_asset_id}/highlights` supports `limit`, `offset`, `min_score`, `min_duration`, `max_duration`, `category`, `sort_by=rank`, `order=asc/desc`.
+- [x] Direct Global Media Highlights Endpoints:
+  - Parity routes under `/api/v1/media/{media_asset_id}/highlights/discover`, `/recommendations`, and `/highlights` without requiring `project_id`.
+- [x] Frontend Highlights Workspace Integration:
+  - Card header displays Rank Badge (`#1`, `#2`) and Evidence Coverage badge (`67% Evid`).
+  - Card body displays `transcript_excerpt`.
+  - Inspector modal displays Rank, Evidence Coverage, Discovery Basis, Transcript Excerpt, and full 7-dimension score breakdown with missing modality indicators.
+  - Discovery configuration modal includes Creative Direction selector and Force Rediscovery toggle.
+- [x] Quality Gates & Test Verification:
+  - Dedicated P2.2 backend test suite `backend/tests/test_p2_2_multimodal_highlight_discovery.py`: **25/25 passed**.
+  - Dedicated P2.2 frontend test suite `frontend/src/test/multimodalHighlightDiscovery.test.tsx`: **3/3 passed**.
+  - Full backend priority regression suite: **96/96 passed** (1 skipped).
+  - Full frontend vitest suite: **174/174 passed across 34 test files**.
+  - Production build: `npm run build` completed clean (exit code 0).
+  - Database integrity: `PRAGMA integrity_check = ['ok']`, `PRAGMA foreign_key_check = []`.
+- [x] Reproducible Live Demonstrations (`backend/scripts/run_p2_2_demos.py`):
+  - **11/11 demonstrations passed** recorded in `docs/reports/priority_2/p2_2_evidence/p2_2_evidence.json`.
+
+---
+
+## Priority 2 (P2.1) — AI Video Analysis Foundation
+- [x] Schema Migration 0022 (`0022_analysis_foundation_and_shared_media.sql`):
+  - Adds `stored_file_id TEXT REFERENCES stored_media_files(id) ON DELETE SET NULL` to `analysis_runs`.
+  - Creates performance indexes `idx_analysis_runs_stored_file_id` and `idx_analysis_runs_status_sig`.
+  - Backfills `stored_file_id` on all historical analysis runs from corresponding `media_assets`.
+  - Verified clean execution and migration version bump to `'0022'`.
+- [x] Missing Media Protection (P1.7 Alignment):
+  - Enforces immediate rejection with HTTP 400 (`MEDIA_FILE_MISSING`) when requesting analysis for missing or inaccessible source video files.
+  - Gracefully handles orphaned analysis runs if the media file is removed post-scheduling: marks status `failed` with explicit error message without crashing.
+- [x] Storage Quota Guard & Intermediate Temp Cleanup (P1.9 Alignment):
+  - Integrates with `StorageService.check_quota_for_operation("temp", ...)` to prevent initiating analysis when temporary storage quotas are exceeded (HTTP 400 `STORAGE_QUOTA_EXCEEDED`).
+  - Guaranteed reclamation of per-run temporary directories (`storage/temp/analysis/{run_id}`) in pipeline `finally` blocks.
+- [x] Canonical Shared Media Deduplication Analysis Reuse (P1.8 Alignment):
+  - When duplicate media assets sharing the same `stored_file_id` or SHA-256 are analyzed, existing analysis data (`audio_analysis`, `video_scenes`, `transcript_segments`, `speech_turns`, `sampled_frames`, `visual_observations`) is cloned into a new run in < 10ms without redundant compute.
+- [x] Direct Global Media Analysis Endpoints:
+  - Added route parity under `/api/v1/media/{media_asset_id}/analysis...` mirroring all project-scoped analysis operations.
+  - Supports start, telemetry, cancel, retry, cache info, scenes, frames, transcript segments, and user corrections.
+- [x] Modular Sequential Full-Video Analysis Pipeline:
+  - 6 modular stages executed sequentially across full video duration:
+    1. `validating_source`: Source signature and file integrity check.
+    2. `extracting_audio`: High-fidelity audio demuxing to 16kHz mono WAV via FFmpeg.
+    3. `transcribing_speech`: Word-level speech transcription using faster-whisper with int8 CPU quantization.
+    4. `detecting_scenes`: Scene cut boundary detection via FFprobe/OpenCV with thumbnail generation.
+    5. `sampling_frames`: Uniform keyframe extraction across full duration.
+    6. `generating_visual_observations`: Visual scene descriptions using Ollama (with heuristic fallback).
+- [x] Stage-Aware Caching & Invalidation:
+  - Computes deterministic source signature (`size:mtime:duration`) to reuse completed runs for identical media.
+  - Supports `force_reanalysis=true` to force a fresh run.
+- [x] Non-Destructive Transcript Corrections:
+  - Users can correct transcript segments; edits persist in `transcript_corrections` table while raw ASR records remain immutable.
+- [x] Quality Gates & Test Verification:
+  - Dedicated P2.1 backend test suite `backend/tests/test_p2_1_video_analysis_foundation.py`: **12/12 passed**.
+  - Dedicated P2.1 frontend test suite `frontend/src/test/videoAnalysisFoundation.test.tsx`: **6/6 passed**.
+  - Full frontend vitest suite: **171/171 passed across 33 test files**.
+  - TypeScript: **0 errors** (`npx tsc --noEmit`).
+  - Production build: `npm run build` completed clean (exit code 0).
+  - Database integrity: `PRAGMA integrity_check = ['ok']`, `PRAGMA foreign_key_check = []`.
+- [x] Reproducible Live Demonstrations (`backend/scripts/run_p2_1_demos.py`):
+  - **12/12 demonstrations passed** recorded in `docs/reports/priority_2/p2_1_evidence/p2_1_evidence.json`.
+
+---
+
+## Priority 1 (P1.9) — Storage Management, Quotas, Safe Cleanup & Automatic Pruning
+- [x] Accurate Storage Breakdown & Deduplication Accounting:
+  - Single-pass filesystem accounting measuring true physical consumption across all storage subdirectories (`media/`, `proxies/`, `thumbnails/`, `analysis/`, `shorts/`, `exports/`, `temp/`, `backups/`, `logs/`, `db/`).
+  - Integrated with P1.8 deduplication metrics: canonical stored files are counted once on disk, and logical media asset sizes are surfaced alongside deduplication savings.
+  - Implemented under `GET /api/v1/maintenance/breakdown`.
+- [x] Two-Stage Non-Destructive Safe Cleanup:
+  - Preview (`POST /api/v1/maintenance/cleanup-preview`) discovers disposable temporary files strictly bounded to `orphaned_uploads`, `abandoned_ffmpeg`, `failed_renders`, and `expired_temp_files`.
+  - In-flight background jobs, active uploads (< 60s mtime), and active database media records are flagged as protected/blocked.
+  - Preview operations are 100% non-destructive and never delete files.
+  - Execution (`POST /api/v1/maintenance/cleanup-execute`) re-validates every candidate under a process-wide mutex (`_CLEANUP_LOCK`) before unlinking.
+- [x] Security & Boundary Escape Defense:
+  - Canonical path containment in `StorageService.resolve_contained_path` strictly prevents path traversal sequences (`../`, `..\`) and symlink escapes from breaching the application storage root.
+- [x] Persistent Quotas & Preflight Hard-Limit Enforcement:
+  - Quotas persisted in SQLite table `storage_quotas` (`storage_limit_bytes`, `generated_video_limit_bytes`, `temp_storage_limit_bytes`, `warning_threshold_percent`).
+  - Preflight upload middleware and export pipeline check incoming sizes against quotas, rejecting breaches with HTTP 507 `QUOTA_EXCEEDED` before allocating disk space.
+  - Data Safety Rule strictly enforced: quotas never trigger automatic unlinking of user source media or shared canonical assets.
+- [x] Controlled Automatic Pruning:
+  - Disabled by default (`auto_prune_enabled = 0`).
+  - When enabled, `POST /api/v1/maintenance/auto-prune` prunes disposable files strictly older than configurable retention hours (`auto_prune_retention_hours`), preserving recent files and active jobs.
+- [x] Interrupted Artifact & Crash Recovery:
+  - `POST /api/v1/maintenance/recover-stale-artifacts` safely unlinks interrupted `.uploading` / `.part` chunks and dead render scratch directories.
+- [x] Comprehensive Immutable Audit Logging:
+  - Every cleanup and pruning execution logs an entry to SQLite table `storage_cleanup_audits` tracking operation ID, timestamp, examined/deleted/skipped counts, bytes reclaimed, and detailed file manifests.
+  - Exposed via `GET /api/v1/maintenance/cleanup-history`.
+- [x] Frontend UI in SettingsManager:
+  - Storage tab in `SettingsManager.tsx` features Disk Overview, Quota Utilization progress bars, Category Breakdown with deduplication badges, Disposable Cache Cleanup, Cleanup Candidate Scanner & Review Modal, Storage Quota Settings Form, and Audit History Table.
+- [x] Automated Test Gates & Quality Verification:
+  - Dedicated P1.9 test suite `backend/tests/test_p1_9_storage_management.py`: **25/25 passed, 1 skipped (symlinks on Windows non-admin sandbox)**.
+  - Full backend pytest suite: **447/447 passed, 1 skipped**.
+  - Dedicated frontend test suite `frontend/src/test/storageManagement.test.tsx`: **6/6 passed**.
+  - Full frontend vitest suite: **165/165 passed across 32 test files**.
+  - TypeScript: **0 errors** (`npx tsc --noEmit`).
+  - Production build: `npm run build` completed clean in 7.40s.
+  - Database integrity: `ok` (`PRAGMA integrity_check`), 0 foreign key violations (`PRAGMA foreign_key_check`).
+- [x] Live Acceptance Demonstrations (`backend/scripts/run_p1_9_demos.py`):
+  - **12/12 demonstrations passed (Demos A–L)** recorded in `docs/reports/priority_1/p1_9_evidence/p1_9_evidence.json`.
+
+---
+
+## Priority 1 (P1.8) — Media Deduplication & Reference Counting
+- [x] Physical vs Logical Media Asset Separation:
+  - Stored physical files on disk tracked via `stored_media_files` keyed uniquely by SHA-256.
+  - Logical project media assets in `media_assets` point to canonical stored files via `stored_file_id`.
+  - Database migration `0020_media_deduplication_and_reference_counting.sql` creates table and backfills existing assets cleanly.
+- [x] Streaming Content-Based Deduplication (Bounded Memory):
+  - Incremental single-pass SHA-256 hashing during upload stream in 64 KB chunks.
+  - On upload completion, if SHA-256 matches an existing healthy physical file, staged `.uploading` part file is unlinked immediately (`part_path.unlink()`).
+  - Zero redundant disk space committed; returns `is_deduplicated = true` and canonical asset path.
+- [x] Authoritative Reference Counting:
+  - Reference count derived authoritatively from active media asset references (`availability_status != 'deleted'`).
+  - Scalar subquery in `list_media_assets` and `get_media_asset` prevents column collision and eliminate N+1 queries.
+  - Endpoints `/media/deduplication/stats` and `/media/deduplication/reconcile` report storage metrics and re-sync counts.
+- [x] Safe Deletion & Storage Reclamation:
+  - Deleting an asset decrements the canonical stored file's reference count.
+  - Physical file retained on disk as long as `remaining_references > 0`.
+  - Physical file unlinked and `stored_media_files` record purged only when reference count reaches 0.
+  - Multi-project cascade deletion (`delete_project`) safely cascades reference counts and preserves shared files.
+- [x] Relinking Isolation:
+  - Relinking a shared asset to a new file updates only that asset; other sharing assets remain unchanged with correctly decremented reference counts.
+- [x] Concurrency & Race Condition Safety:
+  - Simultaneous identical uploads resolve atomically without duplicate physical files or orphaned `.uploading` part files.
+- [x] Frontend UX Integration (Unslop Compliance):
+  - Quiet `Shared (N)` badge in `ShortVideoGeneratorLibrary.tsx` and `MediaLibraryView.tsx` when `reference_count > 1`.
+  - Reference count and physical storage details rendered in technical specs modal.
+  - Deletion confirmation dialog alerts user that underlying physical file is preserved for other referencing projects.
+- [x] Automated Regression Suites:
+  - `backend/tests/test_p1_8_media_deduplication.py`: 15/15 integration tests passed.
+  - `frontend/src/test/mediaDeduplication.test.tsx`: 5/5 unit tests passed.
+- [x] Live Acceptance Demonstrations (`backend/scripts/run_p1_8_demos.py`):
+  - 8/8 demonstrations passed (Demos A–H) recorded in `docs/reports/priority_1/p1_8_evidence/p1_8_evidence.json`.
+- [x] Full Quality Gates Verification:
+  - Full backend pytest suite: **422/422 passed** (0 failures).
+  - Full frontend vitest suite: **159/159 passed (31 test files)**.
+  - TypeScript: 0 errors (`npx tsc --noEmit`).
+  - Production build: `npm run build` clean in 15.73s.
+  - Database PRAGMA integrity check: `ok`, 0 foreign key violations.
+
+---
+
+## Priority 1 (P1.7) — Media Relinking, Missing File Recovery and External Media Handling
+- [x] Dynamic Missing File Detection Without Corruption:
+  - Physical media absence on disk dynamically evaluated via `_row_to_record` without mutating database or leaking errors.
+  - Returns `availability_status = "missing"`, `integrity_status = "missing"`, and `is_playable = false`.
+  - Zero crashes when missing files are requested via list, detail, or streaming endpoints.
+- [x] Database Migration 0019 (Recovery Metadata & Relink Audit):
+  - Applied `0019_media_relinking_and_recovery.sql` adding `relinked_at`, `previous_storage_path`, `previous_sha256`, `relink_match_status`, and index `idx_media_assets_relinked_at`.
+- [x] Pre-Relink Candidate Inspection & Security Defense:
+  - Probe candidate via FFprobe; validate format against `SUPPORTED_VIDEO_EXTS`; reject non-video or corrupt containers.
+  - Security check blocks system paths (`C:\Windows`, `C:\Program Files`, etc.) with HTTP 403 `SECURITY_VIOLATION`.
+  - Incremental 64 KB SHA-256 calculation without full-file memory loading.
+  - Comparison breakdown surfaces duration and resolution differences with discrepancy warnings.
+- [x] Duration & Resolution Mismatch Protection:
+  - Candidates with duration difference >1.0s or resolution mismatch require explicit confirmation (`force=true`); blocked with HTTP 400 `RELINK_MISMATCH` without force.
+- [x] Dual Relinking Architecture:
+  - Local path relinking (`POST /api/v1/media/{media_id}/relink`) points directly to relocated files or external drives without copying.
+  - Browser replacement upload (`POST /api/v1/media/{media_id}/relink/upload`) streams file with bounded memory, calculates SHA-256 incrementally, and atomically publishes.
+- [x] External Drive Reconnection Availability Reconciliation:
+  - `POST /api/v1/media/reconcile-availability` automatically discovers reconnected drives and restores status to `present` and `verified`.
+- [x] Frontend UX Integration (Unslop Compliance):
+  - `MediaRelinkModal.tsx`: Local path vs file upload modes, discrepancy comparison card, confirmation checkbox for forced relinks.
+  - `ShortVideoGeneratorLibrary.tsx`: `MISSING FILE` warning badges on thumbnails, `Relink File` button, `Check Drives` header action.
+  - `VideoEditDashboard.tsx`: Top missing file warning banner, Missing Source recovery card replacing video player, safe gating of source-dependent actions.
+- [x] Automated Regression Suites:
+  - `backend/tests/test_p1_7_media_relinking.py`: 9/9 integration tests passed.
+  - `frontend/src/test/mediaRelinking.test.tsx`: 6/6 unit tests passed.
+- [x] Live Acceptance Demonstrations (`backend/scripts/run_p1_7_demos.py`):
+  - 5/5 scenarios passed (Scenario A through E) recorded in `docs/reports/priority_1/p1_7_evidence/p1_7_evidence.json`.
+- [x] Full Quality Gates Verification:
+  - Full backend pytest suite: **407/407 passed** (0 failures).
+  - Full frontend vitest suite: **154/154 passed (30 test files)**.
+  - TypeScript: 0 errors (`npm run build`).
+  - Production build: `npm run build` clean in 4.06s.
+  - Database PRAGMA integrity check: `ok`, 0 foreign key violations.
+
+---
+
 ## Priority 1 (P1.6) — Media Library, Metadata and Asset Management
 - [x] Complete Source Asset Discovery Without Pollution:
   - Database Migration `0018_media_library_indexes.sql` applied cleanly with b-tree indexes on `created_at`, `original_filename`, `file_size_bytes`, `duration_seconds`, `media_type`, and `width/height`.

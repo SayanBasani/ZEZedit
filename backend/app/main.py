@@ -86,6 +86,26 @@ class LargeUploadPreflightMiddleware:
                                 )
                                 await res(scope, receive, send)
                                 return
+
+                            # Pre-flight check on configured storage quotas (P1.9)
+                            try:
+                                from app.services.storage import StorageService
+                                storage_svc = StorageService(self.settings)
+                                allowed, quota_err = storage_svc.check_quota_for_operation("upload", incoming_bytes=content_length)
+                                if not allowed and quota_err:
+                                    res = JSONResponse(
+                                        status_code=507,
+                                        content={
+                                            "error": {
+                                                "code": "QUOTA_EXCEEDED",
+                                                "message": quota_err,
+                                            }
+                                        },
+                                    )
+                                    await res(scope, receive, send)
+                                    return
+                            except Exception:
+                                pass
                         except OSError:
                             pass
                     except (ValueError, UnicodeDecodeError):

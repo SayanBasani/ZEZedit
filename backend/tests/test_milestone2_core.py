@@ -2,6 +2,8 @@
 Database Migrations, Projects, Media Assets, Jobs, Settings, Storage & Backup/Restore.
 """
 
+import shutil
+import subprocess
 from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
@@ -113,7 +115,21 @@ def test_media_assets_and_relinking(env):
 
     # Create dummy external media file
     media_file = env["tmp_path"] / "sample.mp4"
-    media_file.write_text("fake video bytes", encoding="utf-8")
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        subprocess.run(
+            [
+                ffmpeg, "-y",
+                "-f", "lavfi", "-i", "testsrc=duration=1:size=640x360:rate=25",
+                "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                str(media_file),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=True,
+        )
+    else:
+        media_file.write_text("fake video bytes", encoding="utf-8")
 
     asset = media_svc.register_media_asset(
         project_id=proj.id,
@@ -122,9 +138,9 @@ def test_media_assets_and_relinking(env):
         is_external=True,
         media_type="video",
         file_size_bytes=media_file.stat().st_size,
-        duration_seconds=12.5,
-        width=1920,
-        height=1080,
+        duration_seconds=1.0,
+        width=640,
+        height=360,
     )
     assert asset.id.startswith("med_")
     assert asset.availability_status == "present"
@@ -135,9 +151,12 @@ def test_media_assets_and_relinking(env):
 
     # Relink to new path
     new_media_file = env["tmp_path"] / "sample_moved.mp4"
-    new_media_file.write_text("fake moved video bytes", encoding="utf-8")
+    if ffmpeg:
+        shutil.copy2(str(media_file), str(new_media_file))
+    else:
+        new_media_file.write_text("fake moved video bytes", encoding="utf-8")
 
-    relinked = media_svc.relink_media(proj.id, asset.id, str(new_media_file))
+    relinked = media_svc.relink_media(proj.id, asset.id, str(new_media_file), force=True)
     assert relinked.availability_status == "present"
     assert relinked.storage_path == str(new_media_file.resolve())
 

@@ -11,6 +11,9 @@ export interface AnalysisRunItem {
   completed_at?: string;
   created_at: string;
   updated_at: string;
+  job_id?: string;
+  source_signature?: string;
+  stored_file_id?: string;
   stage_details?: Record<string, any>;
   checkpoint_data?: Record<string, any>;
 }

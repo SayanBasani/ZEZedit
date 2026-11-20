@@ -3,18 +3,19 @@
 from fastapi import APIRouter
 
 from app.api.v1.ai_providers import router as ai_providers_router
-from app.api.v1.analysis import router as analysis_router
+from app.api.v1.analysis import global_analysis_router, router as analysis_router
 from app.api.v1.backups import router as backups_router
 from app.api.v1.characters import router as characters_router
 from app.api.v1.clip_edits import router as clip_edits_router
 from app.api.v1.docs_center import router as docs_router
 from app.api.v1.exports import router as exports_router
 from app.api.v1.health import router as health_router
-from app.api.v1.highlights import router as highlights_router
+from app.api.v1.highlights import global_highlights_router, router as highlights_router
 from app.api.v1.jobs import processes_router, router as jobs_router
+from app.api.v1.maintenance import router as maintenance_router
 from app.api.v1.media import global_media_router, router as media_router
 from app.api.v1.projects import router as projects_router
-from app.api.v1.reframing import router as reframing_router
+from app.api.v1.reframing import global_reframing_router, router as reframing_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.timeline import router as timeline_router
 
@@ -24,9 +25,12 @@ api_v1_router.include_router(projects_router)
 api_v1_router.include_router(media_router)
 api_v1_router.include_router(global_media_router)
 api_v1_router.include_router(analysis_router)
+api_v1_router.include_router(global_analysis_router)
 api_v1_router.include_router(highlights_router)
+api_v1_router.include_router(global_highlights_router)
 api_v1_router.include_router(clip_edits_router)
 api_v1_router.include_router(reframing_router)
+api_v1_router.include_router(global_reframing_router)
 api_v1_router.include_router(exports_router)
 api_v1_router.include_router(timeline_router)
 api_v1_router.include_router(characters_router)
@@ -36,3 +40,4 @@ api_v1_router.include_router(ai_providers_router)
 api_v1_router.include_router(docs_router)
 api_v1_router.include_router(settings_router)
 api_v1_router.include_router(backups_router)
+api_v1_router.include_router(maintenance_router)

@@ -95,7 +95,7 @@ def test_multiple_video_batch_upload_all_valid(clean_storage_env, tmp_path):
     clips = []
     for i in range(3):
         p = tmp_path / f"batch_clip_{i + 1}.mp4"
-        _create_synthetic_mp4(p, duration=1, width=320, height=240, fps=25)
+        _create_synthetic_mp4(p, duration=i + 1, width=320, height=240, fps=25)
         clips.append(p)
 
     files_payload = []
@@ -232,11 +232,13 @@ def test_path_traversal_rejection(clean_storage_env, tmp_path):
 
 def test_repeated_upload_non_destructive_collision(clean_storage_env, tmp_path):
     client, layout, _ = clean_storage_env
-    clip_path = tmp_path / "repeated_upload.mp4"
-    _create_synthetic_mp4(clip_path, duration=1)
+    clip_path1 = tmp_path / "repeated_upload_1.mp4"
+    clip_path2 = tmp_path / "repeated_upload_2.mp4"
+    _create_synthetic_mp4(clip_path1, duration=1)
+    _create_synthetic_mp4(clip_path2, duration=2)
 
     # First upload
-    with open(clip_path, "rb") as f:
+    with open(clip_path1, "rb") as f:
         res1 = client.post(
             "/api/v1/media/upload",
             files={"file": ("repeated_upload.mp4", f, "video/mp4")},
@@ -244,8 +246,8 @@ def test_repeated_upload_non_destructive_collision(clean_storage_env, tmp_path):
     assert res1.status_code == 201
     data1 = res1.json()
 
-    # Second upload with identical filename
-    with open(clip_path, "rb") as f:
+    # Second upload with identical filename but different content
+    with open(clip_path2, "rb") as f:
         res2 = client.post(
             "/api/v1/media/upload",
             files={"file": ("repeated_upload.mp4", f, "video/mp4")},

@@ -1,0 +1,97 @@
+{
+  "timestamp": "2026-11-20T08:53:59.675841+00:00",
+  "project": "ZEZEdit 2.0",
+  "milestone": "P1.8 \u2014 Media Deduplication & Reference Counting",
+  "synthetic_test_assets": {
+    "asset_1": {
+      "size_bytes": 71735,
+      "sha256": "2578158cb66b9d6328467c0e838ba1da46469fe62f45e208350103f8b79f78b4"
+    },
+    "asset_2": {
+      "size_bytes": 60311,
+      "sha256": "c965c12eb2286f665e0f97584817c09e3fd305be92761fae32e9d6b393194276"
+    }
+  },
+  "demonstrations": {
+    "Demo_A_First_Upload": {
+      "status": "PASSED",
+      "media_id": "med_4864fa72b581",
+      "original_filename": "raw_footage_alpha.mp4",
+      "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\storage\\media\\proj_27ed14b89522\\4f54bc0b_raw_footage_alpha.mp4",
+      "file_size_bytes": 71735,
+      "sha256": "2578158cb66b9d6328467c0e838ba1da46469fe62f45e208350103f8b79f78b4",
+      "reference_count": 1,
+      "stored_file_id": "smf_2578158cb66b9d63",
+      "is_deduplicated": false,
+      "is_shared": false,
+      "physical_file_verified": true
+    },
+    "Demo_B_Duplicate_Upload": {
+      "status": "PASSED",
+      "media_id": "med_07de29dbd76e",
+      "original_filename": "renamed_copy_alpha.mp4",
+      "reused_storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\storage\\media\\proj_27ed14b89522\\4f54bc0b_raw_footage_alpha.mp4",
+      "stored_file_id": "smf_2578158cb66b9d63",
+      "reference_count": 2,
+      "is_deduplicated": true,
+      "is_shared": true,
+      "physical_storage_delta_bytes": 0
+    },
+    "Demo_C_Non_Duplicate_Upload": {
+      "status": "PASSED",
+      "media_id": "med_6f2c7c6c2083",
+      "original_filename": "raw_footage_alpha.mp4",
+      "storage_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\storage\\media\\proj_27ed14b89522\\f326578f_raw_footage_alpha.mp4",
+      "sha256": "c965c12eb2286f665e0f97584817c09e3fd305be92761fae32e9d6b393194276",
+      "stored_file_id": "smf_c965c12eb2286f66",
+      "reference_count": 1,
+      "is_independent": true
+    },
+    "Demo_D_Multi_Project_Sharing": {
+      "status": "PASSED",
+      "projects": [
+        "proj_27ed14b89522",
+        "proj_5dda03feca40",
+        "proj_5d7f245a1328"
+      ],
+      "total_shared_references": 4,
+      "streaming_verified_across_all_projects": true,
+      "stored_file_id": "smf_2578158cb66b9d63"
+    },
+    "Demo_E_Safe_Deletion_Preservation": {
+      "status": "PASSED",
+      "deleted_asset_id": "med_07de29dbd76e",
+      "physical_file_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\storage\\media\\proj_27ed14b89522\\4f54bc0b_raw_footage_alpha.mp4",
+      "physical_file_retained": true,
+      "remaining_reference_count": 3,
+      "streaming_functional": true
+    },
+    "Demo_F_Storage_Reclamation": {
+      "status": "PASSED",
+      "final_deleted_asset_id": "med_33d1db19d2a4",
+      "physical_file_reclaimed": true,
+      "stored_file_record_purged": true
+    },
+    "Demo_G_Concurrent_Uploads": {
+      "status": "PASSED",
+      "concurrent_uploads": [
+        "med_711be9081ffc",
+        "med_954818a08432"
+      ],
+      "shared_stored_file_id": "smf_2578158cb66b9d63",
+      "physical_mp4_count": 1,
+      "orphaned_part_files_count": 0,
+      "race_condition_safe": true
+    },
+    "Demo_H_Relinking_Isolation": {
+      "status": "PASSED",
+      "relinked_asset_id": "med_6865bdd343df",
+      "relinked_new_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\sources\\asset_2.mp4",
+      "isolated_asset_id": "med_656db24d4414",
+      "isolated_retained_path": "C:\\Users\\sayan\\AppData\\Local\\Temp\\zezedit_p1_8_demos_9xyn7qx3\\storage\\media\\proj_033cbb384958\\6cf4636a_shared_h1.mp4",
+      "isolated_asset_ref_count": 1,
+      "isolation_guaranteed": true
+    }
+  },
+  "overall_result": "ALL_DEMOS_PASSED"
+}

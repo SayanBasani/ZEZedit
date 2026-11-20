@@ -112,6 +112,30 @@ class ProcessingError(AppError):
         )
 
 
+class MediaFileMissingError(AppError):
+    """Raised when an operation requires source media that is missing or inaccessible on disk."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            code="MEDIA_FILE_MISSING",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details,
+        )
+
+
+class StorageQuotaExceededError(AppError):
+    """Raised when an operation would exceed configured storage quotas."""
+
+    def __init__(self, message: str, details: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(
+            code="STORAGE_QUOTA_EXCEEDED",
+            message=message,
+            status_code=status.HTTP_400_BAD_REQUEST,
+            details=details,
+        )
+
+
 def _error_payload(
     code: str,
     message: str,

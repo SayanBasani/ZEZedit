@@ -72,6 +72,14 @@ export interface MediaAssetItem {
   thumbnail_url?: string | null;
   streaming_url?: string | null;
   dashboard_url?: string | null;
+  relinked_at?: string | null;
+  previous_storage_path?: string | null;
+  previous_sha256?: string | null;
+  relink_match_status?: string | null;
+  stored_file_id?: string | null;
+  reference_count?: number;
+  is_shared?: boolean;
+  is_deduplicated?: boolean;
 }
 
 export interface MediaListQueryParams {
@@ -127,6 +135,19 @@ export interface MediaBatchUploadItemResult {
   asset?: MediaAssetItem | null;
   error?: string | null;
   error_code?: string | null;
+  is_deduplicated?: boolean;
+  reference_count?: number;
+}
+
+export interface MediaDeduplicationStats {
+  total_media_assets: number;
+  unique_stored_files: number;
+  shared_stored_files: number;
+  deduplicated_assets_count: number;
+  total_logical_bytes: number;
+  actual_physical_bytes: number;
+  saved_bytes: number;
+  deduplication_ratio: number;
 }
 
 export interface MediaBatchUploadResponse {

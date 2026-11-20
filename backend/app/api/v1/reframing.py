@@ -10,12 +10,14 @@ from pydantic import BaseModel, Field
 
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError, NotFoundError, ValidationError
+from app.core.security import resolve_contained_path
 from app.core.storage import StorageLayout
 from app.services.reframing_service import ReframingService
 
 logger = logging.getLogger("zezedit.api.reframing")
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["smart-reframing"])
+global_reframing_router = APIRouter(tags=["smart-reframing-global"])
 
 
 # --- Dependencies ---
@@ -38,6 +40,8 @@ class CreateReframingPlanRequest(BaseModel):
     headroom_factor: float = Field(default=0.15, ge=0.05, le=0.35)
     smoothing_window: float = Field(default=0.8, ge=0.2, le=3.0)
     pinned_subject_id: Optional[str] = Field(default=None, description="Optional character/subject ID to focus on")
+    start_time: Optional[float] = None
+    end_time: Optional[float] = None
 
 
 class ManualOverrideItem(BaseModel):
@@ -60,7 +64,45 @@ class RenderRevisionRequest(BaseModel):
     revision_id: Optional[str] = None
 
 
-# --- Endpoints ---
+def _serve_rendered_video_file(
+    service: ReframingService,
+    plan_id: str,
+    project_id: Optional[str] = None,
+    revision_id: Optional[str] = None,
+) -> FileResponse:
+    revisions = service.list_revisions(project_id=project_id, plan_id=plan_id)
+    if not revisions:
+        raise NotFoundError("No revisions found for this reframing plan.")
+
+    target_rev = None
+    if revision_id:
+        matching = [r for r in revisions if r["id"] == revision_id]
+        if matching:
+            target_rev = matching[0]
+    else:
+        # Find latest rendered revision
+        rendered = [r for r in revisions if r.get("rendered_video_path")]
+        if rendered:
+            target_rev = rendered[-1]
+
+    if not target_rev or not target_rev.get("rendered_video_path"):
+        raise NotFoundError("Video has not been rendered yet for this revision. Call POST /render first.")
+
+    video_path = Path(target_rev["rendered_video_path"])
+    resolve_contained_path(service.layout.root, video_path)
+    if not video_path.exists():
+        raise NotFoundError(f"Rendered video file '{video_path.name}' is missing on disk.")
+
+    return FileResponse(
+        path=str(video_path),
+        media_type="video/mp4",
+        filename=video_path.name,
+    )
+
+
+# =========================================================================
+# Project-Scoped Reframing Endpoints (/projects/{project_id}/...)
+# =========================================================================
 
 @router.post(
     "/media/{media_asset_id}/reframing/analyze",
@@ -83,8 +125,20 @@ def create_reframing_plan(
         headroom_factor=payload.headroom_factor,
         smoothing_window=payload.smoothing_window,
         pinned_subject_id=payload.pinned_subject_id,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
     )
     return plan.to_dict()
+
+
+@router.get("/media/{media_asset_id}/reframing/plans")
+def list_media_reframing_plans(
+    project_id: str,
+    media_asset_id: str,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """List all reframing plans for a media asset within a project."""
+    return service.list_plans(media_asset_id=media_asset_id, project_id=project_id)
 
 
 @router.get("/reframing/{plan_id}")
@@ -178,30 +232,134 @@ def get_rendered_video_file(
     service: ReframingService = Depends(get_reframing_service),
 ):
     """Serve or stream the rendered vertical MP4 video file."""
-    revisions = service.list_revisions(project_id, plan_id)
-    if not revisions:
-        raise NotFoundError("No revisions found for this reframing plan.")
+    return _serve_rendered_video_file(
+        service=service,
+        plan_id=plan_id,
+        project_id=project_id,
+        revision_id=revision_id,
+    )
 
-    target_rev = None
-    if revision_id:
-        matching = [r for r in revisions if r["id"] == revision_id]
-        if matching:
-            target_rev = matching[0]
-    else:
-        # Find latest rendered revision
-        rendered = [r for r in revisions if r.get("rendered_video_path")]
-        if rendered:
-            target_rev = rendered[-1]
 
-    if not target_rev or not target_rev.get("rendered_video_path"):
-        raise NotFoundError("Video has not been rendered yet for this revision. Call POST /render first.")
+# =========================================================================
+# Global Reframing Endpoints (/media/{id}/reframing and /reframing/{id})
+# =========================================================================
 
-    video_path = Path(target_rev["rendered_video_path"])
-    if not video_path.exists():
-        raise NotFoundError(f"Rendered video file '{video_path.name}' is missing on disk.")
+@global_reframing_router.post(
+    "/media/{media_asset_id}/reframing/analyze",
+    status_code=status.HTTP_201_CREATED,
+)
+def global_create_reframing_plan(
+    media_asset_id: str,
+    payload: CreateReframingPlanRequest,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Analyze media clip, track subjects, and compute authoritative initial 9:16 reframing plan."""
+    plan = service.analyze_and_create_plan(
+        media_asset_id=media_asset_id,
+        candidate_id=payload.candidate_id,
+        target_aspect_ratio=payload.target_aspect_ratio,
+        framing_strategy=payload.framing_strategy,
+        base_zoom=payload.base_zoom,
+        headroom_factor=payload.headroom_factor,
+        smoothing_window=payload.smoothing_window,
+        pinned_subject_id=payload.pinned_subject_id,
+        start_time=payload.start_time,
+        end_time=payload.end_time,
+    )
+    return plan.to_dict()
 
-    return FileResponse(
-        path=str(video_path),
-        media_type="video/mp4",
-        filename=video_path.name,
+
+@global_reframing_router.get("/media/{media_asset_id}/reframing/plans")
+def global_list_media_reframing_plans(
+    media_asset_id: str,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: List all reframing plans for a media asset."""
+    return service.list_plans(media_asset_id=media_asset_id)
+
+
+@global_reframing_router.get("/reframing/{plan_id}")
+def global_get_reframing_plan(
+    plan_id: str,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Retrieve reframing plan with keyframes, subject tracks, and active revision."""
+    return service.get_plan(plan_id=plan_id)
+
+
+@global_reframing_router.get("/reframing/{plan_id}/preview")
+def global_preview_crop_geometry(
+    plan_id: str,
+    timestamp: float = Query(..., ge=0.0, description="Timestamp in seconds"),
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Calculate exact interpolated crop coordinates [crop_x, crop_y, crop_w, crop_h] at timestamp."""
+    return service.preview_crop_at(
+        plan_id=plan_id,
+        timestamp=timestamp,
+    )
+
+
+@global_reframing_router.post("/reframing/{plan_id}/overrides")
+def global_save_manual_overrides(
+    plan_id: str,
+    payload: SaveOverridesRequest,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Save manual crop keyframe overrides and persist as a new non-destructive revision."""
+    overrides_dicts = [ov.model_dump() for ov in payload.manual_overrides]
+    return service.save_manual_overrides(
+        plan_id=plan_id,
+        manual_overrides=overrides_dicts,
+        revision_label=payload.revision_label,
+    )
+
+
+@global_reframing_router.get("/reframing/{plan_id}/revisions")
+def global_list_reframing_revisions(
+    plan_id: str,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: List all saved revisions and render history for a reframing plan."""
+    return service.list_revisions(plan_id=plan_id)
+
+
+@global_reframing_router.post("/reframing/{plan_id}/revisions/{revision_id}/restore")
+def global_restore_reframing_revision(
+    plan_id: str,
+    revision_id: str,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Activate a prior revision as the authoritative framing plan."""
+    return service.restore_revision(
+        plan_id=plan_id,
+        revision_id=revision_id,
+    )
+
+
+@global_reframing_router.post("/reframing/{plan_id}/render")
+def global_render_reframed_video(
+    plan_id: str,
+    payload: Optional[RenderRevisionRequest] = None,
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Render real vertical 9:16 MP4 video via FFmpeg using the revision's authoritative keyframes."""
+    rev_id = payload.revision_id if payload else None
+    return service.render_revision(
+        plan_id=plan_id,
+        revision_id=rev_id,
+    )
+
+
+@global_reframing_router.get("/reframing/{plan_id}/video")
+def global_get_rendered_video_file(
+    plan_id: str,
+    revision_id: Optional[str] = Query(None),
+    service: ReframingService = Depends(get_reframing_service),
+):
+    """Global route: Serve or stream the rendered vertical MP4 video file."""
+    return _serve_rendered_video_file(
+        service=service,
+        plan_id=plan_id,
+        revision_id=revision_id,
     )

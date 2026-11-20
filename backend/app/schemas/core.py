@@ -1,7 +1,7 @@
 """Request and response schemas for Projects, Media Assets, Jobs, Settings, and Storage."""
 
 from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # ==================== PROJECTS ====================
@@ -77,8 +77,19 @@ class MediaAssetUpdateRequest(BaseModel):
 
 
 class MediaRelinkRequest(BaseModel):
-    new_storage_path: str = Field(..., min_length=1)
+    new_storage_path: Optional[str] = None
+    candidate_path: Optional[str] = None
     force: bool = False
+    expected_sha256: Optional[str] = None
+
+    @model_validator(mode="before")
+    def resolve_path(cls, values):
+        if isinstance(values, dict):
+            path = values.get("new_storage_path") or values.get("candidate_path")
+            if not path or not str(path).strip():
+                raise ValueError("new_storage_path or candidate_path must be provided")
+            values["new_storage_path"] = str(path).strip()
+        return values
 
 
 class MediaRelinkResponse(BaseModel):
@@ -86,6 +97,15 @@ class MediaRelinkResponse(BaseModel):
     match_status: str  # "exact", "compatible", "mismatch"
     warnings: List[str] = Field(default_factory=list)
     comparison: Dict[str, Any] = Field(default_factory=dict)
+    relinked_at: Optional[str] = None
+
+
+class MediaReconcileResponse(BaseModel):
+    total_checked: int
+    restored_count: int
+    still_missing_count: int
+    restored_assets: List[str] = Field(default_factory=list)
+    still_missing_assets: List[str] = Field(default_factory=list)
 
 
 class MediaIntegrityCheckResult(BaseModel):
@@ -183,6 +203,25 @@ class MediaAssetResponse(BaseModel):
     thumbnail_url: Optional[str] = None
     streaming_url: Optional[str] = None
     dashboard_url: Optional[str] = None
+    relinked_at: Optional[str] = None
+    previous_storage_path: Optional[str] = None
+    previous_sha256: Optional[str] = None
+    relink_match_status: Optional[str] = None
+    stored_file_id: Optional[str] = None
+    reference_count: int = 1
+    is_shared: bool = False
+    is_deduplicated: bool = False
+
+
+class MediaDeduplicationStatsResponse(BaseModel):
+    total_media_assets: int
+    unique_stored_files: int
+    shared_stored_files: int
+    deduplicated_assets_count: int
+    total_logical_bytes: int
+    actual_physical_bytes: int
+    saved_bytes: int
+    deduplication_ratio: float
 
 
 class MediaAssetListResponse(BaseModel):
@@ -208,6 +247,8 @@ class MediaBatchUploadItemResult(BaseModel):
     asset: Optional[MediaAssetResponse] = None
     error: Optional[str] = None
     error_code: Optional[str] = None
+    is_deduplicated: bool = False
+    reference_count: int = 1
 
 
 class MediaBatchUploadResponse(BaseModel):
@@ -300,6 +341,140 @@ class StorageInspectResponse(BaseModel):
     used_space_bytes: int
     directories: Dict[str, str]
     category_sizes_bytes: Dict[str, int]
+
+
+# ==================== P1.9 STORAGE MANAGEMENT & QUOTAS ====================
+
+class StorageBreakdownCategories(BaseModel):
+    source_media_bytes: int = 0
+    canonical_shared_media_bytes: int = 0
+    logical_media_assets_bytes: int = 0
+    generated_video_bytes: int = 0
+    rendered_exports_bytes: int = 0
+    extracted_audio_bytes: int = 0
+    keyframes_and_thumbnails_bytes: int = 0
+    transcripts_and_analysis_bytes: int = 0
+    temporary_uploads_bytes: int = 0
+    temporary_rendering_bytes: int = 0
+    database_and_backups_bytes: int = 0
+    proxies_bytes: int = 0
+    logs_bytes: int = 0
+    characters_bytes: int = 0
+    timelines_bytes: int = 0
+    temp_cache_bytes: int = 0
+
+
+class StorageBreakdownResponse(BaseModel):
+    storage_root: str
+    total_disk_space_bytes: int
+    free_disk_space_bytes: int
+    used_disk_space_bytes: int
+    total_application_storage_bytes: int
+    recoverable_storage_bytes: int
+    protected_storage_bytes: int
+    is_low_storage: bool
+    low_storage_threshold_bytes: int
+    categories: StorageBreakdownCategories
+    directories: Dict[str, str]
+    quota_status: Optional[Dict[str, Any]] = None
+
+
+class CleanupCandidateItem(BaseModel):
+    candidate_id: str
+    relative_path: str
+    category: str
+    size_bytes: int
+    reason: str
+    last_modified_at: str
+    associated_project_id: Optional[str] = None
+    associated_job_id: Optional[str] = None
+    is_blocked: bool = False
+    protection_reason: Optional[str] = None
+
+
+class CleanupPreviewResponse(BaseModel):
+    preview_id: str
+    total_candidates: int
+    eligible_candidates_count: int
+    total_eligible_bytes: int
+    blocked_candidates_count: int
+    total_blocked_bytes: int
+    categories_summary: Dict[str, Dict[str, int]]
+    candidates: List[CleanupCandidateItem]
+    protected_categories: List[str]
+    generated_at: str
+
+
+class CleanupExecuteRequest(BaseModel):
+    preview_id: Optional[str] = None
+    selected_categories: Optional[List[str]] = None
+    candidate_ids: Optional[List[str]] = None
+    confirmation: Optional[str] = None
+
+
+class CleanupExecuteResponse(BaseModel):
+    status: str
+    operation_id: str
+    deleted_count: int
+    bytes_reclaimed: int
+    skipped_count: int
+    failed_count: int
+    deleted_items: List[Dict[str, Any]] = Field(default_factory=list)
+    skipped_items: List[Dict[str, Any]] = Field(default_factory=list)
+    failed_items: List[Dict[str, Any]] = Field(default_factory=list)
+    executed_at: str
+
+
+class StorageQuotaSettingsDTO(BaseModel):
+    id: str = "default"
+    storage_limit_bytes: Optional[int] = None
+    generated_video_limit_bytes: Optional[int] = None
+    temp_storage_limit_bytes: Optional[int] = None
+    warning_threshold_percent: int = 85
+    auto_prune_enabled: bool = False
+    auto_prune_retention_hours: int = 24
+    auto_prune_categories: List[str] = Field(default_factory=lambda: ["orphaned_uploads", "abandoned_ffmpeg", "failed_renders", "expired_temp_files"])
+    max_temp_storage_bytes: Optional[int] = None
+    updated_at: str = ""
+
+
+class StorageQuotaUpdateRequest(BaseModel):
+    storage_limit_bytes: Optional[int] = None
+    generated_video_limit_bytes: Optional[int] = None
+    temp_storage_limit_bytes: Optional[int] = None
+    warning_threshold_percent: Optional[int] = None
+    auto_prune_enabled: Optional[bool] = None
+    auto_prune_retention_hours: Optional[int] = None
+    auto_prune_categories: Optional[List[str]] = None
+    max_temp_storage_bytes: Optional[int] = None
+
+
+class StorageQuotaStatusResponse(BaseModel):
+    quota_settings: StorageQuotaSettingsDTO
+    total_usage_bytes: int
+    total_utilization_pct: Optional[float] = None
+    generated_video_usage_bytes: int
+    generated_video_utilization_pct: Optional[float] = None
+    temp_storage_usage_bytes: int
+    temp_storage_utilization_pct: Optional[float] = None
+    is_warning: bool = False
+    is_exceeded: bool = False
+    warning_reasons: List[str] = Field(default_factory=list)
+
+
+class CleanupAuditRecordDTO(BaseModel):
+    id: str
+    operation_id: str
+    timestamp: str
+    cleanup_category: str
+    files_examined: int
+    files_deleted: int
+    files_skipped: int
+    bytes_reclaimed: int
+    is_automatic: bool
+    failure_reasons: List[Dict[str, Any]] = Field(default_factory=list)
+    details: Dict[str, Any] = Field(default_factory=dict)
+
 
 
 class CapabilitiesResponse(BaseModel):

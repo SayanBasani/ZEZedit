@@ -4,7 +4,7 @@ import json
 import logging
 import sqlite3
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -17,6 +17,17 @@ from app.services.jobs import JobOrchestrator
 logger = logging.getLogger("zezedit.highlight_discovery")
 
 SCORING_VERSION = "2.0.0-m6"
+
+# 7-dimension multimodal signals for highlight evaluation & ranking
+SIGNAL_DIMENSIONS = [
+    "speech_interest",
+    "emotional_intensity",
+    "audio_activity",
+    "visual_interest",
+    "context_completeness",
+    "narrative_coherence",
+    "distinctiveness",
+]
 
 # Supported creative directions
 SUPPORTED_CREATIVE_DIRECTIONS = {
@@ -126,6 +137,82 @@ DIRECTION_WEIGHTS: Dict[str, Dict[str, float]] = {
     },
 }
 
+# 7-dimension multimodal signal default weights per creative direction (sum to 1.0)
+DEFAULT_SIGNAL_WEIGHTS: Dict[str, Dict[str, float]] = {
+    "best_overall": {
+        "speech_interest": 0.20,
+        "emotional_intensity": 0.15,
+        "audio_activity": 0.10,
+        "visual_interest": 0.15,
+        "context_completeness": 0.15,
+        "narrative_coherence": 0.15,
+        "distinctiveness": 0.10,
+    },
+    "viral_punchy": {
+        "speech_interest": 0.20,
+        "emotional_intensity": 0.20,
+        "audio_activity": 0.15,
+        "visual_interest": 0.15,
+        "context_completeness": 0.10,
+        "narrative_coherence": 0.10,
+        "distinctiveness": 0.10,
+    },
+    "dramatic": {
+        "speech_interest": 0.15,
+        "emotional_intensity": 0.30,
+        "audio_activity": 0.15,
+        "visual_interest": 0.10,
+        "context_completeness": 0.10,
+        "narrative_coherence": 0.10,
+        "distinctiveness": 0.10,
+    },
+    "action_motion": {
+        "speech_interest": 0.10,
+        "emotional_intensity": 0.10,
+        "audio_activity": 0.20,
+        "visual_interest": 0.30,
+        "context_completeness": 0.10,
+        "narrative_coherence": 0.10,
+        "distinctiveness": 0.10,
+    },
+    "emotional_sad": {
+        "speech_interest": 0.15,
+        "emotional_intensity": 0.35,
+        "audio_activity": 0.10,
+        "visual_interest": 0.10,
+        "context_completeness": 0.10,
+        "narrative_coherence": 0.10,
+        "distinctiveness": 0.10,
+    },
+    "engaging_dialogue": {
+        "speech_interest": 0.35,
+        "emotional_intensity": 0.10,
+        "audio_activity": 0.10,
+        "visual_interest": 0.05,
+        "context_completeness": 0.15,
+        "narrative_coherence": 0.15,
+        "distinctiveness": 0.10,
+    },
+    "humorous": {
+        "speech_interest": 0.30,
+        "emotional_intensity": 0.20,
+        "audio_activity": 0.10,
+        "visual_interest": 0.10,
+        "context_completeness": 0.10,
+        "narrative_coherence": 0.10,
+        "distinctiveness": 0.10,
+    },
+    "educational": {
+        "speech_interest": 0.30,
+        "emotional_intensity": 0.05,
+        "audio_activity": 0.05,
+        "visual_interest": 0.10,
+        "context_completeness": 0.20,
+        "narrative_coherence": 0.20,
+        "distinctiveness": 0.10,
+    },
+}
+
 
 def _now_utc() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -163,6 +250,13 @@ class ScoreBreakdown:
     emotional_signal: float = 0.0
     action_motion: float = 0.0
     attractiveness_estimate: float = 0.0
+    # 7-dimension P2.2 metrics
+    speech_interest: float = 0.0
+    emotional_intensity: float = 0.0
+    audio_activity: float = 0.0
+    context_completeness: float = 0.0
+    narrative_coherence: float = 0.0
+    distinctiveness: float = 0.0
 
 
 @dataclass
@@ -187,6 +281,13 @@ class GeneratedCandidate:
     overlap_group_id: Optional[str] = None
     alternative_of_id: Optional[str] = None
     generation_run_id: Optional[str] = None
+    # P2.2 Multimodal Extensions
+    signal_scores: Dict[str, float] = field(default_factory=dict)
+    evidence_coverage: float = 1.0
+    missing_evidence: List[str] = field(default_factory=list)
+    generation_reason: str = ""
+    transcript_excerpt: str = ""
+    rank_position: Optional[int] = None
 
 
 class HighlightDiscoveryEngine:
@@ -201,6 +302,115 @@ class HighlightDiscoveryEngine:
         self.db_path = db_path or (self.settings.storage_root / "db" / "zezedit.db")
         self.job_orchestrator = JobOrchestrator(settings=self.settings, db_path=self.db_path)
 
+    def _row_to_candidate_dict(self, row: sqlite3.Row) -> Dict[str, Any]:
+        """Convert a database row into a candidate dictionary with all multimodal fields."""
+        def _parse_json(val: Any, default: Any) -> Any:
+            if not val:
+                return default
+            if isinstance(val, (dict, list)):
+                return val
+            try:
+                return json.loads(val)
+            except Exception:
+                return default
+
+        keys = row.keys()
+        return {
+            "id": row["id"],
+            "project_id": row["project_id"],
+            "media_asset_id": row["media_asset_id"],
+            "analysis_run_id": row["analysis_run_id"],
+            "generation_run_id": row["generation_run_id"] if "generation_run_id" in keys else None,
+            "creative_direction": row["creative_direction"] if "creative_direction" in keys else "best_overall",
+            "start_time": float(row["start_time"]),
+            "end_time": float(row["end_time"]),
+            "duration": float(row["duration"]),
+            "suggested_start_time": float(row["suggested_start_time"] or row["start_time"]) if "suggested_start_time" in keys else float(row["start_time"]),
+            "suggested_end_time": float(row["suggested_end_time"] or row["end_time"]) if "suggested_end_time" in keys else float(row["end_time"]),
+            "is_user_modified": bool(row["is_user_modified"]) if "is_user_modified" in keys else False,
+            "title": row["title"],
+            "suggested_title": row["suggested_title"] if "suggested_title" in keys else row["title"],
+            "description": row["description"] or "",
+            "category": row["category"] or "Highlight",
+            "secondary_categories": _parse_json(row["secondary_categories_json"], []) if "secondary_categories_json" in keys else [],
+            "quality_score": float(row["quality_score"]),
+            "rank_position": row["rank_position"] if "rank_position" in keys else None,
+            "evidence_coverage": float(row["evidence_coverage"]) if ("evidence_coverage" in keys and row["evidence_coverage"] is not None) else 1.0,
+            "signal_scores": _parse_json(row["signal_scores_json"], {}) if "signal_scores_json" in keys else {},
+            "generation_reason": row["generation_reason"] if "generation_reason" in keys else None,
+            "transcript_excerpt": row["transcript_excerpt"] if "transcript_excerpt" in keys else None,
+            "review_status": row["review_status"] or "needs_review",
+            "rejection_reason": row["rejection_reason"] if "rejection_reason" in keys else None,
+            "score_breakdown": _parse_json(row["score_breakdown_json"], {}) if "score_breakdown_json" in keys else {},
+            "gate_results": _parse_json(row["gate_results_json"], {}) if "gate_results_json" in keys else {},
+            "warnings": _parse_json(row["warnings_json"], []) if "warnings_json" in keys else [],
+            "missing_evidence": _parse_json(row["missing_evidence_json"], []) if "missing_evidence_json" in keys else [],
+            "natural_boundary_confidence": float(row["natural_boundary_confidence"] or 1.0) if "natural_boundary_confidence" in keys else 1.0,
+            "overlap_group_id": row["overlap_group_id"] if "overlap_group_id" in keys else None,
+            "alternative_of_candidate_id": row["alternative_of_candidate_id"] if "alternative_of_candidate_id" in keys else None,
+            "alternative_of_id": row["alternative_of_candidate_id"] if "alternative_of_candidate_id" in keys else None,
+            "transcript_references": _parse_json(row["transcript_references_json"], []) if "transcript_references_json" in keys else [],
+            "scene_references": _parse_json(row["scene_references_json"], []) if "scene_references_json" in keys else [],
+            "visual_evidence": _parse_json(row["visual_evidence_json"], []) if "visual_evidence_json" in keys else [],
+            "audio_evidence": _parse_json(row["audio_evidence_json"], []) if "audio_evidence_json" in keys else [],
+            "ai_explanation": _parse_json(row["ai_explanation_json"], {}) if "ai_explanation_json" in keys else {},
+            "scoring_version": row["scoring_version"] if "scoring_version" in keys else SCORING_VERSION,
+            "queued_for_render": bool(row["queued_for_render"]) if "queued_for_render" in keys else False,
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+        }
+
+    def _fetch_cached_candidates(
+        self,
+        conn: sqlite3.Connection,
+        project_id: str,
+        media_asset_id: str,
+        analysis_run_id: str,
+        creative_direction: str,
+        min_score: float = 0.0,
+        target_clip_count: Optional[int] = None,
+    ) -> Optional[List[Dict[str, Any]]]:
+        """Fetch previously generated candidates if the source analysis and creative direction match."""
+        run_row = conn.execute(
+            """
+            SELECT id, creative_direction FROM candidate_generation_runs
+            WHERE media_asset_id = ? AND analysis_run_id = ? AND creative_direction = ? AND status = 'completed'
+            ORDER BY created_at DESC LIMIT 1
+            """,
+            (media_asset_id, analysis_run_id, creative_direction),
+        ).fetchone()
+
+        if not run_row:
+            return None
+
+        gen_run_id = run_row["id"]
+        rows = conn.execute(
+            """
+            SELECT * FROM shorts_candidates
+            WHERE generation_run_id = ?
+            ORDER BY CASE WHEN rank_position IS NOT NULL THEN rank_position ELSE 999999 END ASC, quality_score DESC, start_time ASC
+            """,
+            (gen_run_id,),
+        ).fetchall()
+
+        if not rows:
+            return None
+
+        candidates = []
+        for r in rows:
+            cand = self._row_to_candidate_dict(r)
+            if min_score > 0.0 and cand["quality_score"] < min_score:
+                continue
+            candidates.append(cand)
+
+        if not candidates:
+            return None
+
+        if target_clip_count and target_clip_count > 0:
+            candidates = candidates[:target_clip_count]
+
+        return candidates
+
     def discover_highlights(
         self,
         project_id: str,
@@ -209,8 +419,8 @@ class HighlightDiscoveryEngine:
         job_id: Optional[str] = None,
         creative_direction: str = "best_overall",
         aspect_ratio: str = "9:16",
-        min_duration: float = 12.0,
-        max_duration: float = 60.0,
+        min_duration: Optional[float] = 12.0,
+        max_duration: Optional[float] = 60.0,
         target_clip_count: Optional[int] = None,
         use_ai_explanations: bool = True,
         is_generate_more: bool = False,
@@ -219,8 +429,12 @@ class HighlightDiscoveryEngine:
         duration_preference: str = "ai_best_duration",
         novelty_mode: str = "strict",
         generation_type: Optional[str] = None,
+        force_rediscovery: bool = False,
+        custom_weights: Optional[Dict[str, float]] = None,
+        min_score: float = 0.0,
+        min_separation_seconds: float = 0.0,
     ) -> List[Dict[str, Any]]:
-        """Main highlight discovery workflow with persistent novelty and natural boundaries."""
+        """Main highlight discovery workflow with persistent novelty, 7-dimension scoring, and natural boundaries."""
         creative_direction = CREATIVE_DIRECTION_ALIASES.get(
             str(creative_direction).lower().strip(), "best_overall"
         )
@@ -284,6 +498,35 @@ class HighlightDiscoveryEngine:
                 ).fetchone()
                 if not run_row or run_row["status"] != "completed":
                     raise ProcessingError(f"Analysis run '{analysis_run_id}' is not in completed state.")
+
+            # Fast Cache Check: Re-use candidates when analysis is unchanged and force_rediscovery is False
+            if (
+                not force_rediscovery
+                and not is_generate_more
+                and not selected_scene_ids
+                and not excluded_scene_ids
+                and not custom_weights
+            ):
+                cached = self._fetch_cached_candidates(
+                    conn=conn,
+                    project_id=project_id,
+                    media_asset_id=media_asset_id,
+                    analysis_run_id=analysis_run_id,
+                    creative_direction=creative_direction,
+                    min_score=min_score,
+                    target_clip_count=target_clip_count,
+                )
+                if cached:
+                    logger.info(
+                        "Returning %d cached candidates for asset %s (analysis %s, direction %s)",
+                        len(cached), media_asset_id, analysis_run_id, creative_direction
+                    )
+                    if job_id:
+                        try:
+                            self.job_orchestrator.save_checkpoint(job_id=job_id, stage="completed", progress_pct=100.0)
+                        except Exception:
+                            pass
+                    return cached
 
             # 3. Load analysis data
             segments = [
@@ -438,6 +681,7 @@ class HighlightDiscoveryEngine:
                 max_duration=max_duration,
                 creative_direction=creative_direction,
                 generation_run_id=generation_run_id,
+                custom_weights=custom_weights,
             )
             scored_candidates.append(scored)
 
@@ -529,6 +773,9 @@ class HighlightDiscoveryEngine:
             if cand.alternative_of_id is not None:
                 continue
 
+            if min_score > 0.0 and cand.score_breakdown.total_score < min_score:
+                continue
+
             # Compare against already selected candidates in current batch
             overlaps_batch = False
             for sel in selected_candidates:
@@ -538,6 +785,11 @@ class HighlightDiscoveryEngine:
                 if tiou >= 0.50 or shorter_ratio >= 0.60:
                     overlaps_batch = True
                     break
+                if min_separation_seconds > 0.0:
+                    sep = min(abs(cand.start_time - sel.end_time), abs(sel.start_time - cand.end_time))
+                    if sep < min_separation_seconds and (cand.start_time < sel.end_time and sel.start_time < cand.end_time):
+                        overlaps_batch = True
+                        break
 
             if overlaps_batch:
                 continue
@@ -545,6 +797,11 @@ class HighlightDiscoveryEngine:
             selected_candidates.append(cand)
             if len(selected_candidates) >= target_clip_count:
                 break
+
+        # Deterministic Ranking Assignment (Tie-breaking: quality_score DESC, start_time ASC, id ASC)
+        selected_candidates.sort(key=lambda c: (-c.score_breakdown.total_score, c.start_time, c.id))
+        for idx, cand in enumerate(selected_candidates, start=1):
+            cand.rank_position = idx
 
         total_selected = len(selected_candidates)
         total_rejected = hard_rejected_count + (len(novelty_passed) - total_selected)
@@ -594,6 +851,9 @@ class HighlightDiscoveryEngine:
             reused_analysis_run_id=analysis_run_id,
             duration_preference=duration_preference,
             is_novelty_exhausted=is_novelty_exhausted,
+            custom_weights=custom_weights,
+            min_score=min_score,
+            min_separation_seconds=min_separation_seconds,
         )
 
         if job_id:
@@ -837,8 +1097,9 @@ class HighlightDiscoveryEngine:
         max_duration: float,
         creative_direction: str,
         generation_run_id: str,
+        custom_weights: Optional[Dict[str, float]] = None,
     ) -> GeneratedCandidate:
-        """Context-aware boundary snapping, multimodal explainable scoring, and quality gates."""
+        """Context-aware boundary snapping, multimodal 7-dimension explainable scoring, and quality gates."""
         raw_start = cand["start_time"]
         raw_end = cand["end_time"]
 
@@ -884,10 +1145,206 @@ class HighlightDiscoveryEngine:
         words_in_text = lower_text.split()
         first_words = words_in_text[:3]
 
-        # 2. Multimodal Component Scoring Model (Session 4)
-        # Component A: Hook Strength (0 to 100 normalized)
+        hook_keywords = (
+            "why", "how", "what", "secret", "never", "always", "best", "truth",
+            "discover", "important", "stop", "listen", "imagine", "watch",
+            "breakthrough", "shocking"
+        )
+        dramatic_keywords = (
+            "incredible", "amazing", "worst", "fear", "love", "breakthrough",
+            "danger", "secret", "never", "realized", "hate", "pain", "surprising",
+            "crazy", "unbelievable"
+        )
+        humor_keywords = (
+            "laugh", "funny", "joke", "kidding", "hilarious", "crazy", "ridiculous",
+            "haha", "chuckle", "smile", "mess", "silly", "fool", "prank", "mad", "weird",
+            "fun", "entertaining", "teasing"
+        )
+
+        # Evidence Availability Checks (No Fabricated Modalities)
+        speech_present = bool(text.strip())
+        audio_present = bool(
+            audio_data is not None
+            and bool(audio_data.get("has_audio", True))
+            and int(audio_data.get("has_audio", 1) or 0) != 0
+            and not audio_data.get("is_silent", False)
+            and float(audio_data.get("rms_energy", 1.0) or 1.0) > 0.0001
+        )
+        visual_present = bool(clip_scenes or clip_obs)
+
+        missing_evidence: List[str] = []
+        if not speech_present:
+            missing_evidence.append("transcript_missing")
+        if not audio_present:
+            missing_evidence.append("audio_track_missing")
+        if not visual_present:
+            missing_evidence.append("visual_scenes_missing")
+
+        evidence_coverage = round(
+            (int(speech_present) + int(audio_present) + int(visual_present)) / 3.0, 2
+        )
+
+        # 2. 7-Dimension Multimodal Scoring Model (P2.2)
+        # Dimension 1: speech_interest (0 to 100)
+        speakers = {t.get("speaker_label", "speaker") for t in clip_turns}
+        word_count = len(words_in_text)
+        wps = word_count / max(1.0, duration)
+        if speech_present:
+            speech_raw = 20.0
+            if len(speakers) >= 2:
+                speech_raw += 25.0
+            if len(clip_turns) >= 2:
+                speech_raw += 20.0
+            if any(t.get("turn_type") == "question" for t in clip_turns) or "?" in " ".join(words_in_text[:8]):
+                speech_raw += 15.0
+            if 1.8 <= wps <= 3.8:
+                speech_raw += 20.0
+            elif wps > 0.5:
+                speech_raw += 10.0
+            speech_interest = max(0.0, min(100.0, speech_raw))
+        else:
+            speech_interest = 0.0
+
+        # Dimension 2: emotional_intensity (0 to 100)
+        emotional_raw = 20.0
+        if any(w in lower_text for w in dramatic_keywords) or any(w in lower_text for w in humor_keywords):
+            emotional_raw += 35.0
+        if any(t.get("turn_type") == "exclamation" for t in clip_turns) or "!" in text:
+            emotional_raw += 25.0
+        if any(t.get("turn_type") == "question" for t in clip_turns):
+            emotional_raw += 15.0
+        emotional_intensity = max(0.0, min(100.0, emotional_raw))
+
+        # Dimension 3: audio_activity (0 to 100)
+        if audio_present:
+            audio_raw = 45.0
+            speech_pct = float(audio_data.get("speech_percentage", 0.7) or 0.7)
+            audio_raw += speech_pct * 30.0
+            rms = float(audio_data.get("rms_energy", 0.1) or 0.1)
+            if rms > 0.05:
+                audio_raw += 15.0
+            if len(clip_turns) >= 2 or len(clip_segments) >= 2:
+                audio_raw += 10.0
+            audio_activity = max(0.0, min(100.0, audio_raw))
+        else:
+            audio_activity = 0.0
+
+        # Dimension 4: visual_interest (0 to 100)
+        visual_raw = 25.0
+        if len(clip_scenes) >= 3:
+            visual_raw += 35.0
+        elif len(clip_scenes) == 2:
+            visual_raw += 20.0
+        elif len(clip_scenes) == 1:
+            visual_raw += 10.0
+        if clip_obs:
+            avg_obs_conf = sum(float(o.get("confidence", 0.7) or 0.7) for o in clip_obs) / len(clip_obs)
+            visual_raw += avg_obs_conf * 30.0
+            if len(clip_obs) >= 2:
+                visual_raw += 10.0
+        visual_interest = max(0.0, min(100.0, visual_raw))
+
+        # Dimension 5: context_completeness (0 to 100)
+        context_raw = 40.0
+        starts_with_pronoun = any(w in first_words for w in ("he", "she", "they", "this", "that", "it"))
+        if not starts_with_pronoun:
+            context_raw += 25.0
+        starts_with_conj = any(w in first_words for w in ("and", "so", "but", "because", "or", "then"))
+        if not starts_with_conj:
+            context_raw += 20.0
+        if text.endswith((".", "!", "?")):
+            context_raw += 15.0
+        context_completeness = max(0.0, min(100.0, context_raw))
+
+        # Dimension 6: narrative_coherence (0 to 100)
+        narrative_raw = 35.0
+        if text.endswith((".", "!", "?")):
+            narrative_raw += 30.0
+        if any(w in " ".join(first_words) for w in hook_keywords):
+            narrative_raw += 20.0
+        if 15.0 <= duration <= 60.0:
+            narrative_raw += 15.0
+        narrative_coherence = max(0.0, min(100.0, narrative_raw))
+
+        # Dimension 7: distinctiveness (0 to 100)
+        distinct_raw = 50.0
+        if snapped_start > 5.0 and snapped_end < media_duration - 5.0:
+            distinct_raw += 20.0
+        if len(set(words_in_text)) >= 10:
+            distinct_raw += 30.0
+        elif len(set(words_in_text)) >= 5:
+            distinct_raw += 15.0
+        distinctiveness = max(0.0, min(100.0, distinct_raw))
+
+        # Direction-specific Boosts
+        if creative_direction == "educational":
+            educational_keywords = (
+                "why", "how", "because", "step", "learn", "understand", "reason",
+                "guide", "means", "remember", "definition", "technique", "process",
+                "result", "formula", "important", "fact", "study", "analysis"
+            )
+            if any(w in lower_text for w in educational_keywords):
+                speech_interest = min(100.0, speech_interest + 25.0)
+                narrative_coherence = min(100.0, narrative_coherence + 20.0)
+
+        elif creative_direction == "humorous":
+            if any(w in lower_text for w in humor_keywords):
+                emotional_intensity = min(100.0, emotional_intensity + 25.0)
+            if len(clip_turns) >= 3:
+                speech_interest = min(100.0, speech_interest + 20.0)
+
+        elif creative_direction == "engaging_dialogue":
+            if len(speakers) >= 2 and any(t.get("turn_type") == "question" for t in clip_turns):
+                speech_interest = min(100.0, speech_interest + 30.0)
+                narrative_coherence = min(100.0, narrative_coherence + 15.0)
+            elif len(speakers) >= 2:
+                speech_interest = min(100.0, speech_interest + 20.0)
+
+        signal_scores = {
+            "speech_interest": round(speech_interest, 1),
+            "emotional_intensity": round(emotional_intensity, 1),
+            "audio_activity": round(audio_activity, 1),
+            "visual_interest": round(visual_interest, 1),
+            "context_completeness": round(context_completeness, 1),
+            "narrative_coherence": round(narrative_coherence, 1),
+            "distinctiveness": round(distinctiveness, 1),
+        }
+
+        # 3. Dynamic Weight Normalization & Quality Score Computation
+        raw_weights = dict(custom_weights) if custom_weights else dict(
+            DEFAULT_SIGNAL_WEIGHTS.get(creative_direction, DEFAULT_SIGNAL_WEIGHTS["best_overall"])
+        )
+        for dim in SIGNAL_DIMENSIONS:
+            if dim not in raw_weights:
+                raw_weights[dim] = 0.0
+
+        effective_weights = dict(raw_weights)
+        if not speech_present:
+            effective_weights["speech_interest"] = 0.0
+        if not audio_present:
+            effective_weights["audio_activity"] = 0.0
+        if not visual_present:
+            effective_weights["visual_interest"] = 0.0
+
+        total_w = sum(effective_weights.values())
+        if total_w <= 0.0:
+            total_w = sum(raw_weights.values()) or 1.0
+            effective_weights = {k: v / total_w for k, v in raw_weights.items()}
+        else:
+            effective_weights = {k: v / total_w for k, v in effective_weights.items()}
+
+        weighted_total = sum(signal_scores[dim] * effective_weights[dim] for dim in SIGNAL_DIMENSIONS)
+
+        # Context-dependency penalty
+        context_penalty = 0.0
+        if any(w in first_words for w in ("he", "she", "they", "this", "that")) and len(clip_turns) <= 1:
+            context_penalty = 5.0
+            weighted_total = max(0.0, weighted_total - context_penalty)
+
+        total_score = round(max(0.0, min(100.0, weighted_total)), 1)
+
+        # Hook & Action components for backward compatibility
         hook_raw = 30.0
-        hook_keywords = ("why", "how", "what", "secret", "never", "always", "best", "truth", "discover", "important", "stop", "listen", "imagine", "watch", "breakthrough", "shocking")
         if any(w in " ".join(first_words) for w in hook_keywords):
             hook_raw += 35.0
         if any(t.get("turn_type") == "question" for t in clip_turns[:1]):
@@ -898,34 +1355,6 @@ class HighlightDiscoveryEngine:
             hook_raw += 10.0
         hook_score = max(0.0, min(100.0, hook_raw))
 
-        # Component B: Dialogue Interest (0 to 100 normalized)
-        dialogue_raw = 20.0
-        speakers = {t.get("speaker_label", "speaker") for t in clip_turns}
-        if len(speakers) >= 2:
-            dialogue_raw += 35.0
-        if len(clip_turns) >= 2:
-            dialogue_raw += 20.0
-        # Speech density check
-        word_count = len(words_in_text)
-        wps = word_count / max(1.0, duration)
-        if 1.8 <= wps <= 3.8:
-            dialogue_raw += 25.0
-        elif wps > 0.5:
-            dialogue_raw += 10.0
-        dialogue_score = max(0.0, min(100.0, dialogue_raw))
-
-        # Component C: Emotional & Dramatic Signal (0 to 100 normalized)
-        emotional_raw = 25.0
-        dramatic_keywords = ("incredible", "amazing", "worst", "fear", "love", "breakthrough", "danger", "secret", "never", "realized", "hate", "pain", "surprising", "crazy", "unbelievable")
-        if any(w in lower_text for w in dramatic_keywords):
-            emotional_raw += 35.0
-        if any(t.get("turn_type") == "exclamation" for t in clip_turns) or "!" in text:
-            emotional_raw += 25.0
-        if any(t.get("turn_type") == "question" for t in clip_turns):
-            emotional_raw += 15.0
-        emotional_score = max(0.0, min(100.0, emotional_raw))
-
-        # Component D: Action & Motion Interest (0 to 100 normalized)
         action_raw = 30.0
         if len(clip_scenes) >= 3:
             action_raw += 35.0
@@ -933,97 +1362,31 @@ class HighlightDiscoveryEngine:
             action_raw += 20.0
         if len(clip_obs) >= 2:
             action_raw += 25.0
-        elif len(clip_obs) == 1:
-            action_raw += 15.0
         action_score = max(0.0, min(100.0, action_raw))
-
-        # Component E: Visual Presentation (0 to 100 normalized)
-        visual_raw = 40.0
-        if clip_obs:
-            avg_obs_conf = sum(o.get("confidence", 0.7) for o in clip_obs) / len(clip_obs)
-            visual_raw += avg_obs_conf * 40.0
-        if clip_scenes:
-            visual_raw += 20.0
-        visual_score = max(0.0, min(100.0, visual_raw))
-
-        # Component F: Narrative Completeness (0 to 100 normalized)
-        narrative_raw = 40.0
-        if text.endswith((".", "!", "?")):
-            narrative_raw += 30.0
-        if not any(w in first_words for w in ("and", "so", "but", "because", "or", "then")):
-            narrative_raw += 20.0
-        if len(clip_turns) >= 2:
-            narrative_raw += 10.0
-        narrative_score = max(0.0, min(100.0, narrative_raw))
-
-        # Educational direction boost for explanatory terms
-        if creative_direction == "educational":
-            educational_keywords = (
-                "why", "how", "because", "step", "learn", "understand", "reason",
-                "guide", "means", "remember", "definition", "technique", "process",
-                "result", "formula", "important", "fact", "study", "analysis"
-            )
-            if any(w in lower_text for w in educational_keywords):
-                dialogue_score = min(100.0, dialogue_score + 25.0)
-                narrative_score = min(100.0, narrative_score + 20.0)
-
-        # Humorous direction boost for witty dialogue, punchlines, and snappy banter
-        if creative_direction == "humorous":
-            humor_keywords = (
-                "laugh", "funny", "joke", "kidding", "hilarious", "crazy", "ridiculous",
-                "haha", "chuckle", "smile", "mess", "silly", "fool", "prank", "mad", "weird",
-                "fun", "entertaining", "teasing"
-            )
-            if any(w in lower_text for w in humor_keywords):
-                hook_score = min(100.0, hook_score + 25.0)
-                emotional_score = min(100.0, emotional_score + 25.0)
-            if len(clip_turns) >= 3:
-                dialogue_score = min(100.0, dialogue_score + 20.0)
-
-        # Engaging dialogue direction boost for multi-speaker conversational Q&A
-        if creative_direction == "engaging_dialogue":
-            if len(speakers) >= 2 and any(t.get("turn_type") == "question" for t in clip_turns):
-                dialogue_score = min(100.0, dialogue_score + 30.0)
-                narrative_score = min(100.0, narrative_score + 15.0)
-            elif len(speakers) >= 2:
-                dialogue_score = min(100.0, dialogue_score + 20.0)
-
-        # 3. Apply Creative Direction Weight Matrix
-        weights = DIRECTION_WEIGHTS.get(creative_direction, DIRECTION_WEIGHTS["best_overall"])
-        weighted_total = (
-            hook_score * weights["hook"]
-            + dialogue_score * weights["dialogue"]
-            + emotional_score * weights["emotional"]
-            + action_score * weights["action_motion"]
-            + visual_score * weights["visual"]
-            + narrative_score * weights["narrative"]
-        )
-
-        # Context-dependency penalty
-        context_penalty = 0.0
-        if any(w in first_words for w in ("he", "she", "they", "this", "that")) and len(clip_turns) <= 1:
-            context_penalty = 5.0
-            weighted_total = max(0.0, weighted_total - context_penalty)
-
-        total_score = round(max(0.0, min(100.0, weighted_total)), 1)
 
         # Backward-compatible ScoreBreakdown fields (maps to 0-20 or 0-10 scale as expected by tests)
         breakdown = ScoreBreakdown(
             semantic_interest=round(hook_score * 0.20, 1),
-            narrative_completeness=round(narrative_score * 0.20, 1),
-            conversation_structure=round(dialogue_score * 0.15, 1),
-            visual_interest=round(visual_score * 0.15, 1),
-            audio_evidence=round(dialogue_score * 0.10, 1),
-            opening_clarity=round(min(10.0, narrative_score * 0.10), 1),
+            narrative_completeness=round(narrative_coherence * 0.20, 1),
+            conversation_structure=round(speech_interest * 0.15, 1),
+            visual_interest=round(visual_interest * 0.15, 1),
+            audio_evidence=round(audio_activity * 0.10, 1),
+            opening_clarity=round(min(10.0, context_completeness * 0.10), 1),
             ending_completeness=round(min(10.0, 10.0 if text.endswith((".", "!", "?")) else 6.0), 1),
             duration_suitability=10.0 if 15.0 <= duration <= 50.0 else 5.0,
             context_dependency_penalty=-context_penalty,
             total_score=total_score,
             hook_strength=round(hook_score, 1),
-            dialogue_interest=round(dialogue_score, 1),
-            emotional_signal=round(emotional_score, 1),
+            dialogue_interest=round(speech_interest, 1),
+            emotional_signal=round(emotional_intensity, 1),
             action_motion=round(action_score, 1),
             attractiveness_estimate=total_score,
+            speech_interest=round(speech_interest, 1),
+            emotional_intensity=round(emotional_intensity, 1),
+            audio_activity=round(audio_activity, 1),
+            context_completeness=round(context_completeness, 1),
+            narrative_coherence=round(narrative_coherence, 1),
+            distinctiveness=round(distinctiveness, 1),
         )
 
         # 4. Quality Gates
@@ -1088,6 +1451,13 @@ class HighlightDiscoveryEngine:
         else:
             suggested_title = f"{category} Scene ({format_timestamp(snapped_start)})"
 
+        transcript_excerpt = text[:200] if text else "Visual or ambient scene moment"
+        generation_reason = (
+            f"Ranked {total_score:.1f}/100 in {creative_direction} direction "
+            f"(speech: {signal_scores['speech_interest']}, visual: {signal_scores['visual_interest']}, "
+            f"narrative: {signal_scores['narrative_coherence']})."
+        )
+
         return GeneratedCandidate(
             id=f"cand_{uuid.uuid4().hex[:12]}",
             start_time=snapped_start,
@@ -1102,11 +1472,16 @@ class HighlightDiscoveryEngine:
             transcript_refs=[t["id"] for t in clip_turns],
             scene_refs=[sc["id"] for sc in clip_scenes],
             visual_refs=[{"timestamp": o["timestamp"], "description": o["description"]} for o in clip_obs],
-            audio_refs=[{"segments_count": len(clip_segments), "turns_count": len(clip_turns)}],
+            audio_refs=[{"segments_count": len(clip_segments), "turns_count": len(clip_turns)}] if audio_present else [],
             ai_explanation={},
             creative_direction=creative_direction,
             natural_boundary_confidence=boundary_confidence,
             generation_run_id=generation_run_id,
+            signal_scores=signal_scores,
+            evidence_coverage=evidence_coverage,
+            missing_evidence=missing_evidence,
+            generation_reason=generation_reason,
+            transcript_excerpt=transcript_excerpt,
         )
 
     def _compute_temporal_overlap(
@@ -1208,6 +1583,9 @@ class HighlightDiscoveryEngine:
         reused_analysis_run_id: Optional[str] = None,
         duration_preference: str = "ai_best_duration",
         is_novelty_exhausted: int = 0,
+        custom_weights: Optional[Dict[str, float]] = None,
+        min_score: float = 0.0,
+        min_separation_seconds: float = 0.0,
     ) -> List[Dict[str, Any]]:
         """Persists generation run, candidates, and novelty history in a single SQLite transaction."""
         now = _now_utc()
@@ -1215,6 +1593,12 @@ class HighlightDiscoveryEngine:
 
         with sqlite_session(self.db_path) as conn:
             # 1. Record candidate generation run
+            effective_weights = dict(custom_weights) if custom_weights else dict(
+                DEFAULT_SIGNAL_WEIGHTS.get(creative_direction, DEFAULT_SIGNAL_WEIGHTS["best_overall"])
+            )
+            total_w = sum(effective_weights.values()) or 1.0
+            normalized_weights = {k: v / total_w for k, v in effective_weights.items()}
+
             conn.execute(
                 """
                 INSERT INTO candidate_generation_runs (
@@ -1224,13 +1608,15 @@ class HighlightDiscoveryEngine:
                     candidates_discovered, candidates_selected, candidates_rejected,
                     novelty_exclusions, error_message, warnings_json,
                     started_at, completed_at, created_at, updated_at,
-                    generation_type, reused_analysis_run_id, duration_preference, is_novelty_exhausted
+                    generation_type, reused_analysis_run_id, duration_preference, is_novelty_exhausted,
+                    score_weights_json, min_score, min_separation_seconds, source_signature
                 ) VALUES (
                     ?, ?, ?, ?, ?,
                     ?, ?, ?,
                     ?, ?, 'completed',
                     ?, ?, ?,
                     ?, NULL, ?,
+                    ?, ?, ?, ?,
                     ?, ?, ?, ?,
                     ?, ?, ?, ?
                 )
@@ -1243,6 +1629,8 @@ class HighlightDiscoveryEngine:
                     novelty_exclusions, json.dumps(warnings),
                     now, now, now, now,
                     generation_type, reused_analysis_run_id, duration_preference, is_novelty_exhausted,
+                    json.dumps(normalized_weights), min_score, min_separation_seconds,
+                    f"{media_asset_id}:{analysis_run_id}:{creative_direction}",
                 ),
             )
 
@@ -1263,7 +1651,8 @@ class HighlightDiscoveryEngine:
                         visual_evidence_json, audio_evidence_json, ai_explanation_json,
                         alternative_of_candidate_id, overlap_group_id, scoring_version,
                         queued_for_render, created_at, updated_at,
-                        generation_run_id, creative_direction, natural_boundary_confidence
+                        generation_run_id, creative_direction, natural_boundary_confidence,
+                        rank_position, evidence_coverage, signal_scores_json, generation_reason, transcript_excerpt
                     ) VALUES (
                         ?, ?, ?, ?, ?,
                         ?, ?, ?, ?, ?,
@@ -1274,7 +1663,8 @@ class HighlightDiscoveryEngine:
                         ?, ?, ?,
                         ?, ?, ?,
                         0, ?, ?,
-                        ?, ?, ?
+                        ?, ?, ?,
+                        ?, ?, ?, ?, ?
                     )
                     """,
                     (
@@ -1282,13 +1672,15 @@ class HighlightDiscoveryEngine:
                         cand.start_time, cand.end_time, cand.duration, cand.start_time, cand.end_time,
                         cand.suggested_title, cand.suggested_title, cand.description, cand.category,
                         json.dumps(cand.secondary_categories), b.total_score, json.dumps(asdict(b)),
-                        json.dumps(asdict(g)), json.dumps(g.warnings), json.dumps([]), g.status,
+                        json.dumps(asdict(g)), json.dumps(g.warnings), json.dumps(cand.missing_evidence), g.status,
                         "; ".join(g.rejection_reasons) if g.rejection_reasons else None,
                         json.dumps(cand.transcript_refs), json.dumps(cand.scene_refs),
                         json.dumps(cand.visual_refs), json.dumps(cand.audio_refs),
                         json.dumps(cand.ai_explanation), cand.alternative_of_id, cand.overlap_group_id,
                         SCORING_VERSION, now, now,
                         generation_run_id, cand.creative_direction, cand.natural_boundary_confidence,
+                        cand.rank_position, cand.evidence_coverage, json.dumps(cand.signal_scores),
+                        cand.generation_reason, cand.transcript_excerpt,
                     ),
                 )
 
@@ -1321,15 +1713,27 @@ class HighlightDiscoveryEngine:
                         "end_time": cand.end_time,
                         "duration": cand.duration,
                         "title": cand.suggested_title,
+                        "suggested_title": cand.suggested_title,
+                        "description": cand.description,
                         "category": cand.category,
                         "quality_score": b.total_score,
+                        "rank_position": cand.rank_position,
+                        "evidence_coverage": cand.evidence_coverage,
+                        "signal_scores": cand.signal_scores,
+                        "generation_reason": cand.generation_reason,
+                        "transcript_excerpt": cand.transcript_excerpt,
                         "review_status": g.status,
                         "score_breakdown": asdict(b),
                         "gate_results": asdict(g),
                         "warnings": g.warnings,
+                        "missing_evidence": cand.missing_evidence,
                         "natural_boundary_confidence": cand.natural_boundary_confidence,
                         "overlap_group_id": cand.overlap_group_id,
+                        "alternative_of_candidate_id": cand.alternative_of_id,
                         "alternative_of_id": cand.alternative_of_id,
+                        "visual_refs": cand.visual_refs,
+                        "scene_refs": cand.scene_refs,
+                        "audio_refs": cand.audio_refs,
                     }
                 )
 
@@ -1337,7 +1741,18 @@ class HighlightDiscoveryEngine:
 
     def get_generation_runs(self, media_asset_id: str) -> List[Dict[str, Any]]:
         """Retrieve all candidate generation runs for a media asset."""
+        def _parse_json(val: Any, default: Any) -> Any:
+            if not val:
+                return default
+            if isinstance(val, (dict, list)):
+                return val
+            try:
+                return json.loads(val)
+            except Exception:
+                return default
+
         with sqlite_session(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 """
                 SELECT * FROM candidate_generation_runs
@@ -1346,7 +1761,14 @@ class HighlightDiscoveryEngine:
                 """,
                 (media_asset_id,),
             ).fetchall()
-            return [dict(r) for r in rows]
+            output = []
+            for r in rows:
+                d = dict(r)
+                d["score_weights"] = _parse_json(d.get("score_weights_json"), {})
+                d["warnings"] = _parse_json(d.get("warnings_json"), [])
+                d["is_novelty_exhausted"] = bool(d.get("is_novelty_exhausted", 0))
+                output.append(d)
+            return output
 
     def get_novelty_history(self, media_asset_id: str) -> Dict[str, Any]:
         """Retrieve persistent novelty history intervals for a media asset."""

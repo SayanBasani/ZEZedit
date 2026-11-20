@@ -9,7 +9,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from app.core.config import Settings, get_settings
-from app.core.errors import AppError, NotFoundError, ProcessingError, ValidationError
+from app.core.errors import (
+    AppError,
+    MediaFileMissingError,
+    NotFoundError,
+    ProcessingError,
+    StorageQuotaExceededError,
+    ValidationError,
+)
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
 from app.models.reframing import (
@@ -21,6 +28,7 @@ from app.models.reframing import (
 )
 from app.services.framing_engine import FramingEngine
 from app.services.reframing_renderer import ReframingRenderer
+from app.services.storage import StorageService
 from app.services.subject_tracker import SubjectTracker
 
 logger = logging.getLogger("zezedit.reframing.service")
@@ -45,8 +53,8 @@ class ReframingService:
 
     def analyze_and_create_plan(
         self,
-        project_id: str,
-        media_asset_id: str,
+        project_id: Optional[str] = None,
+        media_asset_id: Optional[str] = None,
         candidate_id: Optional[str] = None,
         target_aspect_ratio: str = "9:16",
         framing_strategy: str = "auto",
@@ -58,25 +66,58 @@ class ReframingService:
         end_time: Optional[float] = None,
     ) -> ReframingPlanRecord:
         """Analyze media clip, track subjects, compute authoritative portrait keyframes, and persist initial revision."""
+        if media_asset_id is None and project_id is not None:
+            media_asset_id = project_id
+            project_id = None
+
+        if not media_asset_id:
+            raise ValidationError("media_asset_id must be provided.")
+
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
             # 1. Verify media asset
             asset = conn.execute(
                 """
-                SELECT id, project_id, storage_path, is_external, duration_seconds, width, height
-                FROM media_assets WHERE id = ? AND project_id = ?
+                SELECT id, project_id, storage_path, is_external, duration_seconds, width, height, availability_status
+                FROM media_assets WHERE id = ?
                 """,
-                (media_asset_id, project_id),
+                (media_asset_id,),
             ).fetchone()
             if not asset:
+                raise NotFoundError(f"Media asset '{media_asset_id}' not found.")
+
+            if project_id and asset["project_id"] != project_id:
                 raise NotFoundError(f"Media asset '{media_asset_id}' not found in project '{project_id}'.")
+
+            effective_project_id = asset["project_id"]
 
             # Resolve absolute media path
             if asset["is_external"]:
                 media_path = Path(asset["storage_path"])
             else:
                 media_path = self.layout.media / asset["storage_path"]
+
+            # Enforce missing / inaccessible media protection (P1.7)
+            avail_status = asset["availability_status"] if "availability_status" in asset.keys() else "present"
+            if avail_status == "missing" or not media_path.exists():
+                raise MediaFileMissingError(
+                    f"Media asset '{media_asset_id}' source file is missing or inaccessible on disk.",
+                    details={
+                        "media_asset_id": media_asset_id,
+                        "storage_path": str(media_path),
+                        "availability_status": avail_status,
+                    },
+                )
+
+            # Enforce storage quota check before initiating reframing (P1.9)
+            storage_service = StorageService(self.settings)
+            quota_ok, quota_reason = storage_service.check_quota_for_operation("temp", 10 * 1024 * 1024)
+            if not quota_ok:
+                raise StorageQuotaExceededError(
+                    quota_reason or "Temporary storage quota exceeded for reframing analysis.",
+                    details={"media_asset_id": media_asset_id},
+                )
 
             source_w = int(asset["width"] or 1920)
             source_h = int(asset["height"] or 1080)
@@ -88,8 +129,8 @@ class ReframingService:
 
             if candidate_id:
                 cand = conn.execute(
-                    "SELECT id, start_time, end_time FROM shorts_candidates WHERE id = ? AND project_id = ?",
-                    (candidate_id, project_id),
+                    "SELECT id, start_time, end_time FROM shorts_candidates WHERE id = ?",
+                    (candidate_id,),
                 ).fetchone()
                 if cand:
                     clip_start = float(cand["start_time"])
@@ -181,7 +222,7 @@ class ReframingService:
                 ) VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '2.0.0-m7', ?, ?)
                 """,
                 (
-                    plan_id, project_id, media_asset_id, candidate_id, target_aspect_ratio,
+                    plan_id, effective_project_id, media_asset_id, candidate_id, target_aspect_ratio,
                     dominant_strategy, source_w, source_h, out_w, out_h, start_time, end_time,
                     duration, base_zoom, headroom_factor, smoothing_window,
                     json.dumps([k.to_dict() for k in keyframes]),
@@ -209,7 +250,7 @@ class ReframingService:
 
             return ReframingPlanRecord(
                 id=plan_id,
-                project_id=project_id,
+                project_id=effective_project_id,
                 media_asset_id=media_asset_id,
                 candidate_id=candidate_id,
                 job_id=None,
@@ -235,17 +276,38 @@ class ReframingService:
                 updated_at=now,
             )
 
-    def get_plan(self, project_id: str, plan_id: str) -> Dict[str, Any]:
+    def get_plan(
+        self,
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Fetch full reframing plan record including active revision details."""
+        if plan_id is None and project_id is not None:
+            plan_id = project_id
+            project_id = None
+
+        if not plan_id:
+            raise ValidationError("plan_id must be provided.")
+
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            row = conn.execute(
-                "SELECT * FROM reframing_plans WHERE id = ? AND project_id = ?",
-                (plan_id, project_id),
-            ).fetchone()
-            if not row:
-                raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
+            if project_id:
+                row = conn.execute(
+                    "SELECT * FROM reframing_plans WHERE id = ?",
+                    (plan_id,),
+                ).fetchone()
+                if not row:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
+                if row["project_id"] != project_id:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found in project '{project_id}'.")
+            else:
+                row = conn.execute(
+                    "SELECT * FROM reframing_plans WHERE id = ?",
+                    (plan_id,),
+                ).fetchone()
+                if not row:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
 
             d = dict(row)
             d["keyframes"] = json.loads(d.get("keyframes_json") or "[]")
@@ -267,14 +329,61 @@ class ReframingService:
 
             return d
 
+    def list_plans(
+        self,
+        media_asset_id: str,
+        project_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """List all reframing plans for a media asset."""
+        with sqlite_session(self.db_path) as conn:
+            conn.row_factory = sqlite3.Row
+            if project_id:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM reframing_plans
+                    WHERE media_asset_id = ? AND project_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (media_asset_id, project_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM reframing_plans
+                    WHERE media_asset_id = ?
+                    ORDER BY created_at DESC
+                    """,
+                    (media_asset_id,),
+                ).fetchall()
+
+            plans = []
+            for r in rows:
+                d = dict(r)
+                d["keyframes"] = json.loads(d.get("keyframes_json") or "[]")
+                d["detected_tracks"] = json.loads(d.get("detected_tracks_json") or "[]")
+                d["scene_cuts"] = json.loads(d.get("scene_cuts_json") or "[]")
+                d["warnings"] = json.loads(d.get("warnings_json") or "[]")
+                if d.get("active_revision_id"):
+                    rev = conn.execute(
+                        "SELECT * FROM reframing_revisions WHERE id = ?",
+                        (d["active_revision_id"],),
+                    ).fetchone()
+                    if rev:
+                        rev_d = dict(rev)
+                        rev_d["manual_overrides"] = json.loads(rev_d.get("manual_overrides_json") or "[]")
+                        rev_d["effective_keyframes"] = json.loads(rev_d.get("effective_keyframes_json") or "[]")
+                        d["active_revision"] = rev_d
+                plans.append(d)
+            return plans
+
     def preview_crop_at(
         self,
-        project_id: str,
-        plan_id: str,
-        timestamp: float,
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        timestamp: float = 0.0,
     ) -> Dict[str, Any]:
         """Calculate exact interpolated crop geometry [crop_x, crop_y, crop_w, crop_h] at timestamp."""
-        plan_data = self.get_plan(project_id, plan_id)
+        plan_data = self.get_plan(project_id=project_id, plan_id=plan_id)
 
         # Use effective keyframes from active revision if available, else plan keyframes
         active_rev = plan_data.get("active_revision")
@@ -297,7 +406,7 @@ class ReframingService:
         ]
 
         crop_info = FramingEngine.interpolate_crop_at(kfs, timestamp)
-        crop_info["plan_id"] = plan_id
+        crop_info["plan_id"] = plan_data["id"]
         crop_info["timestamp"] = timestamp
         crop_info["source_width"] = plan_data["source_width"]
         crop_info["source_height"] = plan_data["source_height"]
@@ -307,24 +416,43 @@ class ReframingService:
 
     def save_manual_overrides(
         self,
-        project_id: str,
-        plan_id: str,
-        manual_overrides: List[Dict[str, Any]],
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        manual_overrides: Optional[List[Dict[str, Any]]] = None,
         revision_label: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Apply user manual crop adjustments, recompute authoritative effective keyframes,
 
         and persist a new non-destructive revision.
         """
+        if plan_id is None and project_id is not None:
+            plan_id = project_id
+            project_id = None
+
+        if not plan_id:
+            raise ValidationError("plan_id must be provided.")
+
+        overrides = manual_overrides or []
+
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
 
-            plan = conn.execute(
-                "SELECT * FROM reframing_plans WHERE id = ? AND project_id = ?",
-                (plan_id, project_id),
-            ).fetchone()
-            if not plan:
-                raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
+            if project_id:
+                plan = conn.execute(
+                    "SELECT * FROM reframing_plans WHERE id = ?",
+                    (plan_id,),
+                ).fetchone()
+                if not plan:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
+                if plan["project_id"] != project_id:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found in project '{project_id}'.")
+            else:
+                plan = conn.execute(
+                    "SELECT * FROM reframing_plans WHERE id = ?",
+                    (plan_id,),
+                ).fetchone()
+                if not plan:
+                    raise NotFoundError(f"Reframing plan '{plan_id}' not found.")
 
             source_w = int(plan["source_width"])
             source_h = int(plan["source_height"])
@@ -374,7 +502,7 @@ class ReframingService:
                 source_w=source_w,
                 source_h=source_h,
                 scene_cut_timestamps=scene_cuts,
-                manual_overrides=manual_overrides,
+                manual_overrides=overrides,
             )
 
             # Determine next revision number
@@ -398,7 +526,7 @@ class ReframingService:
                 """,
                 (
                     new_rev_id, plan_id, next_rev_num, label,
-                    json.dumps(manual_overrides),
+                    json.dumps(overrides),
                     json.dumps([k.to_dict() for k in effective_kfs]),
                     now,
                 ),
@@ -414,21 +542,42 @@ class ReframingService:
                 (new_rev_id, now, plan_id),
             )
 
-        return self.get_plan(project_id, plan_id)
+        return self.get_plan(project_id=project_id, plan_id=plan_id)
 
-    def list_revisions(self, project_id: str, plan_id: str) -> List[Dict[str, Any]]:
+    def list_revisions(
+        self,
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         """List all saved revisions for a reframing plan."""
+        if plan_id is None and project_id is not None:
+            plan_id = project_id
+            project_id = None
+
+        if not plan_id:
+            raise ValidationError("plan_id must be provided.")
+
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                """
-                SELECT r.* FROM reframing_revisions r
-                JOIN reframing_plans p ON r.reframing_plan_id = p.id
-                WHERE p.id = ? AND p.project_id = ?
-                ORDER BY r.revision_number ASC
-                """,
-                (plan_id, project_id),
-            ).fetchall()
+            if project_id:
+                rows = conn.execute(
+                    """
+                    SELECT r.* FROM reframing_revisions r
+                    JOIN reframing_plans p ON r.reframing_plan_id = p.id
+                    WHERE p.id = ? AND p.project_id = ?
+                    ORDER BY r.revision_number ASC
+                    """,
+                    (plan_id, project_id),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT r.* FROM reframing_revisions r
+                    WHERE r.reframing_plan_id = ?
+                    ORDER BY r.revision_number ASC
+                    """,
+                    (plan_id,),
+                ).fetchall()
 
             result = []
             for r in rows:
@@ -438,37 +587,67 @@ class ReframingService:
                 result.append(d)
             return result
 
-    def restore_revision(self, project_id: str, plan_id: str, revision_id: str) -> Dict[str, Any]:
+    def restore_revision(
+        self,
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
+        revision_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Activate a previous revision as the current active framing."""
+        if plan_id is None and project_id is not None:
+            plan_id = project_id
+            project_id = None
+
+        if not plan_id or not revision_id:
+            raise ValidationError("plan_id and revision_id must be provided.")
+
         with sqlite_session(self.db_path) as conn:
             now = datetime.datetime.now(datetime.timezone.utc).isoformat()
-            res = conn.execute(
-                """
-                UPDATE reframing_plans
-                SET active_revision_id = ?, updated_at = ?
-                WHERE id = ? AND project_id = ?
-                """,
-                (revision_id, now, plan_id, project_id),
-            )
+            if project_id:
+                res = conn.execute(
+                    """
+                    UPDATE reframing_plans
+                    SET active_revision_id = ?, updated_at = ?
+                    WHERE id = ? AND project_id = ?
+                    """,
+                    (revision_id, now, plan_id, project_id),
+                )
+            else:
+                res = conn.execute(
+                    """
+                    UPDATE reframing_plans
+                    SET active_revision_id = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (revision_id, now, plan_id),
+                )
             if res.rowcount == 0:
                 raise NotFoundError(f"Reframing plan '{plan_id}' or revision '{revision_id}' not found.")
 
-        return self.get_plan(project_id, plan_id)
+        return self.get_plan(project_id=project_id, plan_id=plan_id)
 
     def render_revision(
         self,
-        project_id: str,
-        plan_id: str,
+        project_id: Optional[str] = None,
+        plan_id: Optional[str] = None,
         revision_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Render a real vertical 9:16 MP4 video via FFmpeg using the revision's authoritative keyframes."""
-        plan_data = self.get_plan(project_id, plan_id)
+        if plan_id is None and project_id is not None:
+            plan_id = project_id
+            project_id = None
+
+        if not plan_id:
+            raise ValidationError("plan_id must be provided.")
+
+        plan_data = self.get_plan(project_id=project_id, plan_id=plan_id)
+        effective_project_id = plan_data["project_id"]
 
         target_rev_id = revision_id or plan_data.get("active_revision_id")
         if not target_rev_id:
             raise ValidationError("No active revision found to render.")
 
-        revisions = self.list_revisions(project_id, plan_id)
+        revisions = self.list_revisions(project_id=project_id, plan_id=plan_id)
         matching_revs = [r for r in revisions if r["id"] == target_rev_id]
         if not matching_revs:
             raise NotFoundError(f"Revision '{target_rev_id}' not found.")
@@ -498,17 +677,42 @@ class ReframingService:
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
             asset = conn.execute(
-                "SELECT storage_path, is_external FROM media_assets WHERE id = ?",
+                "SELECT storage_path, is_external, availability_status FROM media_assets WHERE id = ?",
                 (plan_data["media_asset_id"],),
             ).fetchone()
+
+        if not asset:
+            raise NotFoundError(f"Media asset '{plan_data['media_asset_id']}' not found.")
 
         if asset["is_external"]:
             source_media_path = Path(asset["storage_path"])
         else:
             source_media_path = self.layout.media / asset["storage_path"]
 
+        # Enforce missing / inaccessible media protection (P1.7)
+        avail_status = asset["availability_status"] if "availability_status" in asset.keys() else "present"
+        if avail_status == "missing" or not source_media_path.exists():
+            raise MediaFileMissingError(
+                f"Source media file for reframing plan '{plan_id}' is missing or inaccessible on disk.",
+                details={
+                    "plan_id": plan_id,
+                    "media_asset_id": plan_data["media_asset_id"],
+                    "storage_path": str(source_media_path),
+                    "availability_status": avail_status,
+                },
+            )
+
+        # Pre-flight quota check on generated video storage (P1.9)
+        storage_svc = StorageService(self.settings)
+        allowed, quota_err = storage_svc.check_quota_for_operation("generated_video", incoming_bytes=15 * 1024 * 1024)
+        if not allowed and quota_err:
+            raise StorageQuotaExceededError(
+                quota_err,
+                details={"plan_id": plan_id},
+            )
+
         # Output video file path inside shorts storage
-        shorts_dir = self.layout.shorts / project_id
+        shorts_dir = self.layout.shorts / effective_project_id
         shorts_dir.mkdir(parents=True, exist_ok=True)
         out_filename = f"{plan_id}_rev{rev['revision_number']}.mp4"
         out_path = shorts_dir / out_filename

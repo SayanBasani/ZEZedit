@@ -33,6 +33,7 @@ import {
   MediaAssetListResponse,
   MediaBatchUploadItemResult,
   MediaBatchUploadResponse,
+  MediaDeduplicationStats,
   MediaImportLocalPayload,
   MediaListQueryParams,
   MediaStorageStats,
@@ -47,6 +48,7 @@ import {
 export type {
   MediaBatchUploadItemResult,
   MediaBatchUploadResponse,
+  MediaDeduplicationStats,
   UploadProgressInfo,
   UploadProgressOptions,
   UploadTransferState,
@@ -81,13 +83,19 @@ import {
 } from '../types/character';
 import {
   BackupItem,
+  CleanupAuditItem,
   CleanupExecution,
   CleanupPreview,
   DbIntegrityReport,
+  MaintenanceCleanupExecution,
+  MaintenanceCleanupPreview,
   MediaIntegrityResult,
+  MediaReconcileResult,
   MediaRelinkResult,
   RecoveryStatus,
   StorageBreakdown,
+  StorageQuotaSettings,
+  StorageQuotaStatus,
 } from '../types/system';
 
 const API_BASE = '/api/v1';
@@ -781,11 +789,15 @@ export function relinkMedia(
   projectId: string,
   assetId: string,
   newStoragePath: string,
-  force = false
+  force = false,
+  expectedSha256?: string
 ): Promise<MediaRelinkResult> {
-  return request<MediaRelinkResult>(`/projects/${projectId}/media/${assetId}/relink`, {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/${assetId}/relink`
+    : `/projects/${projectId}/media/${assetId}/relink`;
+  return request<MediaRelinkResult>(endpoint, {
     method: 'POST',
-    body: JSON.stringify({ new_storage_path: newStoragePath, force }),
+    body: JSON.stringify({ new_storage_path: newStoragePath, force, expected_sha256: expectedSha256 }),
   });
 }
 
@@ -794,10 +806,134 @@ export function inspectRelinkCandidate(
   assetId: string,
   newStoragePath: string
 ): Promise<{ match_status: 'exact' | 'compatible' | 'mismatch'; warnings: string[]; comparison: Record<string, any> }> {
-  return request(`/projects/${projectId}/media/${assetId}/relink/inspect`, {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/${assetId}/relink/inspect`
+    : `/projects/${projectId}/media/${assetId}/relink/inspect`;
+  return request(endpoint, {
     method: 'POST',
     body: JSON.stringify({ new_storage_path: newStoragePath }),
   });
+}
+
+export async function relinkMediaWithUpload(
+  projectId: string,
+  assetId: string,
+  file: File,
+  force = false,
+  expectedSha256?: string,
+  options?: {
+    signal?: AbortSignal;
+    onProgress?: (progress: { loaded: number; total: number | null; percentage: number | null }) => void;
+  }
+): Promise<MediaRelinkResult> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('force', String(force));
+  if (expectedSha256) {
+    formData.append('expected_sha256', expectedSha256);
+  }
+
+  const endpoint = (!projectId || projectId === 'all')
+    ? `${API_BASE}/media/${assetId}/relink/upload`
+    : `${API_BASE}/projects/${projectId}/media/${assetId}/relink/upload`;
+
+  if (typeof XMLHttpRequest === 'undefined') {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      body: formData,
+      signal: options?.signal,
+    });
+    if (!res.ok) {
+      let msg = `Relink upload failed with status ${res.status}`;
+      try {
+        const err = await res.json();
+        if (err.message) msg = err.message;
+        else if (err.detail) msg = typeof err.detail === 'string' ? err.detail : JSON.stringify(err.detail);
+      } catch {}
+      throw new Error(msg);
+    }
+    return res.json();
+  }
+
+  return new Promise<MediaRelinkResult>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', endpoint);
+    xhr.responseType = 'json';
+
+    if (options?.signal) {
+      options.signal.addEventListener('abort', () => {
+        xhr.abort();
+        reject(new Error('Relink upload cancelled'));
+      });
+    }
+
+    if (xhr.upload && options?.onProgress) {
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable) {
+          const pct = (evt.loaded / evt.total) * 100;
+          options.onProgress?.({ loaded: evt.loaded, total: evt.total, percentage: pct });
+        } else {
+          options.onProgress?.({ loaded: evt.loaded, total: null, percentage: null });
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(xhr.response);
+      } else {
+        const resp = xhr.response;
+        let msg = `Relink upload failed with status ${xhr.status}`;
+        if (resp && typeof resp === 'object') {
+          if (resp.message) msg = resp.message;
+          else if (resp.detail) msg = typeof resp.detail === 'string' ? resp.detail : JSON.stringify(resp.detail);
+        }
+        reject(new Error(msg));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Network error during relink upload'));
+    xhr.onabort = () => reject(new Error('Relink upload cancelled'));
+    xhr.send(formData);
+  });
+}
+
+export function reconcileMissingMedia(
+  projectId: string = 'all'
+): Promise<MediaReconcileResult> {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/reconcile-availability`
+    : `/projects/${projectId}/media/reconcile-availability`;
+  return request<MediaReconcileResult>(endpoint, { method: 'POST' });
+}
+
+export function getDeduplicationStats(projectId = 'all'): Promise<MediaDeduplicationStats> {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/deduplication/stats`
+    : `/projects/${projectId}/media/deduplication/stats`;
+  return request<MediaDeduplicationStats>(endpoint);
+}
+
+export function reconcileReferenceCounts(projectId = 'all'): Promise<{
+  total_stored_files: number;
+  updated_counts: number;
+  orphaned_files: number;
+  reconciled_at: string;
+}> {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/deduplication/reconcile`
+    : `/projects/${projectId}/media/deduplication/reconcile`;
+  return request(endpoint, { method: 'POST' });
+}
+
+export function markMediaMissing(
+  projectId: string,
+  assetId: string
+): Promise<MediaAssetItem> {
+  const endpoint = (!projectId || projectId === 'all')
+    ? `/media/${assetId}/mark-missing`
+    : `/projects/${projectId}/media/${assetId}/mark-missing`;
+  return request<MediaAssetItem>(endpoint, { method: 'POST' });
 }
 
 export function checkAssetIntegrity(
@@ -916,7 +1052,7 @@ export function updateAppSettings(updates: Partial<AppSettingsData>): Promise<Ap
 }
 
 export function fetchStorageBreakdown(): Promise<StorageBreakdown> {
-  return request<StorageBreakdown>('/storage/breakdown');
+  return request<StorageBreakdown>('/maintenance/breakdown');
 }
 
 export function previewCacheCleanup(): Promise<CleanupPreview> {
@@ -928,6 +1064,63 @@ export function executeCacheCleanup(confirmationToken: string): Promise<CleanupE
     method: 'POST',
     body: JSON.stringify({ confirmation_token: confirmationToken }),
   });
+}
+
+export function fetchMaintenanceBreakdown(): Promise<StorageBreakdown> {
+  return fetchStorageBreakdown();
+}
+
+export function previewMaintenanceCleanup(categories?: string[]): Promise<MaintenanceCleanupPreview> {
+  const query = categories && categories.length > 0 ? `?categories=${categories.join('&categories=')}` : '';
+  return request<MaintenanceCleanupPreview>(`/maintenance/cleanup-preview${query}`, { method: 'POST' });
+}
+
+export function executeMaintenanceCleanup(candidateIds?: string[], categories?: string[]): Promise<MaintenanceCleanupExecution> {
+  return request<MaintenanceCleanupExecution>('/maintenance/cleanup-execute', {
+    method: 'POST',
+    body: JSON.stringify({ candidate_ids: candidateIds, selected_categories: categories }),
+  });
+}
+
+export function fetchStorageQuotas(): Promise<StorageQuotaStatus> {
+  return request<StorageQuotaStatus>('/maintenance/quotas');
+}
+
+export function updateStorageQuotas(updates: Partial<StorageQuotaSettings>): Promise<StorageQuotaSettings> {
+  return request<StorageQuotaSettings>('/maintenance/quotas', {
+    method: 'PATCH',
+    body: JSON.stringify(updates),
+  });
+}
+
+export function executeAutoPrune(force = false): Promise<{ executed: boolean; message?: string; deleted_count?: number; bytes_reclaimed?: number }> {
+  return request<{ executed: boolean; message?: string; deleted_count?: number; bytes_reclaimed?: number }>(`/maintenance/auto-prune?force=${force}`, {
+    method: 'POST',
+  });
+}
+
+export function recoverStaleArtifacts(): Promise<{
+  status: string;
+  recovered_files_count: number;
+  bytes_reclaimed: number;
+  formatted_bytes_reclaimed: string;
+  missing_media_detected: number;
+  timestamp: string;
+}> {
+  return request<{
+    status: string;
+    recovered_files_count: number;
+    bytes_reclaimed: number;
+    formatted_bytes_reclaimed: string;
+    missing_media_detected: number;
+    timestamp: string;
+  }>('/maintenance/recover-stale-artifacts', {
+    method: 'POST',
+  });
+}
+
+export function fetchCleanupHistory(limit = 50, offset = 0): Promise<CleanupAuditItem[]> {
+  return request<CleanupAuditItem[]>(`/maintenance/cleanup-history?limit=${limit}&offset=${offset}`);
 }
 
 export interface ClearAllDataResult {
@@ -1075,6 +1268,10 @@ export function fetchRecoveryStatus(): Promise<RecoveryStatus> {
 }
 
 // ==================== VIDEO ANALYSIS ====================
+function _analysisBase(projectId?: string, assetId?: string): string {
+  return projectId ? `/projects/${projectId}/media/${assetId}` : `/media/${assetId}`;
+}
+
 export function startMediaAnalysis(
   projectId: string,
   assetId: string,
@@ -1083,7 +1280,7 @@ export function startMediaAnalysis(
   runSynchronously = false,
   forceReanalysis = false
 ): Promise<AnalysisRunItem> {
-  return request<AnalysisRunItem>(`/projects/${projectId}/media/${assetId}/analysis`, {
+  return request<AnalysisRunItem>(`${_analysisBase(projectId, assetId)}/analysis`, {
     method: 'POST',
     body: JSON.stringify({
       profile,
@@ -1095,31 +1292,31 @@ export function startMediaAnalysis(
 }
 
 export function fetchAnalysisRuns(projectId: string, assetId: string): Promise<AnalysisRunItem[]> {
-  return request<AnalysisRunItem[]>(`/projects/${projectId}/media/${assetId}/analysis`);
+  return request<AnalysisRunItem[]>(`${_analysisBase(projectId, assetId)}/analysis`);
 }
 
 export function fetchAnalysisRun(projectId: string, assetId: string, runId: string): Promise<AnalysisRunItem> {
-  return request<AnalysisRunItem>(`/projects/${projectId}/media/${assetId}/analysis/${runId}`);
+  return request<AnalysisRunItem>(`${_analysisBase(projectId, assetId)}/analysis/${runId}`);
 }
 
 export function fetchAnalysisTranscript(projectId: string, assetId: string, runId: string): Promise<TranscriptPayload> {
-  return request<TranscriptPayload>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/transcript`);
+  return request<TranscriptPayload>(`${_analysisBase(projectId, assetId)}/analysis/${runId}/transcript`);
 }
 
 export function fetchAnalysisScenes(projectId: string, assetId: string, runId: string): Promise<VideoSceneItem[]> {
-  return request<VideoSceneItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/scenes`);
+  return request<VideoSceneItem[]>(`${_analysisBase(projectId, assetId)}/analysis/${runId}/scenes`);
 }
 
 export function fetchAnalysisFrames(projectId: string, assetId: string, runId: string): Promise<SampledFrameItem[]> {
-  return request<SampledFrameItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/frames`);
+  return request<SampledFrameItem[]>(`${_analysisBase(projectId, assetId)}/analysis/${runId}/frames`);
 }
 
 export function fetchAnalysisObservations(projectId: string, assetId: string, runId: string): Promise<VisualObservationItem[]> {
-  return request<VisualObservationItem[]>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/visual-observations`);
+  return request<VisualObservationItem[]>(`${_analysisBase(projectId, assetId)}/analysis/${runId}/visual-observations`);
 }
 
 export function fetchAudioAnalysis(projectId: string, assetId: string, runId: string): Promise<AudioAnalysisItem | null> {
-  return request<AudioAnalysisItem | null>(`/projects/${projectId}/media/${assetId}/analysis/${runId}/audio`);
+  return request<AudioAnalysisItem | null>(`${_analysisBase(projectId, assetId)}/analysis/${runId}/audio`);
 }
 
 export function fetchAnalysisContext(
@@ -1130,13 +1327,13 @@ export function fetchAnalysisContext(
   window = 15.0
 ): Promise<TemporalContextPayload> {
   return request<TemporalContextPayload>(
-    `/projects/${projectId}/media/${assetId}/analysis/${runId}/context?timestamp=${timestamp}&window=${window}`
+    `${_analysisBase(projectId, assetId)}/analysis/${runId}/context?timestamp=${timestamp}&window=${window}`
   );
 }
 
 export function cancelAnalysisRun(projectId: string, assetId: string, runId: string): Promise<{ message: string; run_id: string; status: string }> {
   return request<{ message: string; run_id: string; status: string }>(
-    `/projects/${projectId}/media/${assetId}/analysis/${runId}/cancel`,
+    `${_analysisBase(projectId, assetId)}/analysis/${runId}/cancel`,
     { method: 'POST' }
   );
 }
@@ -1161,7 +1358,7 @@ export function fetchAnalysisTelemetry(
   stage_details?: Record<string, any>;
   job?: Record<string, any>;
 }> {
-  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/telemetry`);
+  return request(`${_analysisBase(projectId, assetId)}/analysis/${runId}/telemetry`);
 }
 
 export function retryAnalysisRun(
@@ -1169,7 +1366,7 @@ export function retryAnalysisRun(
   assetId: string,
   runId: string
 ): Promise<{ run_id: string; job_id?: string; status: string }> {
-  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/retry`, { method: 'POST' });
+  return request(`${_analysisBase(projectId, assetId)}/analysis/${runId}/retry`, { method: 'POST' });
 }
 
 export function fetchAnalysisCacheInfo(
@@ -1185,19 +1382,21 @@ export function fetchAnalysisCacheInfo(
   is_cache_valid: boolean;
   records: Record<string, number>;
 }> {
-  return request(`/projects/${projectId}/media/${assetId}/analysis/${runId}/cache`);
+  return request(`${_analysisBase(projectId, assetId)}/analysis/${runId}/cache`);
 }
 
 export function getFrameImageUrl(projectId: string, assetId: string, frameId: string): string {
-  return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/frame-image/${frameId}`;
+  const base = projectId ? `${API_BASE}/projects/${projectId}/media/${assetId}` : `${API_BASE}/media/${assetId}`;
+  return `${base}/analysis/frame-image/${frameId}`;
 }
 
 export function getSceneThumbnailUrl(projectId: string, assetId: string, sceneId: string): string {
-  return `${API_BASE}/projects/${projectId}/media/${assetId}/analysis/scene-thumbnail/${sceneId}`;
+  const base = projectId ? `${API_BASE}/projects/${projectId}/media/${assetId}` : `${API_BASE}/media/${assetId}`;
+  return `${base}/analysis/scene-thumbnail/${sceneId}`;
 }
 
 export function fetchTranscriptCorrections(projectId: string, assetId: string): Promise<TranscriptCorrectionItem[]> {
-  return request<TranscriptCorrectionItem[]>(`/projects/${projectId}/media/${assetId}/transcript/corrections`);
+  return request<TranscriptCorrectionItem[]>(`${_analysisBase(projectId, assetId)}/transcript/corrections`);
 }
 
 export function saveTranscriptCorrection(
@@ -1205,7 +1404,7 @@ export function saveTranscriptCorrection(
   assetId: string,
   payload: { segment_id?: string; start_time: number; end_time: number; original_text: string; corrected_text: string }
 ): Promise<TranscriptCorrectionItem> {
-  return request<TranscriptCorrectionItem>(`/projects/${projectId}/media/${assetId}/transcript/corrections`, {
+  return request<TranscriptCorrectionItem>(`${_analysisBase(projectId, assetId)}/transcript/corrections`, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -1217,7 +1416,7 @@ export function deleteTranscriptCorrection(
   correctionId: string
 ): Promise<{ message: string; correction_id: string }> {
   return request<{ message: string; correction_id: string }>(
-    `/projects/${projectId}/media/${assetId}/transcript/corrections/${correctionId}`,
+    `${_analysisBase(projectId, assetId)}/transcript/corrections/${correctionId}`,
     { method: 'DELETE' }
   );
 }
@@ -1299,14 +1498,73 @@ export function fetchProjectHighlights(
 export function fetchMediaHighlights(
   projectId: string,
   assetId: string,
-  reviewStatus?: string,
-  generationRunId?: string
+  reviewStatusOrOptions?: string | {
+    review_status?: string;
+    generation_run_id?: string;
+    limit?: number;
+    offset?: number;
+    min_score?: number;
+    min_duration?: number;
+    max_duration?: number;
+    category?: string;
+    sort_by?: string;
+    order?: string;
+  },
+  generationRunId?: string,
+  filters: {
+    limit?: number;
+    offset?: number;
+    min_score?: number;
+    min_duration?: number;
+    max_duration?: number;
+    category?: string;
+    sort_by?: string;
+    order?: string;
+  } = {}
 ): Promise<CandidateItem[]> {
   const params = new URLSearchParams();
-  if (reviewStatus) params.append('review_status', reviewStatus);
-  if (generationRunId) params.append('generation_run_id', generationRunId);
+  if (typeof reviewStatusOrOptions === 'object' && reviewStatusOrOptions !== null) {
+    const opts = reviewStatusOrOptions;
+    if (opts.review_status) params.append('review_status', opts.review_status);
+    if (opts.generation_run_id) params.append('generation_run_id', opts.generation_run_id);
+    if (opts.limit !== undefined) params.append('limit', opts.limit.toString());
+    if (opts.offset !== undefined) params.append('offset', opts.offset.toString());
+    if (opts.min_score !== undefined) params.append('min_score', opts.min_score.toString());
+    if (opts.min_duration !== undefined) params.append('min_duration', opts.min_duration.toString());
+    if (opts.max_duration !== undefined) params.append('max_duration', opts.max_duration.toString());
+    if (opts.category) params.append('category', opts.category);
+    if (opts.sort_by) params.append('sort_by', opts.sort_by);
+    if (opts.order) params.append('order', opts.order);
+  } else {
+    if (reviewStatusOrOptions) params.append('review_status', reviewStatusOrOptions);
+    if (generationRunId) params.append('generation_run_id', generationRunId);
+    if (filters.limit !== undefined) params.append('limit', filters.limit.toString());
+    if (filters.offset !== undefined) params.append('offset', filters.offset.toString());
+    if (filters.min_score !== undefined) params.append('min_score', filters.min_score.toString());
+    if (filters.min_duration !== undefined) params.append('min_duration', filters.min_duration.toString());
+    if (filters.max_duration !== undefined) params.append('max_duration', filters.max_duration.toString());
+    if (filters.category) params.append('category', filters.category);
+    if (filters.sort_by) params.append('sort_by', filters.sort_by);
+    if (filters.order) params.append('order', filters.order);
+  }
   const qs = params.toString();
   return request<CandidateItem[]>(`/projects/${projectId}/media/${assetId}/highlights${qs ? `?${qs}` : ''}`);
+}
+
+export function fetchMediaRecommendations(
+  projectId: string,
+  assetId: string,
+  optionsOrLimit: number | { limit?: number; offset?: number; min_score?: number } = {}
+): Promise<CandidateItem[]> {
+  const params = new URLSearchParams();
+  const opts = typeof optionsOrLimit === 'number' ? { limit: optionsOrLimit } : optionsOrLimit;
+  if (opts.limit !== undefined) params.append('limit', opts.limit.toString());
+  if (opts.offset !== undefined) params.append('offset', opts.offset.toString());
+  if (opts.min_score !== undefined) params.append('min_score', opts.min_score.toString());
+  const qs = params.toString();
+  return request<CandidateItem[]>(
+    `/projects/${projectId}/media/${assetId}/highlights/recommendations${qs ? `?${qs}` : ''}`
+  );
 }
 
 export function fetchCandidateDetails(
@@ -1555,6 +1813,93 @@ export function getRenderedVideoUrl(
 ): string {
   const qs = revisionId ? `?revision_id=${revisionId}` : '';
   return `${API_BASE}/projects/${projectId}/reframing/${planId}/video${qs}`;
+}
+
+export function globalAnalyzeReframing(
+  mediaAssetId: string,
+  options: {
+    candidate_id?: string;
+    target_aspect_ratio?: string;
+    framing_strategy?: string;
+    base_zoom?: number;
+    headroom_factor?: number;
+    smoothing_window?: number;
+    pinned_subject_id?: string;
+    start_time?: number;
+    end_time?: number;
+  } = {}
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(
+    `/media/${mediaAssetId}/reframing/analyze`,
+    {
+      method: 'POST',
+      body: JSON.stringify(options),
+    },
+    60000
+  );
+}
+
+export function fetchMediaReframingPlans(
+  mediaAssetId: string,
+  projectId?: string
+): Promise<ReframingPlanItem[]> {
+  const path = projectId
+    ? `/projects/${projectId}/media/${mediaAssetId}/reframing/plans`
+    : `/media/${mediaAssetId}/reframing/plans`;
+  return request<ReframingPlanItem[]>(path);
+}
+
+export function globalFetchReframingPlan(planId: string): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(`/reframing/${planId}`);
+}
+
+export function globalFetchCropPreview(
+  planId: string,
+  timestamp: number
+): Promise<CropPreviewData> {
+  return request<CropPreviewData>(`/reframing/${planId}/preview?timestamp=${timestamp}`);
+}
+
+export function globalSaveCropOverrides(
+  planId: string,
+  overrides: Array<{
+    timestamp: number;
+    crop_x?: number;
+    crop_y?: number;
+    zoom?: number;
+    headroom?: number;
+    target_center_x?: number;
+    target_center_y?: number;
+    action?: string;
+  }>,
+  revisionLabel?: string
+): Promise<ReframingPlanItem> {
+  return request<ReframingPlanItem>(`/reframing/${planId}/overrides`, {
+    method: 'POST',
+    body: JSON.stringify({
+      manual_overrides: overrides,
+      revision_label: revisionLabel,
+    }),
+  });
+}
+
+export function globalRenderReframingRevision(
+  planId: string,
+  revisionId?: string
+): Promise<RenderResultPayload> {
+  return request<RenderResultPayload>(
+    `/reframing/${planId}/render`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ revision_id: revisionId }),
+    },
+    120000
+  );
+}
+
+export function getGlobalRenderedVideoUrl(planId: string, revisionId?: string): string {
+  const qs = revisionId ? `?revision_id=${revisionId}` : '';
+  return `${API_BASE}/reframing/${planId}/video${qs}`;
 }
 
 // ==================== RENDERING ENGINE, EXPORT & SHORTS ====================

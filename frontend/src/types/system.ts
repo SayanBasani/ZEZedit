@@ -170,10 +170,23 @@ export interface StorageBreakdown {
   total_disk_space_bytes: number;
   free_disk_space_bytes: number;
   used_disk_space_bytes: number;
+  total_application_storage_bytes?: number;
+  recoverable_storage_bytes?: number;
+  protected_storage_bytes?: number;
   is_low_storage: boolean;
   low_storage_threshold_bytes: number;
   categories: {
     source_media_bytes: number;
+    canonical_shared_media_bytes?: number;
+    logical_media_assets_bytes?: number;
+    generated_video_bytes?: number;
+    rendered_exports_bytes?: number;
+    extracted_audio_bytes?: number;
+    keyframes_and_thumbnails_bytes?: number;
+    transcripts_and_analysis_bytes?: number;
+    temporary_uploads_bytes?: number;
+    temporary_rendering_bytes?: number;
+    database_and_backups_bytes?: number;
     proxies_bytes: number;
     thumbnails_bytes: number;
     extracted_frames_bytes: number;
@@ -182,8 +195,103 @@ export interface StorageBreakdown {
     database_bytes: number;
     backups_bytes: number;
     logs_bytes: number;
+    characters_bytes?: number;
+    timelines_bytes?: number;
   };
   directories: Record<string, string>;
+  quota_status?: StorageQuotaStatus | null;
+}
+
+export interface CleanupCandidateItem {
+  candidate_id: string;
+  relative_path: string;
+  category: string;
+  size_bytes: number;
+  reason: string;
+  last_modified_at: string;
+  associated_project_id?: string | null;
+  associated_job_id?: string | null;
+  is_blocked: boolean;
+  protection_reason?: string | null;
+}
+
+export interface MaintenanceCleanupPreview {
+  preview_id: string;
+  total_candidates: number;
+  eligible_candidates_count: number;
+  total_eligible_bytes: number;
+  blocked_candidates_count: number;
+  total_blocked_bytes: number;
+  categories_summary: Record<string, { count: number; bytes: number }>;
+  candidates: CleanupCandidateItem[];
+  protected_categories: string[];
+  generated_at: string;
+}
+
+export interface MaintenanceCleanupExecution {
+  status: string;
+  operation_id: string;
+  deleted_count: number;
+  bytes_reclaimed: number;
+  skipped_count: number;
+  failed_count: number;
+  deleted_items: Array<{
+    candidate_id: string;
+    path: string;
+    category: string;
+    size_bytes: number;
+  }>;
+  skipped_items: Array<{
+    candidate_id: string;
+    path: string;
+    reason: string;
+  }>;
+  failed_items: Array<{
+    candidate_id: string;
+    path: string;
+    error: string;
+  }>;
+  executed_at: string;
+}
+
+export interface StorageQuotaSettings {
+  id: string;
+  storage_limit_bytes?: number | null;
+  generated_video_limit_bytes?: number | null;
+  temp_storage_limit_bytes?: number | null;
+  warning_threshold_percent: number;
+  auto_prune_enabled: boolean;
+  auto_prune_retention_hours: number;
+  auto_prune_categories: string[];
+  max_temp_storage_bytes?: number | null;
+  updated_at: string;
+}
+
+export interface StorageQuotaStatus {
+  quota_settings: StorageQuotaSettings;
+  total_usage_bytes: number;
+  total_utilization_pct?: number | null;
+  generated_video_usage_bytes: number;
+  generated_video_utilization_pct?: number | null;
+  temp_storage_usage_bytes: number;
+  temp_storage_utilization_pct?: number | null;
+  is_warning: boolean;
+  is_exceeded: boolean;
+  warning_reasons: string[];
+}
+
+export interface CleanupAuditItem {
+  id: string;
+  operation_id: string;
+  timestamp: string;
+  cleanup_category: string;
+  files_examined: number;
+  files_deleted: number;
+  files_skipped: number;
+  bytes_reclaimed: number;
+  is_automatic: boolean;
+  failure_reasons: Array<{ candidate_id?: string; path?: string; error?: string }>;
+  details: Record<string, any>;
 }
 
 export interface CleanupPreview {
@@ -244,6 +352,15 @@ export interface MediaRelinkResult {
   match_status: 'exact' | 'compatible' | 'mismatch';
   warnings: string[];
   comparison: Record<string, any>;
+  relinked_at?: string | null;
+}
+
+export interface MediaReconcileResult {
+  total_checked: number;
+  restored_count: number;
+  still_missing_count: number;
+  restored_assets: string[];
+  still_missing_assets: string[];
 }
 
 export interface MediaIntegrityResult {

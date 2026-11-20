@@ -53,7 +53,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
   const [reviewFilter, setReviewFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [sortBy, setSortBy] = useState<'score' | 'duration' | 'start'>('score');
+  const [sortBy, setSortBy] = useState<'rank' | 'score' | 'duration' | 'start'>('rank');
 
   // Highlights state
   const [overview, setOverview] = useState<HighlightsOverview | null>(null);
@@ -83,6 +83,8 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
   const [discMinDuration, setDiscMinDuration] = useState<number>(12);
   const [discMaxDuration, setDiscMaxDuration] = useState<number>(60);
   const [discUseAI, setDiscUseAI] = useState<boolean>(true);
+  const [discCreativeDirection, setDiscCreativeDirection] = useState<string>('general');
+  const [discForceRediscovery, setDiscForceRediscovery] = useState<boolean>(false);
 
   // Load highlights overview
   const loadHighlights = useCallback(async () => {
@@ -142,6 +144,8 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
         min_duration: discMinDuration,
         max_duration: discMaxDuration,
         use_ai_explanations: discUseAI,
+        creative_direction: discCreativeDirection,
+        force_rediscovery: discForceRediscovery,
         run_synchronously: true,
       });
       setShowDiscoveryModal(false);
@@ -278,6 +282,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
     }
 
     list.sort((a, b) => {
+      if (sortBy === 'rank') return (a.rank_position ?? 9999) - (b.rank_position ?? 9999);
       if (sortBy === 'score') return b.quality_score - a.quality_score;
       if (sortBy === 'duration') return b.duration - a.duration;
       return a.start_time - b.start_time;
@@ -497,6 +502,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
               onChange={(e) => setSortBy(e.target.value as any)}
               className="text-xs bg-surface border border-border rounded-lg px-2 py-1 text-text-primary"
             >
+              <option value="rank">Sort: Rank Position</option>
               <option value="score">Sort: Quality Score</option>
               <option value="duration">Sort: Duration</option>
               <option value="start">Sort: Start Time</option>
@@ -599,16 +605,32 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                 >
                   {/* Card Header */}
                   <div className="p-4 border-b border-border/50 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => toggleSelectCandidate(c.id)}
                         className="rounded border-border text-brand focus:ring-0 cursor-pointer"
                       />
+                      {c.rank_position != null && (
+                        <span
+                          className="text-[11px] font-mono font-bold px-1.5 py-0.5 rounded bg-brand/10 text-brand border border-brand/30"
+                          title={`Rank #${c.rank_position}`}
+                        >
+                          #{c.rank_position}
+                        </span>
+                      )}
                       <Badge variant={getStatusBadgeVariant(c.review_status)}>
                         {c.review_status.replace('_', ' ')}
                       </Badge>
+                      {c.evidence_coverage != null && c.evidence_coverage < 1.0 && (
+                        <span
+                          className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30"
+                          title={`Evidence Coverage: ${Math.round(c.evidence_coverage * 100)}%`}
+                        >
+                          {Math.round(c.evidence_coverage * 100)}% Evid
+                        </span>
+                      )}
                       {c.is_user_modified && (
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/30">
                           Trimmed
@@ -626,7 +648,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
 
                     {/* Quality score badge */}
                     <div
-                      className={`px-2 py-0.5 rounded-full text-xs font-bold border ${scoreClass}`}
+                      className={`px-2 py-0.5 rounded-full text-xs font-bold border shrink-0 ${scoreClass}`}
                       title={`Scoring Version: ${c.scoring_version}`}
                     >
                       {Math.round(c.quality_score)}
@@ -655,7 +677,7 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
 
                     {/* Excerpt / AI Hook Preview */}
                     <p className="text-xs text-text-secondary line-clamp-3 mt-1.5 italic bg-surface-card/60 p-2.5 rounded-lg border border-border/40">
-                      "{c.ai_explanation?.hook || c.description || 'Speech highlight dialogue'}"
+                      "{c.transcript_excerpt || c.ai_explanation?.hook || c.description || 'Speech highlight dialogue'}"
                     </p>
 
                     {/* Missing evidence or warnings pills */}
@@ -753,7 +775,12 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
           <div className="bg-surface border border-border rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="p-5 border-b border-border flex items-center justify-between bg-surface-card">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                {inspectCandidate.rank_position != null && (
+                  <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-brand/10 text-brand border border-brand/30">
+                    Rank #{inspectCandidate.rank_position}
+                  </span>
+                )}
                 <Badge variant={getStatusBadgeVariant(inspectCandidate.review_status)}>
                   {inspectCandidate.review_status.toUpperCase()}
                 </Badge>
@@ -764,6 +791,14 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                 >
                   Score: {Math.round(inspectCandidate.quality_score)}/100
                 </div>
+                {inspectCandidate.evidence_coverage != null && (
+                  <span
+                    className="text-xs font-mono px-2 py-0.5 rounded bg-surface border border-border text-text-secondary"
+                    title={`Evidence Coverage: ${(inspectCandidate.evidence_coverage * 100).toFixed(0)}%`}
+                  >
+                    Evidence: {(inspectCandidate.evidence_coverage * 100).toFixed(0)}%
+                  </span>
+                )}
                 <span className="text-xs font-mono text-text-muted">
                   ID: {inspectCandidate.id}
                 </span>
@@ -793,6 +828,25 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                   className="w-full text-sm font-semibold px-3 py-2 bg-surface-card border border-border rounded-lg text-text-primary focus:outline-none focus:border-brand"
                 />
               </div>
+
+              {/* Discovery Basis & Transcript Excerpt */}
+              {inspectCandidate.generation_reason && (
+                <div className="text-xs px-3.5 py-2.5 rounded-xl bg-surface-card border border-border text-text-secondary">
+                  <span className="font-semibold text-text-primary mr-1.5">Discovery Basis:</span>
+                  {inspectCandidate.generation_reason}
+                </div>
+              )}
+
+              {inspectCandidate.transcript_excerpt && (
+                <div className="p-3.5 rounded-xl bg-surface-card/60 border border-border">
+                  <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider block mb-1">
+                    Transcript Excerpt
+                  </span>
+                  <p className="text-xs text-text-secondary italic">
+                    "{inspectCandidate.transcript_excerpt}"
+                  </p>
+                </div>
+              )}
 
               {/* Boundary Fine-Tuning Section */}
               <div className="p-4 rounded-xl border border-border bg-surface-card/50 space-y-4">
@@ -928,16 +982,14 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                 </div>
               </div>
 
-              {/* 9-Component Score Breakdown */}
+              {/* Multimodal Signal Breakdown */}
               <div>
                 <h4 className="text-xs font-semibold text-text-muted uppercase tracking-wider mb-3">
-                  Explainable Score Breakdown (Scoring Version: {inspectCandidate.scoring_version})
+                  Explainable Score Breakdown & Multimodal Signals (Scoring Version: {inspectCandidate.scoring_version})
                 </h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                  {inspectCandidate.score_breakdown &&
-                    Object.entries(inspectCandidate.score_breakdown)
-                      .filter(([k]) => k !== 'total_score')
-                      .map(([key, val]) => (
+                  {inspectCandidate.signal_scores && Object.keys(inspectCandidate.signal_scores).length > 0
+                    ? Object.entries(inspectCandidate.signal_scores).map(([key, val]) => (
                         <div
                           key={key}
                           className="bg-surface-card border border-border p-2.5 rounded-lg flex items-center justify-between text-xs"
@@ -945,16 +997,38 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                           <span className="text-text-muted capitalize">
                             {key.replace(/_/g, ' ')}
                           </span>
-                          <span
-                            className={`font-mono font-bold ${
-                              Number(val) < 0 ? 'text-rose-400' : 'text-text-primary'
-                            }`}
-                          >
-                            {Number(val) > 0 ? `+${val}` : val}
+                          <span className="font-mono font-bold text-text-primary">
+                            {typeof val === 'number' ? val.toFixed(1) : val}
                           </span>
                         </div>
-                      ))}
+                      ))
+                    : inspectCandidate.score_breakdown &&
+                      Object.entries(inspectCandidate.score_breakdown)
+                        .filter(([k]) => k !== 'total_score' && k !== 'missing_evidence')
+                        .map(([key, val]) => (
+                          <div
+                            key={key}
+                            className="bg-surface-card border border-border p-2.5 rounded-lg flex items-center justify-between text-xs"
+                          >
+                            <span className="text-text-muted capitalize">
+                              {key.replace(/_/g, ' ')}
+                            </span>
+                            <span
+                              className={`font-mono font-bold ${
+                                Number(val) < 0 ? 'text-rose-400' : 'text-text-primary'
+                              }`}
+                            >
+                              {Number(val) > 0 ? `+${val}` : val}
+                            </span>
+                          </div>
+                        ))}
                 </div>
+                {inspectCandidate.score_breakdown?.missing_evidence && inspectCandidate.score_breakdown.missing_evidence.length > 0 && (
+                  <div className="text-xs px-3 py-2 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-400 mt-2.5 flex items-center gap-2">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    <span>Missing modalities: {inspectCandidate.score_breakdown.missing_evidence.join(', ')} (weights normalized across available signals)</span>
+                  </div>
+                )}
               </div>
 
               {/* AI Explanation & Why It Works */}
@@ -1162,17 +1236,50 @@ export const HighlightsWorkspace: React.FC<HighlightsWorkspaceProps> = ({
                 />
               </div>
 
-              <div className="flex items-center gap-2 pt-1">
-                <input
-                  type="checkbox"
-                  id="ai-expl"
-                  checked={discUseAI}
-                  onChange={(e) => setDiscUseAI(e.target.checked)}
-                  className="rounded border-border text-brand focus:ring-0 cursor-pointer"
-                />
-                <label htmlFor="ai-expl" className="text-xs text-text-secondary cursor-pointer">
-                  Use Local AI (Ollama qwen3-vl) for Explanations
+              <div>
+                <label className="block text-xs font-medium text-text-muted mb-1">
+                  Creative Direction & Style
                 </label>
+                <select
+                  value={discCreativeDirection}
+                  onChange={(e) => setDiscCreativeDirection(e.target.value)}
+                  className="w-full text-xs bg-surface-card border border-border rounded-lg px-3 py-2 text-text-primary focus:outline-none"
+                >
+                  <option value="general">General (Balanced Speech, Action & Narrative)</option>
+                  <option value="talking_head">Talking Head (Speech Density & Coherence)</option>
+                  <option value="podcast">Podcast / Interview (High Emotional & Speech Interest)</option>
+                  <option value="action_sports">Action / Sports (Visual & Audio Activity Focus)</option>
+                  <option value="gaming">Gaming (Emotional Spikes & Visual Action)</option>
+                  <option value="educational">Educational (Context Completeness & Coherence)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="ai-expl"
+                    checked={discUseAI}
+                    onChange={(e) => setDiscUseAI(e.target.checked)}
+                    className="rounded border-border text-brand focus:ring-0 cursor-pointer"
+                  />
+                  <label htmlFor="ai-expl" className="text-xs text-text-secondary cursor-pointer">
+                    Use Local AI (Ollama qwen3-vl) for Explanations
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="force-rediscovery"
+                    checked={discForceRediscovery}
+                    onChange={(e) => setDiscForceRediscovery(e.target.checked)}
+                    className="rounded border-border text-brand focus:ring-0 cursor-pointer"
+                  />
+                  <label htmlFor="force-rediscovery" className="text-xs text-text-secondary cursor-pointer">
+                    Force Rediscovery (Bypass cached candidate pool)
+                  </label>
+                </div>
               </div>
             </div>
 

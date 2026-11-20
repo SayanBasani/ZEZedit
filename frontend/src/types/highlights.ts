@@ -16,6 +16,14 @@ export interface ScoreBreakdown {
   emotional_signal?: number;
   action_motion?: number;
   attractiveness_estimate?: number;
+  speech_interest?: number;
+  emotional_intensity?: number;
+  audio_activity?: number;
+  context_completeness?: number;
+  narrative_coherence?: number;
+  distinctiveness?: number;
+  missing_evidence?: string[];
+  [key: string]: any;
 }
 
 export interface GateResults {
@@ -47,6 +55,11 @@ export interface CandidateItem {
   category: string;
   secondary_categories: string[];
   quality_score: number;
+  rank_position?: number | null;
+  evidence_coverage?: number;
+  signal_scores?: Record<string, number>;
+  generation_reason?: string | null;
+  transcript_excerpt?: string | null;
   score_breakdown: ScoreBreakdown;
   gate_results: GateResults;
   warnings: string[];
@@ -94,6 +107,10 @@ export interface CandidateGenerationRunItem {
   candidates_selected: number;
   candidates_rejected: number;
   novelty_exclusions: number;
+  score_weights?: Record<string, number>;
+  min_score?: number;
+  min_separation_seconds?: number;
+  source_signature?: string | null;
   warnings: string[];
   generation_type?: 'initial' | 'generate_more';
   reused_analysis_run_id?: string | null;
@@ -148,6 +165,10 @@ export interface DiscoverHighlightsOptions {
   run_synchronously?: boolean;
   selected_scene_ids?: string[];
   excluded_scene_ids?: string[];
+  force_rediscovery?: boolean;
+  custom_weights?: Record<string, number>;
+  min_score?: number;
+  min_separation_seconds?: number;
 }
 
 export interface UpdateCandidatePayload {

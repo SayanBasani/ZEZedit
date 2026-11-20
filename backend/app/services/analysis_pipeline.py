@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from app.core.config import Settings, get_settings
 from app.core.storage import StorageLayout
-from app.core.errors import NotFoundError, ProcessingError
+from app.core.errors import NotFoundError, ProcessingError, MediaFileMissingError, StorageQuotaExceededError
 from app.db.connection import sqlite_session
 from app.services.audio_extractor import extract_audio_16k_mono, inspect_audio_stream, AudioMetadata
 from app.services.frame_sampler import sample_analysis_frames, SampledFrame
@@ -24,6 +24,7 @@ from app.services.subject_tracker import SubjectTracker
 from app.services.transcription import TranscriptionResult, WhisperTranscriber
 from app.services.visual_understanding import OllamaVisionAnalyzer, VisualObservation
 from app.services.jobs import JobOrchestrator
+from app.services.storage import StorageService
 
 logger = logging.getLogger("zezedit.analysis_pipeline")
 
@@ -132,10 +133,217 @@ class VideoAnalysisPipeline:
         self.jobs = JobOrchestrator(self.settings, self.db_path)
         self.job_orchestrator = self.jobs
 
+    def _clone_analysis_run(
+        self,
+        conn: sqlite3.Connection,
+        source_run_id: str,
+        target_asset_id: str,
+        target_project_id: str,
+        stored_file_id: Optional[str],
+        source_signature: str,
+        profile: str,
+        config_dict: Dict[str, Any],
+    ) -> str:
+        """Clone all analysis data from an existing completed run into a new completed run record for a deduplicated asset."""
+        now = _now_utc()
+        target_run_id = f"run_{uuid.uuid4().hex[:12]}"
+
+        # 1. Fetch source stage_details_json and add shared caching metadata
+        src_run = conn.execute("SELECT stage_details_json FROM analysis_runs WHERE id = ?", (source_run_id,)).fetchone()
+        src_stage: Dict[str, Any] = {}
+        if src_run and src_run[0]:
+            try:
+                src_stage = json.loads(src_run[0])
+            except Exception:
+                src_stage = {}
+        src_stage["cached_from_shared_media"] = True
+        src_stage["shared_from_run_id"] = source_run_id
+        src_stage["shared_stored_file_id"] = stored_file_id
+
+        # 2. Insert target analysis_runs record
+        conn.execute(
+            """
+            INSERT INTO analysis_runs (
+                id, media_asset_id, project_id, status, profile, config_json,
+                progress_pct, current_stage, error_message, started_at, completed_at,
+                created_at, updated_at, job_id, source_signature, stage_details_json, checkpoint_data_json, stored_file_id
+            ) VALUES (?, ?, ?, 'completed', ?, ?, 100.0, 'completed', NULL, ?, ?, ?, ?, NULL, ?, ?, NULL, ?)
+            """,
+            (
+                target_run_id,
+                target_asset_id,
+                target_project_id,
+                profile,
+                json.dumps(config_dict),
+                now,
+                now,
+                now,
+                now,
+                source_signature,
+                json.dumps(src_stage),
+                stored_file_id,
+            ),
+        )
+
+        # 3. Clone audio_analysis
+        src_aud = conn.execute("SELECT * FROM audio_analysis WHERE analysis_run_id = ?", (source_run_id,)).fetchone()
+        if src_aud:
+            aud_id = f"aud_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO audio_analysis (
+                    id, analysis_run_id, media_asset_id, has_audio, sample_rate, channels,
+                    codec_name, bit_rate, duration_seconds, speech_density, silence_intervals_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    aud_id,
+                    target_run_id,
+                    target_asset_id,
+                    src_aud[3],
+                    src_aud[4],
+                    src_aud[5],
+                    src_aud[6],
+                    src_aud[7],
+                    src_aud[8],
+                    src_aud[9],
+                    src_aud[10],
+                    now,
+                ),
+            )
+
+        # 4. Clone video_scenes
+        src_scenes = conn.execute("SELECT * FROM video_scenes WHERE analysis_run_id = ?", (source_run_id,)).fetchall()
+        scene_id_map: Dict[int, str] = {}
+        for sc in src_scenes:
+            new_sc_id = f"scene_{uuid.uuid4().hex[:12]}"
+            scene_id_map[sc[3]] = new_sc_id  # map scene_index -> new_sc_id
+            conn.execute(
+                """
+                INSERT INTO video_scenes (
+                    id, analysis_run_id, media_asset_id, scene_index, start_time,
+                    end_time, representative_timestamp, thumbnail_path, change_score, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_sc_id,
+                    target_run_id,
+                    target_asset_id,
+                    sc[3],
+                    sc[4],
+                    sc[5],
+                    sc[6],
+                    sc[7],
+                    sc[8],
+                    now,
+                ),
+            )
+
+        # 5. Clone transcript_segments
+        src_segs = conn.execute("SELECT * FROM transcript_segments WHERE analysis_run_id = ?", (source_run_id,)).fetchall()
+        for seg in src_segs:
+            new_seg_id = f"seg_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO transcript_segments (
+                    id, analysis_run_id, media_asset_id, start_time, end_time,
+                    text, language, confidence, words_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_seg_id,
+                    target_run_id,
+                    target_asset_id,
+                    seg[3],
+                    seg[4],
+                    seg[5],
+                    seg[6],
+                    seg[7],
+                    seg[8],
+                    now,
+                ),
+            )
+
+        # 6. Clone speech_turns
+        src_turns = conn.execute("SELECT * FROM speech_turns WHERE analysis_run_id = ?", (source_run_id,)).fetchall()
+        for turn in src_turns:
+            new_turn_id = f"turn_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO speech_turns (
+                    id, analysis_run_id, media_asset_id, start_time, end_time,
+                    speaker_label, text, segment_ids_json, turn_type, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_turn_id,
+                    target_run_id,
+                    target_asset_id,
+                    turn[3],
+                    turn[4],
+                    turn[5],
+                    turn[6],
+                    turn[7],
+                    turn[8],
+                    now,
+                ),
+            )
+
+        # 7. Clone sampled_frames
+        src_frames = conn.execute("SELECT * FROM sampled_frames WHERE analysis_run_id = ?", (source_run_id,)).fetchall()
+        for fr in src_frames:
+            new_fr_id = f"frame_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO sampled_frames (
+                    id, analysis_run_id, media_asset_id, timestamp, frame_path,
+                    scene_id, width, height, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_fr_id,
+                    target_run_id,
+                    target_asset_id,
+                    fr[3],
+                    fr[4],
+                    fr[5],
+                    fr[6],
+                    fr[7],
+                    now,
+                ),
+            )
+
+        # 8. Clone visual_observations
+        src_obs = conn.execute("SELECT * FROM visual_observations WHERE analysis_run_id = ?", (source_run_id,)).fetchall()
+        for ob in src_obs:
+            new_ob_id = f"obs_{uuid.uuid4().hex[:12]}"
+            conn.execute(
+                """
+                INSERT INTO visual_observations (
+                    id, analysis_run_id, media_asset_id, timestamp, frame_id,
+                    category, description, provider_model, confidence, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    new_ob_id,
+                    target_run_id,
+                    target_asset_id,
+                    ob[3],
+                    ob[4],
+                    ob[5],
+                    ob[6],
+                    ob[7],
+                    ob[8],
+                    now,
+                ),
+            )
+
+        return target_run_id
+
     def create_analysis_run(
         self,
         media_asset_id: str,
-        project_id: str,
+        project_id: Optional[str] = None,
         profile: str = "balanced",
         config: Optional[Dict[str, Any]] = None,
         force_reanalysis: bool = False,
@@ -147,14 +355,53 @@ class VideoAnalysisPipeline:
         with sqlite_session(self.db_path) as conn:
             conn.row_factory = None
             # Verify asset exists
-            asset_row = conn.execute(
-                "SELECT id, storage_path, duration_seconds FROM media_assets WHERE id = ? AND project_id = ?",
-                (media_asset_id, project_id),
-            ).fetchone()
-            if not asset_row:
-                raise NotFoundError(f"Media asset '{media_asset_id}' not found in project '{project_id}'.")
+            if project_id:
+                asset_row = conn.execute(
+                    """
+                    SELECT id, project_id, storage_path, duration_seconds, availability_status, stored_file_id, sha256
+                    FROM media_assets WHERE id = ? AND project_id = ?
+                    """,
+                    (media_asset_id, project_id),
+                ).fetchone()
+            else:
+                asset_row = conn.execute(
+                    """
+                    SELECT id, project_id, storage_path, duration_seconds, availability_status, stored_file_id, sha256
+                    FROM media_assets WHERE id = ?
+                    """,
+                    (media_asset_id,),
+                ).fetchone()
 
-            media_path = Path(asset_row[1])
+            if not asset_row:
+                err = f"Media asset '{media_asset_id}' not found" + (f" in project '{project_id}'." if project_id else ".")
+                raise NotFoundError(err)
+
+            eff_project_id = asset_row[1]
+            media_path = Path(asset_row[2])
+            avail_status = asset_row[4]
+            stored_file_id = asset_row[5]
+            sha256_hash = asset_row[6]
+
+            # Enforce missing / inaccessible media protection (P1.7)
+            if avail_status == "missing" or not media_path.exists():
+                raise MediaFileMissingError(
+                    f"Media asset '{media_asset_id}' source file is missing or inaccessible on disk.",
+                    details={
+                        "media_asset_id": media_asset_id,
+                        "storage_path": str(media_path),
+                        "availability_status": avail_status,
+                    },
+                )
+
+            # Enforce storage quota check before initiating analysis (P1.9)
+            storage_service = StorageService(self.settings)
+            quota_ok, quota_reason = storage_service.check_quota_for_operation("temp", 50 * 1024 * 1024)
+            if not quota_ok:
+                raise StorageQuotaExceededError(
+                    quota_reason or "Temporary storage quota exceeded for video analysis.",
+                    details={"media_asset_id": media_asset_id},
+                )
+
             source_sig = compute_source_signature(media_path)
 
             # Check for existing completed run if force_reanalysis is False (ZEZ-029 Stage-Aware Caching)
@@ -162,10 +409,10 @@ class VideoAnalysisPipeline:
                 existing_run = conn.execute(
                     """
                     SELECT id, job_id FROM analysis_runs
-                    WHERE media_asset_id = ? AND project_id = ? AND status = 'completed' AND source_signature = ?
+                    WHERE media_asset_id = ? AND status = 'completed' AND source_signature = ?
                     ORDER BY created_at DESC LIMIT 1
                     """,
-                    (media_asset_id, project_id, source_sig),
+                    (media_asset_id, source_sig),
                 ).fetchone()
 
                 if existing_run:
@@ -188,14 +435,62 @@ class VideoAnalysisPipeline:
                         )
                         return existing_run[0]
 
+            # Canonical Shared Media Deduplication Awareness (P1.8)
+            if not force_reanalysis and (stored_file_id or sha256_hash):
+                shared_candidate = None
+                if stored_file_id:
+                    shared_candidate = conn.execute(
+                        """
+                        SELECT a.id, a.media_asset_id, a.profile, a.source_signature
+                        FROM analysis_runs a
+                        JOIN media_assets m ON a.media_asset_id = m.id
+                        WHERE m.stored_file_id = ? AND a.status = 'completed' AND a.media_asset_id != ?
+                        ORDER BY a.created_at DESC LIMIT 1
+                        """,
+                        (stored_file_id, media_asset_id),
+                    ).fetchone()
+
+                if not shared_candidate and sha256_hash:
+                    shared_candidate = conn.execute(
+                        """
+                        SELECT a.id, a.media_asset_id, a.profile, a.source_signature
+                        FROM analysis_runs a
+                        JOIN media_assets m ON a.media_asset_id = m.id
+                        WHERE m.sha256 = ? AND a.status = 'completed' AND a.media_asset_id != ?
+                        ORDER BY a.created_at DESC LIMIT 1
+                        """,
+                        (sha256_hash, media_asset_id),
+                    ).fetchone()
+
+                if shared_candidate:
+                    source_run_id = shared_candidate[0]
+                    target_run_id = self._clone_analysis_run(
+                        conn=conn,
+                        source_run_id=source_run_id,
+                        target_asset_id=media_asset_id,
+                        target_project_id=eff_project_id,
+                        stored_file_id=stored_file_id,
+                        source_signature=source_sig,
+                        profile=profile or shared_candidate[2],
+                        config_dict=config_dict,
+                    )
+                    logger.info(
+                        "Reused canonical shared analysis run %s for asset %s (target run %s, stored_file_id: %s)",
+                        source_run_id,
+                        media_asset_id,
+                        target_run_id,
+                        stored_file_id,
+                    )
+                    return target_run_id
+
             # Check for existing active (running, pending, queued) run to prevent duplicate executions
             active_run = conn.execute(
                 """
                 SELECT id FROM analysis_runs
-                WHERE media_asset_id = ? AND project_id = ? AND status IN ('running', 'pending', 'queued')
+                WHERE media_asset_id = ? AND status IN ('running', 'pending', 'queued')
                 ORDER BY created_at DESC LIMIT 1
                 """,
-                (media_asset_id, project_id),
+                (media_asset_id,),
             ).fetchone()
             if active_run:
                 logger.info(
@@ -208,13 +503,14 @@ class VideoAnalysisPipeline:
             # Create persistent job in JobOrchestrator
             job_record = self.jobs.create_job(
                 job_type="media_analysis",
-                project_id=project_id,
+                project_id=eff_project_id,
                 priority=150,
                 input_config={
                     "media_asset_id": media_asset_id,
                     "profile": profile,
                     "force_reanalysis": force_reanalysis,
                     "source_signature": source_sig,
+                    "stored_file_id": stored_file_id,
                 },
             )
 
@@ -234,13 +530,13 @@ class VideoAnalysisPipeline:
                 INSERT INTO analysis_runs (
                     id, media_asset_id, project_id, status, profile, config_json,
                     progress_pct, current_stage, error_message, started_at, completed_at,
-                    created_at, updated_at, job_id, source_signature, stage_details_json, checkpoint_data_json
-                ) VALUES (?, ?, ?, 'pending', ?, ?, 0.0, 'queued', NULL, NULL, NULL, ?, ?, ?, ?, ?, NULL)
+                    created_at, updated_at, job_id, source_signature, stage_details_json, checkpoint_data_json, stored_file_id
+                ) VALUES (?, ?, ?, 'pending', ?, ?, 0.0, 'queued', NULL, NULL, NULL, ?, ?, ?, ?, ?, NULL, ?)
                 """,
                 (
                     run_id,
                     media_asset_id,
-                    project_id,
+                    eff_project_id,
                     profile,
                     json.dumps(config_dict),
                     now,
@@ -248,6 +544,7 @@ class VideoAnalysisPipeline:
                     job_record.id,
                     source_sig,
                     json.dumps(stage_details),
+                    stored_file_id,
                 ),
             )
 
@@ -258,6 +555,16 @@ class VideoAnalysisPipeline:
                 "UPDATE jobs SET input_config_json = ? WHERE id = ?",
                 (json.dumps(updated_input), job_record.id),
             )
+
+        logger.info(
+            "Created analysis run %s and job %s for asset %s (profile: %s, sig: %s)",
+            run_id,
+            job_record.id,
+            media_asset_id,
+            profile,
+            source_sig,
+        )
+        return run_id
 
         logger.info(
             "Created analysis run %s and job %s for asset %s (profile: %s, sig: %s)",
@@ -447,7 +754,17 @@ class VideoAnalysisPipeline:
             self.update_run_progress(
                 run_id, "failed", 0.0, "failed", error_message=err_msg, job_id=effective_job_id
             )
-            raise ProcessingError(err_msg)
+            raise MediaFileMissingError(err_msg, details={"run_id": run_id, "media_path": str(media_path)})
+
+        # Enforce storage quota before heavy temporary staging
+        storage_service = StorageService(self.settings)
+        quota_ok, quota_reason = storage_service.check_quota_for_operation("temp", 50 * 1024 * 1024)
+        if not quota_ok:
+            err_msg = quota_reason or "Temporary storage quota exceeded for video analysis."
+            self.update_run_progress(
+                run_id, "failed", 0.0, "failed", error_message=err_msg, job_id=effective_job_id
+            )
+            raise StorageQuotaExceededError(err_msg, details={"run_id": run_id})
 
         source_signature = compute_source_signature(media_path)
         if source_signature == "unreadable":

@@ -64,6 +64,35 @@ class MediaAssetRecord:
     thumbnail_url: Optional[str] = None
     streaming_url: Optional[str] = None
     dashboard_url: Optional[str] = None
+    relinked_at: Optional[str] = None
+    previous_storage_path: Optional[str] = None
+    previous_sha256: Optional[str] = None
+    relink_match_status: Optional[str] = None
+    stored_file_id: Optional[str] = None
+    reference_count: int = 1
+    is_shared: bool = False
+    is_deduplicated: bool = False
+
+
+@dataclass
+class StoredMediaFileRecord:
+    id: str
+    sha256: str
+    storage_path: str
+    file_size_bytes: int
+    mime_type: Optional[str] = None
+    container_format: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    width: Optional[int] = None
+    height: Optional[int] = None
+    fps: Optional[float] = None
+    video_codec: Optional[str] = None
+    audio_codec: Optional[str] = None
+    is_external: bool = False
+    reference_count: int = 1
+    created_at: str = ""
+    updated_at: str = ""
+    last_verified_at: Optional[str] = None
 
 
 @dataclass
@@ -119,6 +148,11 @@ class AnalysisRunRecord:
     completed_at: Optional[str]
     created_at: str
     updated_at: str
+    job_id: Optional[str] = None
+    source_signature: Optional[str] = None
+    stage_details: Optional[Dict[str, Any]] = None
+    checkpoint_data: Optional[Dict[str, Any]] = None
+    stored_file_id: Optional[str] = None
 
 
 @dataclass
@@ -226,6 +260,47 @@ class ShortsCandidateRecord:
     alternative_of_candidate_id: Optional[str] = None
     overlap_group_id: Optional[str] = None
     queued_for_render: bool = False
+    rank_position: Optional[int] = None
+    evidence_coverage: float = 1.0
+    signal_scores: Dict[str, float] = field(default_factory=dict)
+    generation_reason: Optional[str] = None
+    transcript_excerpt: Optional[str] = None
+    generation_run_id: Optional[str] = None
+    creative_direction: str = "best_overall"
+    natural_boundary_confidence: float = 1.0
+
+
+@dataclass
+class CandidateGenerationRunRecord:
+    id: str
+    project_id: str
+    media_asset_id: str
+    analysis_run_id: str
+    creative_direction: str
+    aspect_ratio: str
+    requested_count: int
+    min_duration: float
+    max_duration: float
+    status: str
+    candidates_discovered: int
+    candidates_selected: int
+    candidates_rejected: int
+    novelty_exclusions: int
+    score_weights: Dict[str, float] = field(default_factory=dict)
+    min_score: float = 0.0
+    min_separation_seconds: float = 0.0
+    source_signature: Optional[str] = None
+    error_message: Optional[str] = None
+    warnings: list[str] = field(default_factory=list)
+    generation_type: str = "initial"
+    reused_analysis_run_id: Optional[str] = None
+    duration_preference: str = "ai_best_duration"
+    is_novelty_exhausted: bool = False
+    job_id: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    created_at: str = ""
+    updated_at: str = ""
 
 
 @dataclass
@@ -250,3 +325,35 @@ class CandidateClipEditRecord:
     version: int = 1
     created_at: str = ""
     updated_at: str = ""
+
+
+@dataclass
+class StorageQuotaRecord:
+    id: str = "default"
+    storage_limit_bytes: Optional[int] = None
+    generated_video_limit_bytes: Optional[int] = None
+    temp_storage_limit_bytes: Optional[int] = None
+    warning_threshold_percent: int = 85
+    auto_prune_enabled: bool = False
+    auto_prune_retention_hours: int = 24
+    auto_prune_categories: List[str] = field(default_factory=lambda: ["orphaned_uploads", "abandoned_ffmpeg", "failed_renders", "expired_temp_files"])
+    max_temp_storage_bytes: Optional[int] = None
+    created_at: str = ""
+    updated_at: str = ""
+
+
+@dataclass
+class StorageCleanupAuditRecord:
+    id: str
+    operation_id: str
+    timestamp: str
+    cleanup_category: str
+    files_examined: int = 0
+    files_deleted: int = 0
+    files_skipped: int = 0
+    bytes_reclaimed: int = 0
+    is_automatic: bool = False
+    failure_reasons: List[Dict[str, Any]] = field(default_factory=list)
+    details: Dict[str, Any] = field(default_factory=dict)
+    created_at: str = ""
+

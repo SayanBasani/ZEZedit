@@ -2,6 +2,7 @@
 
 import gc
 import hashlib
+import json
 import logging
 import os
 import shutil
@@ -10,13 +11,18 @@ import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import resolve_contained_path, validate_storage_root_path
 from app.core.storage import StorageLayout
 from app.db.connection import sqlite_session
+from app.schemas.core import (
+    StorageQuotaSettingsDTO,
+    StorageQuotaUpdateRequest,
+    StorageQuotaStatusResponse,
+)
 from app.services.jobs import JobOrchestrator
 
 logger = logging.getLogger("zezedit.storage")
@@ -48,6 +54,13 @@ class StorageService:
 
     def format_bytes(self, bytes_count: int) -> str:
         return _format_bytes(bytes_count)
+
+    def resolve_contained_path(self, candidate_path: Union[str, Path]) -> Optional[Path]:
+        """Safely resolve candidate path within storage root, returning None on traversal/escape."""
+        try:
+            return resolve_contained_path(self.layout.root, candidate_path)
+        except Exception:
+            return None
 
     def inspect_storage(self) -> Dict[str, Any]:
         """Inspect directory accessibility, total/free disk space, and category sizes."""
@@ -114,32 +127,905 @@ class StorageService:
         }
 
     def get_storage_breakdown(self) -> Dict[str, Any]:
-        """Return structured breakdown separating source media, intermediate caches, DB, and exports."""
+        """Return structured breakdown separating source media, canonical shared media, intermediate caches, DB, and exports."""
         stats = self.inspect_storage()
         cat = stats["category_sizes_bytes"]
         free_bytes = stats["free_space_bytes"]
+
+        # Calculate database physical and logical asset metrics
+        canonical_shared_bytes = 0
+        logical_assets_bytes = 0
+        unique_canonical_files: Set[str] = set()
+
+        if self.layout.db_file.exists():
+            try:
+                with sqlite_session(self.layout.db_file) as conn:
+                    cursor = conn.cursor()
+                    tables = {r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                    if "stored_media_files" in tables:
+                        stored_rows = cursor.execute("SELECT id, storage_path, file_size_bytes, reference_count FROM stored_media_files").fetchall()
+                        for sr in stored_rows:
+                            sp = Path(sr["storage_path"])
+                            if sp.exists() and not sp.is_symlink():
+                                try:
+                                    resolved = str(sp.resolve())
+                                    if resolved not in unique_canonical_files:
+                                        unique_canonical_files.add(resolved)
+                                        canonical_shared_bytes += sp.stat().st_size
+                                except OSError:
+                                    pass
+                    if "media_assets" in tables:
+                        row = cursor.execute("SELECT SUM(file_size_bytes) FROM media_assets WHERE availability_status != 'deleted'").fetchone()
+                        if row and row[0]:
+                            logical_assets_bytes = int(row[0])
+            except Exception as exc:
+                logger.warning("Could not gather database media metrics for breakdown: %s", exc)
+
+        # Temporary uploads: files in temp/uploads or *.uploading / *.part files across storage
+        temporary_uploads_bytes = 0
+        uploads_dir = self.layout.temp / "uploads"
+        if uploads_dir.exists():
+            for f in uploads_dir.rglob("*"):
+                if f.is_file() and not f.is_symlink():
+                    try:
+                        temporary_uploads_bytes += f.stat().st_size
+                    except OSError:
+                        pass
+        for pattern in ("**/*.uploading", "**/*.part"):
+            if self.layout.media.exists():
+                for f in self.layout.media.glob(pattern):
+                    if f.is_file() and not f.is_symlink():
+                        try:
+                            temporary_uploads_bytes += f.stat().st_size
+                        except OSError:
+                            pass
+            if self.layout.temp.exists():
+                for f in self.layout.temp.glob(pattern):
+                    if f.is_file() and not f.is_symlink():
+                        try:
+                            if not uploads_dir.exists() or not f.is_relative_to(uploads_dir):
+                                temporary_uploads_bytes += f.stat().st_size
+                        except OSError:
+                            pass
+
+        # Temporary rendering: temp/job_* folders, temp/render_scratch.mp4, temp/*.tmp, temp/*.ass
+        temporary_rendering_bytes = 0
+        if self.layout.temp.exists():
+            for item in self.layout.temp.iterdir():
+                if item.name == "uploads":
+                    continue
+                if item.is_dir() and item.name.startswith("job_"):
+                    for f in item.rglob("*"):
+                        if f.is_file() and not f.is_symlink():
+                            try:
+                                temporary_rendering_bytes += f.stat().st_size
+                            except OSError:
+                                pass
+                elif item.is_file() and not item.is_symlink():
+                    if item.name.endswith((".tmp", ".ass", ".uploading", ".part")) or item.name in ("render_scratch.mp4", "captions.ass"):
+                        try:
+                            temporary_rendering_bytes += item.stat().st_size
+                        except OSError:
+                            pass
+
+        # Extracted audio: temp audio files or analysis audio
+        extracted_audio_bytes = 0
+        audio_exts = {".wav", ".aac", ".flac", ".mp3", ".m4a"}
+        if self.layout.temp.exists():
+            for f in self.layout.temp.rglob("*"):
+                if f.is_file() and not f.is_symlink() and f.suffix.lower() in audio_exts:
+                    try:
+                        extracted_audio_bytes += f.stat().st_size
+                    except OSError:
+                        pass
+        analysis_audio_dir = self.layout.analysis / "audio"
+        if analysis_audio_dir.exists():
+            for f in analysis_audio_dir.rglob("*"):
+                if f.is_file() and not f.is_symlink() and f.suffix.lower() in audio_exts:
+                    try:
+                        extracted_audio_bytes += f.stat().st_size
+                    except OSError:
+                        pass
+
+        # Keyframes and thumbnails
+        keyframes_and_thumbnails_bytes = cat.get("thumbnails", 0)
+        frames_dir = self.layout.analysis / "frames"
+        if frames_dir.exists():
+            for f in frames_dir.rglob("*"):
+                if f.is_file() and not f.is_symlink():
+                    try:
+                        keyframes_and_thumbnails_bytes += f.stat().st_size
+                    except OSError:
+                        pass
+
+        # Database and backups
+        database_and_backups_bytes = cat.get("db", 0) + cat.get("backups", 0)
+
+        # Total application physical storage (measured uniquely across all physical files, no double counting)
+        seen_unique_files: Set[str] = set()
+        total_application_bytes = 0
+        if self.layout.root.exists():
+            for f in self.layout.root.rglob("*"):
+                if f.is_file() and not f.is_symlink():
+                    try:
+                        res_str = str(f.resolve())
+                        if res_str not in seen_unique_files:
+                            seen_unique_files.add(res_str)
+                            total_application_bytes += f.stat().st_size
+                    except OSError:
+                        pass
+
+        # Recoverable storage: temp uploads + temp renders + extracted audio in temp + proxies
+        recoverable_bytes = temporary_uploads_bytes + temporary_rendering_bytes + extracted_audio_bytes + cat.get("proxies", 0)
+        protected_bytes = max(0, total_application_bytes - recoverable_bytes)
+
+        quota_status_res = self.get_storage_quota_status()
 
         return {
             "storage_root": stats["storage_root"],
             "total_disk_space_bytes": stats["total_space_bytes"],
             "free_disk_space_bytes": free_bytes,
             "used_disk_space_bytes": stats["used_space_bytes"],
+            "total_application_storage_bytes": total_application_bytes,
+            "recoverable_storage_bytes": recoverable_bytes,
+            "protected_storage_bytes": protected_bytes,
             "is_low_storage": free_bytes < LOW_STORAGE_THRESHOLD_BYTES,
             "low_storage_threshold_bytes": LOW_STORAGE_THRESHOLD_BYTES,
             "categories": {
                 "source_media_bytes": cat.get("media", 0),
+                "canonical_shared_media_bytes": canonical_shared_bytes,
+                "logical_media_assets_bytes": logical_assets_bytes,
+                "generated_video_bytes": cat.get("shorts", 0),
+                "rendered_exports_bytes": cat.get("exports", 0),
+                "extracted_audio_bytes": extracted_audio_bytes,
+                "keyframes_and_thumbnails_bytes": keyframes_and_thumbnails_bytes,
+                "transcripts_and_analysis_bytes": cat.get("analysis", 0),
+                "temporary_uploads_bytes": temporary_uploads_bytes,
+                "temporary_rendering_bytes": temporary_rendering_bytes,
+                "database_and_backups_bytes": database_and_backups_bytes,
                 "proxies_bytes": cat.get("proxies", 0),
-                "thumbnails_bytes": cat.get("thumbnails", 0),
-                "extracted_frames_bytes": cat.get("analysis", 0),
+                "logs_bytes": cat.get("logs", 0),
                 "characters_bytes": cat.get("characters", 0),
+                "timelines_bytes": cat.get("timelines", 0),
                 "temp_cache_bytes": cat.get("temp", 0),
+                # Legacy aliases for backward compatibility
+                "extracted_frames_bytes": cat.get("analysis", 0),
                 "exports_bytes": cat.get("exports", 0),
                 "database_bytes": cat.get("db", 0),
                 "backups_bytes": cat.get("backups", 0),
-                "logs_bytes": cat.get("logs", 0),
+                "thumbnails_bytes": cat.get("thumbnails", 0),
             },
             "directories": stats["directories"],
+            "quota_status": quota_status_res.model_dump() if quota_status_res else None,
         }
+
+    def get_storage_quotas(self) -> StorageQuotaSettingsDTO:
+        """Fetch current quota settings from storage_quotas table."""
+        if self.layout.db_file.exists():
+            try:
+                with sqlite_session(self.layout.db_file) as conn:
+                    row = conn.execute("SELECT * FROM storage_quotas WHERE id = 'default'").fetchone()
+                    if row:
+                        cats = json.loads(row["auto_prune_categories_json"]) if row["auto_prune_categories_json"] else []
+                        return StorageQuotaSettingsDTO(
+                            id=row["id"],
+                            storage_limit_bytes=row["storage_limit_bytes"],
+                            generated_video_limit_bytes=row["generated_video_limit_bytes"],
+                            temp_storage_limit_bytes=row["temp_storage_limit_bytes"],
+                            warning_threshold_percent=row["warning_threshold_percent"],
+                            auto_prune_enabled=bool(row["auto_prune_enabled"]),
+                            auto_prune_retention_hours=row["auto_prune_retention_hours"],
+                            auto_prune_categories=cats,
+                            max_temp_storage_bytes=row["max_temp_storage_bytes"],
+                            updated_at=row["updated_at"],
+                        )
+            except Exception as exc:
+                logger.warning("Could not fetch storage quotas: %s", exc)
+
+        return StorageQuotaSettingsDTO()
+
+    def update_storage_quotas(self, updates: StorageQuotaUpdateRequest) -> StorageQuotaSettingsDTO:
+        """Update persistent quota settings with strict validation."""
+        if updates.storage_limit_bytes is not None and updates.storage_limit_bytes <= 0:
+            raise AppError(code="INVALID_QUOTA_LIMIT", message="Storage limit must be greater than 0 bytes.", status_code=400)
+        if updates.generated_video_limit_bytes is not None and updates.generated_video_limit_bytes <= 0:
+            raise AppError(code="INVALID_QUOTA_LIMIT", message="Generated video storage limit must be greater than 0 bytes.", status_code=400)
+        if updates.temp_storage_limit_bytes is not None and updates.temp_storage_limit_bytes <= 0:
+            raise AppError(code="INVALID_QUOTA_LIMIT", message="Temporary storage limit must be greater than 0 bytes.", status_code=400)
+        if updates.warning_threshold_percent is not None and not (50 <= updates.warning_threshold_percent <= 100):
+            raise AppError(code="INVALID_WARNING_THRESHOLD", message="Warning threshold percent must be between 50 and 100.", status_code=400)
+        if updates.auto_prune_retention_hours is not None and updates.auto_prune_retention_hours < 1:
+            raise AppError(code="INVALID_RETENTION_PERIOD", message="Auto-prune retention period must be at least 1 hour.", status_code=400)
+
+        current = self.get_storage_quotas()
+        new_storage_limit = updates.storage_limit_bytes if updates.storage_limit_bytes is not None else current.storage_limit_bytes
+        new_gen_limit = updates.generated_video_limit_bytes if updates.generated_video_limit_bytes is not None else current.generated_video_limit_bytes
+        new_temp_limit = updates.temp_storage_limit_bytes if updates.temp_storage_limit_bytes is not None else current.temp_storage_limit_bytes
+        new_thresh = updates.warning_threshold_percent if updates.warning_threshold_percent is not None else current.warning_threshold_percent
+        new_auto_prune = updates.auto_prune_enabled if updates.auto_prune_enabled is not None else current.auto_prune_enabled
+        new_retention = updates.auto_prune_retention_hours if updates.auto_prune_retention_hours is not None else current.auto_prune_retention_hours
+        new_cats = updates.auto_prune_categories if updates.auto_prune_categories is not None else current.auto_prune_categories
+        new_max_temp = updates.max_temp_storage_bytes if updates.max_temp_storage_bytes is not None else current.max_temp_storage_bytes
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        if self.layout.db_file.exists():
+            with sqlite_session(self.layout.db_file) as conn:
+                conn.execute(
+                    """
+                    INSERT INTO storage_quotas (
+                        id, storage_limit_bytes, generated_video_limit_bytes, temp_storage_limit_bytes,
+                        warning_threshold_percent, auto_prune_enabled, auto_prune_retention_hours,
+                        auto_prune_categories_json, max_temp_storage_bytes, created_at, updated_at
+                    ) VALUES ('default', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        storage_limit_bytes = excluded.storage_limit_bytes,
+                        generated_video_limit_bytes = excluded.generated_video_limit_bytes,
+                        temp_storage_limit_bytes = excluded.temp_storage_limit_bytes,
+                        warning_threshold_percent = excluded.warning_threshold_percent,
+                        auto_prune_enabled = excluded.auto_prune_enabled,
+                        auto_prune_retention_hours = excluded.auto_prune_retention_hours,
+                        auto_prune_categories_json = excluded.auto_prune_categories_json,
+                        max_temp_storage_bytes = excluded.max_temp_storage_bytes,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        new_storage_limit,
+                        new_gen_limit,
+                        new_temp_limit,
+                        new_thresh,
+                        1 if new_auto_prune else 0,
+                        new_retention,
+                        json.dumps(new_cats),
+                        new_max_temp,
+                        now_iso,
+                        now_iso,
+                    ),
+                )
+
+        return self.get_storage_quotas()
+
+    def get_storage_quota_status(self) -> StorageQuotaStatusResponse:
+        """Evaluate current storage quota utilization and warning thresholds."""
+        quotas = self.get_storage_quotas()
+        stats = self.inspect_storage()
+        cat = stats["category_sizes_bytes"]
+        total_usage = stats.get("total_managed_bytes", sum(cat.values()))
+
+        gen_usage = cat.get("shorts", 0) + cat.get("exports", 0)
+        temp_usage = cat.get("temp", 0)
+
+        total_pct = round((total_usage / quotas.storage_limit_bytes) * 100.0, 1) if quotas.storage_limit_bytes else None
+        gen_pct = round((gen_usage / quotas.generated_video_limit_bytes) * 100.0, 1) if quotas.generated_video_limit_bytes else None
+        temp_pct = round((temp_usage / quotas.temp_storage_limit_bytes) * 100.0, 1) if quotas.temp_storage_limit_bytes else None
+
+        warning_reasons = []
+        is_warning = False
+        is_exceeded = False
+
+        thresh = quotas.warning_threshold_percent
+        if total_pct is not None:
+            if total_pct >= 100.0:
+                is_exceeded = True
+                warning_reasons.append(f"Overall storage quota exceeded ({total_pct}% used of {self.format_bytes(quotas.storage_limit_bytes)})")
+            elif total_pct >= thresh:
+                is_warning = True
+                warning_reasons.append(f"Overall storage nearing quota limit ({total_pct}% used)")
+
+        if gen_pct is not None:
+            if gen_pct >= 100.0:
+                is_exceeded = True
+                warning_reasons.append(f"Generated video storage quota exceeded ({gen_pct}% used of {self.format_bytes(quotas.generated_video_limit_bytes)})")
+            elif gen_pct >= thresh:
+                is_warning = True
+                warning_reasons.append(f"Generated video storage nearing quota limit ({gen_pct}% used)")
+
+        if temp_pct is not None:
+            if temp_pct >= 100.0:
+                is_exceeded = True
+                warning_reasons.append(f"Temporary storage quota exceeded ({temp_pct}% used of {self.format_bytes(quotas.temp_storage_limit_bytes)})")
+            elif temp_pct >= thresh:
+                is_warning = True
+                warning_reasons.append(f"Temporary storage nearing quota limit ({temp_pct}% used)")
+
+        return StorageQuotaStatusResponse(
+            quota_settings=quotas,
+            total_usage_bytes=total_usage,
+            total_utilization_pct=total_pct,
+            generated_video_usage_bytes=gen_usage,
+            generated_video_utilization_pct=gen_pct,
+            temp_storage_usage_bytes=temp_usage,
+            temp_storage_utilization_pct=temp_pct,
+            is_warning=is_warning or is_exceeded,
+            is_exceeded=is_exceeded,
+            warning_reasons=warning_reasons,
+        )
+
+    def check_quota_for_operation(self, category: str, incoming_bytes: int = 0) -> Tuple[bool, Optional[str]]:
+        """Check if an incoming operation would breach configured hard quotas."""
+        quotas = self.get_storage_quotas()
+        if (
+            not quotas.storage_limit_bytes
+            and not (category == "generated_video" and quotas.generated_video_limit_bytes)
+            and not (category in ("temp", "upload") and quotas.temp_storage_limit_bytes)
+        ):
+            return True, None
+
+        status = self.get_storage_quota_status()
+
+        if quotas.storage_limit_bytes:
+            if status.total_usage_bytes + incoming_bytes > quotas.storage_limit_bytes:
+                return False, f"OVERALL_QUOTA_EXCEEDED: Operation requiring {self.format_bytes(incoming_bytes)} would exceed overall storage quota of {self.format_bytes(quotas.storage_limit_bytes)} (current usage: {self.format_bytes(status.total_usage_bytes)})."
+
+        if category == "generated_video" and quotas.generated_video_limit_bytes:
+            if status.generated_video_usage_bytes + incoming_bytes > quotas.generated_video_limit_bytes:
+                return False, f"GENERATED_VIDEO_QUOTA_EXCEEDED: Operation requiring {self.format_bytes(incoming_bytes)} would exceed generated video quota of {self.format_bytes(quotas.generated_video_limit_bytes)} (current usage: {self.format_bytes(status.generated_video_usage_bytes)})."
+
+        if category in ("temp", "upload") and quotas.temp_storage_limit_bytes:
+            if status.temp_storage_usage_bytes + incoming_bytes > quotas.temp_storage_limit_bytes:
+                return False, f"TEMP_STORAGE_QUOTA_EXCEEDED: Operation requiring {self.format_bytes(incoming_bytes)} would exceed temporary storage quota of {self.format_bytes(quotas.temp_storage_limit_bytes)} (current usage: {self.format_bytes(status.temp_storage_usage_bytes)})."
+
+        return True, None
+
+    def preview_maintenance_cleanup(self, category_filter: Optional[List[str]] = None) -> Dict[str, Any]:
+        """Scan disposable temporary files, abandoned renders, and orphaned uploads without deleting anything."""
+        candidates: List[Dict[str, Any]] = []
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        root_resolved = self.layout.root.resolve()
+
+        # Discover active background jobs from SQLite to protect in-flight job files
+        active_job_ids = set()
+        if self.layout.db_file.exists():
+            try:
+                with sqlite_session(self.layout.db_file) as conn:
+                    cursor = conn.cursor()
+                    tables = {r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                    if "jobs" in tables:
+                        rows = cursor.execute("SELECT id FROM jobs WHERE status IN ('running', 'queued', 'cancelling')").fetchall()
+                        active_job_ids = {r[0] for r in rows}
+            except Exception as exc:
+                logger.warning("Could not gather active jobs for preview: %s", exc)
+
+        def make_candidate(f: Path, cat: str, reason: str, job_id: Optional[str] = None, is_blocked: bool = False, protection_reason: Optional[str] = None):
+            try:
+                res_path = f.resolve()
+                if not res_path.is_relative_to(root_resolved):
+                    return None
+                rel = f.relative_to(self.layout.root)
+                sz = f.stat().st_size if f.is_file() else 0
+                mtime_iso = datetime.fromtimestamp(f.stat().st_mtime, tz=timezone.utc).isoformat()
+                cand_id = f"cand_{hashlib.sha256(str(rel.as_posix()).encode()).hexdigest()[:12]}"
+                return {
+                    "candidate_id": cand_id,
+                    "relative_path": str(rel.as_posix()),
+                    "category": cat,
+                    "size_bytes": sz,
+                    "reason": reason,
+                    "last_modified_at": mtime_iso,
+                    "associated_project_id": None,
+                    "associated_job_id": job_id,
+                    "is_blocked": is_blocked,
+                    "protection_reason": protection_reason,
+                }
+            except Exception:
+                return None
+
+        # 1. Orphaned uploads (.uploading and .part files)
+        for pattern in ("**/*.uploading", "**/*.part"):
+            if self.layout.media.exists():
+                for f in self.layout.media.glob(pattern):
+                    if f.is_file():
+                        age_sec = (now.timestamp() - f.stat().st_mtime) if f.exists() else 0
+                        is_locked = age_sec < 60.0
+                        cand = make_candidate(
+                            f,
+                            "orphaned_uploads",
+                            "Abandoned in-flight upload part file from interrupted/cancelled session",
+                            is_blocked=is_locked,
+                            protection_reason="File recently updated; may be an in-flight upload" if is_locked else None,
+                        )
+                        if cand:
+                            candidates.append(cand)
+            if self.layout.temp.exists():
+                for f in self.layout.temp.glob(pattern):
+                    if f.is_file():
+                        age_sec = (now.timestamp() - f.stat().st_mtime) if f.exists() else 0
+                        is_locked = age_sec < 60.0
+                        cand = make_candidate(
+                            f,
+                            "orphaned_uploads",
+                            "Staged upload chunk file in temporary upload storage",
+                            is_blocked=is_locked,
+                            protection_reason="File recently modified (< 60s); protecting active upload" if is_locked else None,
+                        )
+                        if cand:
+                            candidates.append(cand)
+
+        # 2. Abandoned FFmpeg temp renders (temp/job_* directories and scratch files)
+        if self.layout.temp.exists():
+            for item in self.layout.temp.iterdir():
+                if item.is_dir() and item.name.startswith("job_"):
+                    job_id = item.name.removeprefix("job_")
+                    is_active = job_id in active_job_ids
+                    for sub_f in item.rglob("*"):
+                        if sub_f.is_file() and not sub_f.is_symlink():
+                            cand = make_candidate(
+                                sub_f,
+                                "abandoned_ffmpeg",
+                                f"Temporary render scratch file from job '{job_id}'",
+                                job_id=job_id,
+                                is_blocked=is_active,
+                                protection_reason=f"File is in active use by running background job '{job_id}'" if is_active else None,
+                            )
+                            if cand:
+                                candidates.append(cand)
+                elif item.is_file() and not item.is_symlink() and not item.name.endswith((".uploading", ".part")):
+                    if item.name in ("render_scratch.mp4", "captions.ass") or item.name.startswith("ffmpeg_"):
+                        cand = make_candidate(
+                            item,
+                            "abandoned_ffmpeg",
+                            "Orphaned FFmpeg render scratch output",
+                        )
+                        if cand:
+                            candidates.append(cand)
+
+        # 3. Failed render outputs (*.part in exports)
+        if self.layout.exports.exists():
+            for f in self.layout.exports.glob("*.part"):
+                if f.is_file():
+                    cand = make_candidate(
+                        f,
+                        "failed_renders",
+                        "Incomplete render output from interrupted export job",
+                    )
+                    if cand:
+                        candidates.append(cand)
+
+        # 4. Expired temporary files in temp/
+        if self.layout.temp.exists():
+            for f in self.layout.temp.glob("*"):
+                if f.is_file() and not f.is_symlink() and not f.name.endswith((".uploading", ".part", ".pid", ".json")):
+                    if f.name not in ("render_scratch.mp4", "captions.ass", "zezedit.pid", "zezedit_process.json"):
+                        age_hours = (now.timestamp() - f.stat().st_mtime) / 3600.0
+                        if age_hours > 0.5:
+                            cand = make_candidate(
+                                f,
+                                "expired_temp_files",
+                                f"Expired temporary workspace file ({age_hours:.1f} hours old)",
+                            )
+                            if cand:
+                                candidates.append(cand)
+
+        # Filter by categories if requested
+        if category_filter:
+            cat_set = set(category_filter)
+            candidates = [c for c in candidates if c["category"] in cat_set]
+
+        # Deduplicate candidates by candidate_id
+        seen_cands = set()
+        unique_candidates = []
+        for c in candidates:
+            if c["candidate_id"] not in seen_cands:
+                seen_cands.add(c["candidate_id"])
+                unique_candidates.append(c)
+
+        eligible_count = sum(1 for c in unique_candidates if not c["is_blocked"])
+        total_eligible_bytes = sum(c["size_bytes"] for c in unique_candidates if not c["is_blocked"])
+        blocked_count = sum(1 for c in unique_candidates if c["is_blocked"])
+        total_blocked_bytes = sum(c["size_bytes"] for c in unique_candidates if c["is_blocked"])
+
+        cat_summary: Dict[str, Dict[str, int]] = {}
+        for c in unique_candidates:
+            cat_name = c["category"]
+            if cat_name not in cat_summary:
+                cat_summary[cat_name] = {"count": 0, "bytes": 0}
+            cat_summary[cat_name]["count"] += 1
+            cat_summary[cat_name]["bytes"] += c["size_bytes"]
+
+        preview_id = f"prev_{hashlib.sha256(f'{len(unique_candidates)}_{total_eligible_bytes}_{now_iso}'.encode()).hexdigest()[:12]}"
+
+        return {
+            "preview_id": preview_id,
+            "total_candidates": len(unique_candidates),
+            "eligible_candidates_count": eligible_count,
+            "total_eligible_bytes": total_eligible_bytes,
+            "blocked_candidates_count": blocked_count,
+            "total_blocked_bytes": total_blocked_bytes,
+            "categories_summary": cat_summary,
+            "candidates": unique_candidates,
+            "protected_categories": [
+                "Original source videos (media/)",
+                "Shared canonical media files with active references (stored_media_files)",
+                "Active background rendering jobs and in-flight uploads",
+                "Completed user exports (exports/*.mp4)",
+                "Database files and recovery snapshots (db/, backups/)",
+            ],
+            "generated_at": now_iso,
+        }
+
+    def execute_maintenance_cleanup(
+        self,
+        candidate_ids: Optional[List[str]] = None,
+        selected_categories: Optional[List[str]] = None,
+        is_automatic: bool = False,
+    ) -> Dict[str, Any]:
+        """Execute safe deletion of verified candidate files with audit logging."""
+        with _CLEANUP_LOCK:
+            now_iso = datetime.now(timezone.utc).isoformat()
+            operation_id = f"op_{uuid.uuid4().hex[:8]}"
+            deleted_items: List[Dict[str, Any]] = []
+            skipped_items: List[Dict[str, Any]] = []
+            failed_items: List[Dict[str, Any]] = []
+            total_reclaimed = 0
+
+            # Always re-generate candidates at execution time to ensure revalidation
+            preview = self.preview_maintenance_cleanup(category_filter=selected_categories)
+            candidates = preview["candidates"]
+
+            if candidate_ids:
+                cand_id_set = set(candidate_ids)
+                matched_candidates = []
+                found_cand_ids = set()
+                for c in candidates:
+                    if c["candidate_id"] in cand_id_set:
+                        matched_candidates.append(c)
+                        found_cand_ids.add(c["candidate_id"])
+                for missing_id in cand_id_set - found_cand_ids:
+                    skipped_items.append({
+                        "candidate_id": missing_id,
+                        "path": "unknown / vanished",
+                        "reason": "File no longer exists or became ineligible prior to execution",
+                    })
+                candidates = matched_candidates
+
+            # Gather set of protected paths from database to double-check
+            protected_db_paths: Set[str] = set()
+            active_db_jobs: Set[str] = set()
+            if self.layout.db_file.exists():
+                try:
+                    with sqlite_session(self.layout.db_file) as conn:
+                        cursor = conn.cursor()
+                        tables = {r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()}
+                        if "stored_media_files" in tables:
+                            rows = cursor.execute("SELECT storage_path FROM stored_media_files WHERE reference_count > 0").fetchall()
+                            for r in rows:
+                                if r[0]:
+                                    try:
+                                        protected_db_paths.add(str(Path(r[0]).resolve()))
+                                    except Exception:
+                                        pass
+                        if "media_assets" in tables:
+                            rows = cursor.execute("SELECT storage_path FROM media_assets WHERE availability_status != 'deleted'").fetchall()
+                            for r in rows:
+                                if r[0]:
+                                    try:
+                                        protected_db_paths.add(str(Path(r[0]).resolve()))
+                                    except Exception:
+                                        pass
+                        if "jobs" in tables:
+                            rows = cursor.execute("SELECT id FROM jobs WHERE status IN ('running', 'queued', 'cancelling')").fetchall()
+                            active_db_jobs = {r[0] for r in rows}
+                except Exception as exc:
+                    logger.warning("Could not query database protection tables during cleanup: %s", exc)
+
+            root_resolved = self.layout.root.resolve()
+
+            for c in candidates:
+                rel_p = c["relative_path"]
+
+                # 1. Check if candidate was marked blocked during preview
+                if c.get("is_blocked"):
+                    skipped_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "reason": c.get("protection_reason") or "File is blocked by active process/job",
+                    })
+                    continue
+
+                # 2. Check if associated job became active
+                if c.get("associated_job_id") in active_db_jobs:
+                    skipped_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "reason": f"Associated job '{c['associated_job_id']}' is active",
+                    })
+                    continue
+
+                # 3. Resolve path safely within storage root
+                try:
+                    target_path = resolve_contained_path(self.layout.root, rel_p)
+                except Exception as path_err:
+                    skipped_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "reason": f"Path traversal / security rejection: {path_err}",
+                    })
+                    continue
+
+                # 4. Check existence and symlinks
+                if not target_path.exists():
+                    skipped_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "reason": "File no longer exists on disk",
+                    })
+                    continue
+
+                if target_path.is_symlink() or os.path.islink(str(target_path)):
+                    skipped_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "reason": "Security rejection: symlink detected",
+                    })
+                    continue
+
+                # 5. Check if target_path matches any protected database asset
+                try:
+                    target_resolved = str(target_path.resolve())
+                    if target_resolved in protected_db_paths:
+                        skipped_items.append({
+                            "candidate_id": c["candidate_id"],
+                            "path": rel_p,
+                            "reason": "Protection guard: path is an active database media asset or shared canonical file",
+                        })
+                        continue
+                except Exception:
+                    pass
+
+                # 6. Safe deletion
+                try:
+                    if target_path.is_file():
+                        sz = target_path.stat().st_size
+                        try:
+                            target_path.unlink(missing_ok=True)
+                            deleted_items.append({
+                                "candidate_id": c["candidate_id"],
+                                "path": rel_p,
+                                "category": c["category"],
+                                "size_bytes": sz,
+                            })
+                            total_reclaimed += sz
+                        except PermissionError:
+                            gc.collect()
+                            time.sleep(0.05)
+                            target_path.unlink(missing_ok=True)
+                            deleted_items.append({
+                                "candidate_id": c["candidate_id"],
+                                "path": rel_p,
+                                "category": c["category"],
+                                "size_bytes": sz,
+                            })
+                            total_reclaimed += sz
+                    elif target_path.is_dir():
+                        sz = sum(sub.stat().st_size for sub in target_path.rglob("*") if sub.is_file() and not sub.is_symlink())
+                        shutil.rmtree(target_path, ignore_errors=True)
+                        deleted_items.append({
+                            "candidate_id": c["candidate_id"],
+                            "path": rel_p,
+                            "category": c["category"],
+                            "size_bytes": sz,
+                        })
+                        total_reclaimed += sz
+                except Exception as del_err:
+                    logger.warning("Failed to delete candidate %s: %s", target_path, del_err)
+                    failed_items.append({
+                        "candidate_id": c["candidate_id"],
+                        "path": rel_p,
+                        "error": str(del_err),
+                    })
+
+            # Remove any newly empty directories in layout.temp
+            if self.layout.temp.exists():
+                for d in list(self.layout.temp.iterdir()):
+                    if d.is_dir() and d.name.startswith("job_"):
+                        try:
+                            if not any(d.iterdir()):
+                                d.rmdir()
+                        except Exception:
+                            pass
+
+            # 7. Record cleanup audit record in SQLite
+            audit_id = f"cln_audit_{uuid.uuid4().hex[:12]}"
+            cleanup_cat = ", ".join(selected_categories) if selected_categories else (", ".join(sorted({item["category"] for item in deleted_items})) if deleted_items else "all_eligible")
+            if self.layout.db_file.exists():
+                try:
+                    with sqlite_session(self.layout.db_file) as conn:
+                        conn.execute(
+                            """
+                            INSERT INTO storage_cleanup_audits (
+                                id, operation_id, timestamp, cleanup_category,
+                                files_examined, files_deleted, files_skipped,
+                                bytes_reclaimed, is_automatic, failure_reasons_json,
+                                details_json, created_at
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            """,
+                            (
+                                audit_id,
+                                operation_id,
+                                now_iso,
+                                cleanup_cat,
+                                len(candidates),
+                                len(deleted_items),
+                                len(skipped_items) + len(failed_items),
+                                total_reclaimed,
+                                1 if is_automatic else 0,
+                                json.dumps(failed_items),
+                                json.dumps({
+                                    "deleted_count": len(deleted_items),
+                                    "skipped_count": len(skipped_items),
+                                    "failed_count": len(failed_items),
+                                }),
+                                now_iso,
+                            ),
+                        )
+                except Exception as audit_err:
+                    logger.warning("Could not persist cleanup audit log: %s", audit_err)
+
+            logger.info(
+                "Executed maintenance cleanup: %d deleted (%d bytes), %d skipped, %d failed",
+                len(deleted_items),
+                total_reclaimed,
+                len(skipped_items),
+                len(failed_items),
+            )
+
+            return {
+                "status": "success",
+                "operation_id": operation_id,
+                "deleted_count": len(deleted_items),
+                "bytes_reclaimed": total_reclaimed,
+                "skipped_count": len(skipped_items),
+                "failed_count": len(failed_items),
+                "deleted_items": deleted_items,
+                "skipped_items": skipped_items,
+                "failed_items": failed_items,
+                "executed_at": now_iso,
+            }
+
+    def execute_auto_prune(self, force: bool = False) -> Dict[str, Any]:
+        """Run automated cleanup of eligible temporary/staging files respecting retention policies."""
+        quotas = self.get_storage_quotas()
+        if not quotas.auto_prune_enabled and not force:
+            return {
+                "executed": False,
+                "reason": "Automatic pruning is disabled by default for user data safety. Enable it in Quota Settings.",
+            }
+
+        preview = self.preview_maintenance_cleanup(category_filter=quotas.auto_prune_categories)
+        now = datetime.now(timezone.utc)
+        retention_seconds = quotas.auto_prune_retention_hours * 3600
+
+        eligible_cand_ids = []
+        for c in preview["candidates"]:
+            if c.get("is_blocked"):
+                continue
+            try:
+                mtime = datetime.fromisoformat(c["last_modified_at"])
+                age = now.timestamp() - mtime.timestamp()
+                if age >= retention_seconds:
+                    eligible_cand_ids.append(c["candidate_id"])
+            except Exception:
+                eligible_cand_ids.append(c["candidate_id"])
+
+        if not eligible_cand_ids:
+            return {
+                "executed": True,
+                "message": f"No temporary files exceeded the retention threshold of {quotas.auto_prune_retention_hours} hours.",
+                "deleted_count": 0,
+                "bytes_reclaimed": 0,
+            }
+
+        res = self.execute_maintenance_cleanup(
+            candidate_ids=eligible_cand_ids,
+            selected_categories=quotas.auto_prune_categories,
+            is_automatic=True,
+        )
+        res["executed"] = True
+        return res
+
+    def recover_stale_artifacts(self) -> Dict[str, Any]:
+        """Identify and safely recover from interrupted uploads, abandoned render staging, and app crashes."""
+        recovered_files_count = 0
+        bytes_reclaimed = 0
+        now = datetime.now(timezone.utc)
+
+        # 1. Recover incomplete upload parts (.uploading, .part) older than 2 minutes
+        for pattern in ("**/*.uploading", "**/*.part"):
+            for root_dir in (self.layout.temp, self.layout.media):
+                if root_dir.exists():
+                    for f in root_dir.glob(pattern):
+                        if f.is_file():
+                            try:
+                                age = now.timestamp() - f.stat().st_mtime
+                                if age > 120.0:
+                                    sz = f.stat().st_size
+                                    f.unlink(missing_ok=True)
+                                    recovered_files_count += 1
+                                    bytes_reclaimed += sz
+                            except Exception as exc:
+                                logger.warning("Could not recover stale part %s: %s", f, exc)
+
+        # 2. Recover abandoned job render directories for finished/interrupted jobs
+        if self.layout.temp.exists():
+            for item in self.layout.temp.iterdir():
+                if item.is_dir() and item.name.startswith("job_"):
+                    job_id = item.name.removeprefix("job_")
+                    is_active = False
+                    if self.layout.db_file.exists():
+                        try:
+                            with sqlite_session(self.layout.db_file) as conn:
+                                row = conn.execute("SELECT status FROM jobs WHERE id = ?", (job_id,)).fetchone()
+                                if row and row["status"] in ("running", "queued", "cancelling"):
+                                    is_active = True
+                        except Exception:
+                            pass
+                    if not is_active:
+                        try:
+                            sz = sum(sub.stat().st_size for sub in item.rglob("*") if sub.is_file() and not sub.is_symlink())
+                            shutil.rmtree(item, ignore_errors=True)
+                            recovered_files_count += 1
+                            bytes_reclaimed += sz
+                        except Exception as exc:
+                            logger.warning("Could not recover abandoned job dir %s: %s", item, exc)
+
+        # 3. Check database consistency: inspect missing media
+        missing_media_count = 0
+        if self.layout.db_file.exists():
+            try:
+                with sqlite_session(self.layout.db_file) as conn:
+                    rows = conn.execute("SELECT id, storage_path FROM media_assets WHERE availability_status != 'deleted'").fetchall()
+                    for r in rows:
+                        if r["storage_path"] and not Path(r["storage_path"]).exists():
+                            missing_media_count += 1
+            except Exception:
+                pass
+
+        return {
+            "status": "success",
+            "recovered_files_count": recovered_files_count,
+            "bytes_reclaimed": bytes_reclaimed,
+            "formatted_bytes_reclaimed": self.format_bytes(bytes_reclaimed),
+            "missing_media_detected": missing_media_count,
+            "timestamp": now.isoformat(),
+        }
+
+    def get_cleanup_history(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+        """Return recent cleanup audit logs from SQLite."""
+        if not self.layout.db_file.exists():
+            return []
+        try:
+            with sqlite_session(self.layout.db_file) as conn:
+                rows = conn.execute(
+                    """
+                    SELECT id, operation_id, timestamp, cleanup_category,
+                           files_examined, files_deleted, files_skipped,
+                           bytes_reclaimed, is_automatic, failure_reasons_json, details_json
+                    FROM storage_cleanup_audits
+                    ORDER BY timestamp DESC
+                    LIMIT ? OFFSET ?
+                    """,
+                    (limit, offset),
+                ).fetchall()
+                results = []
+                for r in rows:
+                    results.append({
+                        "id": r["id"],
+                        "operation_id": r["operation_id"],
+                        "timestamp": r["timestamp"],
+                        "cleanup_category": r["cleanup_category"],
+                        "files_examined": r["files_examined"],
+                        "files_deleted": r["files_deleted"],
+                        "files_skipped": r["files_skipped"],
+                        "bytes_reclaimed": r["bytes_reclaimed"],
+                        "is_automatic": bool(r["is_automatic"]),
+                        "failure_reasons": json.loads(r["failure_reasons_json"]) if r["failure_reasons_json"] else [],
+                        "details": json.loads(r["details_json"]) if r["details_json"] else {},
+                    })
+                return results
+        except Exception as exc:
+            logger.warning("Could not read cleanup history: %s", exc)
+            return []
+
 
     def preview_user_data_cleanup(self) -> Dict[str, Any]:
         """Scan all managed storage and database tables to generate complete cleanup preview."""

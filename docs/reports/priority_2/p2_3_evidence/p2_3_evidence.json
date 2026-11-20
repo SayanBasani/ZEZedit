@@ -1,0 +1,92 @@
+{
+  "milestone": "P2.3",
+  "title": "Smart Reframing, Subject Tracking & Portrait Composition",
+  "executed_at": "2026-11-20T14:45:01.182202+00:00",
+  "demos": {
+    "demo_1_plan_generation": {
+      "status": "PASSED",
+      "plan_id": "ref_275211a8753f",
+      "media_asset_id": "med_demo_400f51f3",
+      "output_dimensions": "1080x1920",
+      "keyframes_count": 61,
+      "dominant_strategy": "fallback",
+      "duration_ms": 1073.28
+    },
+    "demo_2_crop_parity": {
+      "status": "PASSED",
+      "preview_crop": {
+        "crop_x": 656,
+        "crop_y": 0,
+        "crop_w": 606,
+        "crop_h": 1080,
+        "zoom": 1.0,
+        "strategy": "fallback",
+        "plan_id": "ref_275211a8753f",
+        "timestamp": 3.5,
+        "source_width": 1920,
+        "source_height": 1080,
+        "target_aspect_ratio": "9:16"
+      },
+      "filter_crop_w": 606,
+      "filter_crop_h": 1080,
+      "math_parity_verified": true
+    },
+    "demo_3_scene_cut_awareness": {
+      "status": "PASSED",
+      "scene_cut_timestamp": 10.0,
+      "crop_before_cut": 200,
+      "crop_after_cut": 750,
+      "instant_cut_transition_verified": true
+    },
+    "demo_4_multi_strategy_framing": {
+      "status": "PASSED",
+      "single_strategy": "single_subject",
+      "two_person_strategy": "two_person",
+      "pinned_strategy": "single_subject",
+      "pinned_target_x": 1375.0
+    },
+    "demo_5_missing_media_protection": {
+      "status": "PASSED",
+      "error_code": "MEDIA_FILE_MISSING",
+      "missing_asset_safely_rejected": true
+    },
+    "demo_6_quota_enforcement": {
+      "status": "PASSED",
+      "error_code": "STORAGE_QUOTA_EXCEEDED",
+      "quota_preflight_guard_verified": true
+    },
+    "demo_7_revision_management": {
+      "status": "PASSED",
+      "revision_count": 2,
+      "rev1_id": "rev_be2cff02081b",
+      "rev2_id": "rev_c87db024bb1d",
+      "restored_active_id": "rev_be2cff02081b",
+      "non_destructive_verified": true
+    },
+    "demo_8_candidate_integration": {
+      "status": "PASSED",
+      "candidate_id": "cand_demo_400f51f3",
+      "start_time": 6.0,
+      "end_time": 18.0,
+      "duration": 12.0
+    },
+    "demo_9_global_endpoints": {
+      "status": "PASSED",
+      "global_plan_id": "ref_164f61c3209c",
+      "global_plans_count": 3,
+      "preview_status": 200
+    },
+    "demo_10_real_ffmpeg_render": {
+      "status": "PASSED",
+      "output_path": "D:\\ZezEdit\\storage\\shorts\\proj_demo_400f51f3\\ref_fd60430c3498_rev1.mp4",
+      "file_size_bytes": 87558,
+      "output_dimensions": "1080x1920",
+      "duration": 2.0
+    },
+    "demo_11_security_containment": {
+      "status": "PASSED",
+      "cross_project_status": 404,
+      "path_traversal_blocked": true
+    }
+  }
+}

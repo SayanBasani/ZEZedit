@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   Check,
   ChevronLeft,
   ChevronRight,
   Copy,
   Film,
+  HardDrive,
   Info,
   LayoutGrid,
   List,
@@ -29,6 +31,7 @@ import {
   getGlobalThumbnailUrl,
   getStreamMediaUrl,
   isUploadRetryable,
+  reconcileMissingMedia,
   refreshMediaMetadata,
   regenerateThumbnailGlobal,
   uploadMediaBatch,
@@ -36,9 +39,11 @@ import {
 } from '../../services/apiClient';
 import { MediaAssetItem, UploadProgressInfo } from '../../types/projects';
 import { UploadProgressPanel, UploadItem } from './UploadProgressPanel';
+import { MediaRelinkModal } from '../media/MediaRelinkModal';
 
 export interface ShortVideoGeneratorLibraryProps {
   onOpenDashboard: (asset: MediaAssetItem) => void;
+  onSelectVideo?: (asset: MediaAssetItem) => void;
 }
 
 const SUPPORTED_VIDEO_EXTENSIONS = ['.mp4', '.mov', '.mkv', '.avi', '.webm', '.flv', '.wmv'];
@@ -76,6 +81,11 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
   const [isRegeneratingThumb, setIsRegeneratingThumb] = useState<boolean>(false);
   const [copiedSha, setCopiedSha] = useState<boolean>(false);
 
+  // Relink & Drive Reconnection States
+  const [relinkTargetAsset, setRelinkTargetAsset] = useState<MediaAssetItem | null>(null);
+  const [isReconcilingDrives, setIsReconcilingDrives] = useState<boolean>(false);
+  const [reconcileToast, setReconcileToast] = useState<string | null>(null);
+
   // Direct Ingestion State
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +105,26 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
   const handleCancelUpload = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+    }
+  };
+
+  const handleCheckReconnectedDrives = async () => {
+    setIsReconcilingDrives(true);
+    setReconcileToast(null);
+    try {
+      const res = await reconcileMissingMedia('default');
+      if (res.restored_count > 0) {
+        setReconcileToast(`External media reconnected! Restored ${res.restored_count} media file(s).`);
+        loadVideos();
+      } else {
+        setReconcileToast('Reconnected drives check complete: no missing files were restored.');
+      }
+      setTimeout(() => setReconcileToast(null), 5000);
+    } catch (err: any) {
+      setReconcileToast(`Drive check failed: ${err?.message || 'Error occurred'}`);
+      setTimeout(() => setReconcileToast(null), 5000);
+    } finally {
+      setIsReconcilingDrives(false);
     }
   };
 
@@ -772,6 +802,16 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
 
           {/* Quick Stats & View Mode Toggle */}
           <div className="flex items-center justify-between lg:justify-end gap-3 shrink-0">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleCheckReconnectedDrives}
+              isLoading={isReconcilingDrives}
+              leftIcon={<HardDrive className="w-3.5 h-3.5 text-indigo-400" />}
+              title="Scan drives to automatically reconnect missing media files"
+            >
+              Check Drives
+            </Button>
             <span className="text-xs text-text-muted">
               {loading ? 'Loading...' : `Showing ${videos.length} of ${totalCount} videos`}
             </span>
@@ -939,6 +979,19 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
         )}
       </div>
 
+      {/* Reconnect Drives Feedback Toast */}
+      {reconcileToast && (
+        <div className="p-3 bg-indigo-500/10 border border-indigo-500/30 rounded-xl text-xs text-indigo-300 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <HardDrive className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>{reconcileToast}</span>
+          </div>
+          <button onClick={() => setReconcileToast(null)} className="hover:text-text-primary text-text-muted">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Videos List / Grid */}
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -994,6 +1047,17 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                     <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-950/40 text-text-muted pointer-events-none -z-0">
                       <Film className="w-8 h-8 opacity-40" />
                     </div>
+
+                    {/* Missing file overlay on thumbnail */}
+                    {video.availability_status === 'missing' && (
+                      <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center p-3 text-center space-y-1.5 z-10">
+                        <AlertTriangle className="w-8 h-8 text-amber-400 animate-pulse" />
+                        <span className="text-xs font-bold text-amber-300 font-mono tracking-wider">
+                          FILE MISSING
+                        </span>
+                        <span className="text-[10px] text-zinc-400">Click to inspect or relink</span>
+                      </div>
+                    )}
 
                     {/* Hover Play / Inspect overlay */}
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
@@ -1065,6 +1129,14 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                           {video.integrity_status}
                         </span>
                       )}
+                      {video.reference_count && video.reference_count > 1 && (
+                        <span
+                          className="px-2 py-0.5 rounded font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30"
+                          title={`Shared across ${video.reference_count} references`}
+                        >
+                          Shared ({video.reference_count})
+                        </span>
+                      )}
                       {video.analysis_status && video.analysis_status !== 'none' && (
                         <span
                           className={`px-2 py-0.5 rounded font-mono capitalize ${
@@ -1084,15 +1156,38 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
 
                 {/* Card Actions */}
                 <div className="px-4 pb-4 pt-2 border-t border-border/60 flex items-center justify-between gap-2">
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="flex-1"
-                    onClick={() => onOpenDashboard(video)}
-                    leftIcon={<Film className="w-3.5 h-3.5" />}
-                  >
-                    Open Video Dashboard
-                  </Button>
+                  {video.availability_status === 'missing' ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                      onClick={() => setRelinkTargetAsset(video)}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                    >
+                      Relink File
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => onOpenDashboard(video)}
+                      leftIcon={<Film className="w-3.5 h-3.5" />}
+                    >
+                      Open Video Dashboard
+                    </Button>
+                  )}
+                  {video.availability_status === 'missing' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-text-muted hover:text-text-primary p-2"
+                      title="Open Video Dashboard (Metadata & Scripts)"
+                      onClick={() => onOpenDashboard(video)}
+                    >
+                      <Film className="w-4 h-4" />
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1140,6 +1235,11 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                         (e.target as HTMLElement).style.display = 'none';
                       }}
                     />
+                    {video.availability_status === 'missing' && (
+                      <div className="absolute inset-0 bg-black/75 flex items-center justify-center">
+                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                      </div>
+                    )}
                     <span className="absolute bottom-1 right-1 px-1 text-[9px] font-mono bg-black/80 rounded text-white">
                       {formatDuration(video.duration_seconds)}
                     </span>
@@ -1149,9 +1249,19 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                       <p className="text-xs font-semibold text-text-primary truncate">
                         {title}
                       </p>
+                      {video.availability_status === 'missing' && (
+                        <span className="px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-500/40 text-[9px] font-mono text-amber-300 font-bold">
+                          MISSING FILE
+                        </span>
+                      )}
                       {resLabel && (
                         <span className="px-1.5 py-0.2 rounded bg-black/60 text-[9px] font-mono text-zinc-300">
                           {resLabel}
+                        </span>
+                      )}
+                      {video.reference_count && video.reference_count > 1 && (
+                        <span className="px-1.5 py-0.2 rounded bg-blue-500/20 border border-blue-500/40 text-[9px] font-mono text-blue-300">
+                          Shared ({video.reference_count})
                         </span>
                       )}
                     </div>
@@ -1164,6 +1274,36 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  {video.availability_status === 'missing' ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-amber-400 border-amber-500/30 hover:bg-amber-500/10"
+                      onClick={() => setRelinkTargetAsset(video)}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                    >
+                      Relink File
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => onOpenDashboard(video)}
+                      leftIcon={<Film className="w-3.5 h-3.5" />}
+                    >
+                      Open Video Dashboard
+                    </Button>
+                  )}
+                  {video.availability_status === 'missing' && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onOpenDashboard(video)}
+                      title="Open Video Dashboard (Metadata & Scripts)"
+                    >
+                      <Film className="w-3.5 h-3.5" />
+                    </Button>
+                  )}
                   <Button
                     size="sm"
                     variant="outline"
@@ -1171,14 +1311,6 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                     leftIcon={<Info className="w-3.5 h-3.5" />}
                   >
                     Inspect
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="primary"
-                    onClick={() => onOpenDashboard(video)}
-                    leftIcon={<Film className="w-3.5 h-3.5" />}
-                  >
-                    Open Video Dashboard
                   </Button>
                   <Button
                     variant="ghost"
@@ -1270,15 +1402,55 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
             {/* Modal Body */}
             <div className="p-6 space-y-6 flex-1">
               {/* HTML5 Native Video Player with HTTP 206 Byte-Range Seeking */}
-              <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border shadow-inner">
-                <video
-                  key={`${selectedAssetForDetail.id}-${thumbVersion}`}
-                  src={getStreamMediaUrl(selectedAssetForDetail.id)}
-                  controls
-                  preload="metadata"
-                  className="w-full h-full object-contain"
-                />
-              </div>
+              {selectedAssetForDetail.availability_status === 'missing' ? (
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-zinc-950 border border-amber-500/30 flex flex-col items-center justify-center p-6 text-center space-y-3 shadow-inner">
+                  <div className="w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <AlertTriangle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold text-text-primary">Source Video Missing From Storage</h4>
+                    <p className="text-xs text-text-muted mt-1 max-w-md">
+                      The physical file could not be found. Project metadata, candidate clips, and scripts are preserved.
+                    </p>
+                  </div>
+                  <p className="text-[11px] font-mono text-zinc-300 bg-black/60 px-3 py-1.5 rounded-lg border border-border truncate max-w-lg" title={selectedAssetForDetail.storage_path}>
+                    Location: {selectedAssetForDetail.storage_path}
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => {
+                        const target = selectedAssetForDetail;
+                        setSelectedAssetForDetail(null);
+                        setRelinkTargetAsset(target);
+                      }}
+                      leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
+                    >
+                      Relink Source Video
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCheckReconnectedDrives}
+                      isLoading={isReconcilingDrives}
+                      leftIcon={<HardDrive className="w-3.5 h-3.5" />}
+                    >
+                      Check Drives
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="relative aspect-video rounded-xl overflow-hidden bg-black border border-border shadow-inner">
+                  <video
+                    key={`${selectedAssetForDetail.id}-${thumbVersion}`}
+                    src={getStreamMediaUrl(selectedAssetForDetail.id)}
+                    controls
+                    preload="metadata"
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+              )}
 
               {/* Stream Topology Grid */}
               <div className="space-y-3">
@@ -1413,12 +1585,37 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between py-1">
+                  <div className="flex items-center justify-between py-1 border-b border-border/50">
+                    <span className="text-text-muted">Reference Count:</span>
+                    <span className="text-text-primary">
+                      {selectedAssetForDetail.reference_count || 1} {selectedAssetForDetail.reference_count && selectedAssetForDetail.reference_count > 1 ? '(Shared Asset)' : '(Standalone)'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between py-1 border-b border-border/50">
                     <span className="text-text-muted">Physical Storage Path:</span>
                     <span className="text-text-primary truncate max-w-sm" title={selectedAssetForDetail.storage_path}>
                       {selectedAssetForDetail.storage_path}
                     </span>
                   </div>
+
+                  {selectedAssetForDetail.relinked_at && (
+                    <div className="flex items-center justify-between py-1 border-b border-border/50">
+                      <span className="text-text-muted">Last Relinked:</span>
+                      <span className="text-indigo-400">
+                        {new Date(selectedAssetForDetail.relinked_at).toLocaleString()} ({selectedAssetForDetail.relink_match_status || 'verified'})
+                      </span>
+                    </div>
+                  )}
+
+                  {selectedAssetForDetail.previous_storage_path && (
+                    <div className="flex items-center justify-between py-1">
+                      <span className="text-text-muted">Previous Path:</span>
+                      <span className="text-zinc-400 truncate max-w-sm" title={selectedAssetForDetail.previous_storage_path}>
+                        {selectedAssetForDetail.previous_storage_path}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1481,11 +1678,21 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
               <h2 className="text-base font-semibold text-text-primary">Delete Media Asset</h2>
             </div>
 
-            <p className="text-xs text-text-secondary leading-relaxed">
-              Are you sure you want to permanently delete{' '}
-              <strong className="text-text-primary font-mono">{assetPendingDelete.original_filename}</strong>?
-              This will reclaim its managed storage and delete associated proxies and thumbnails.
-            </p>
+            <div className="text-xs text-text-secondary leading-relaxed space-y-2">
+              <p>
+                Are you sure you want to permanently delete{' '}
+                <strong className="text-text-primary font-mono">{assetPendingDelete.original_filename}</strong>?
+              </p>
+              {assetPendingDelete.reference_count && assetPendingDelete.reference_count > 1 ? (
+                <div className="p-2.5 bg-blue-500/10 border border-blue-500/30 rounded-xl text-blue-300 text-[11px] leading-relaxed">
+                  <strong>Shared Asset Notice:</strong> This video content is shared by {assetPendingDelete.reference_count} assets. Deleting this asset will remove this record; the underlying physical video file is retained on disk for the other {assetPendingDelete.reference_count - 1} reference(s).
+                </div>
+              ) : (
+                <p className="text-text-muted">
+                  This will reclaim its managed storage and delete associated proxies and thumbnails.
+                </p>
+              )}
+            </div>
 
             {deleteConflictError && (
               <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-xs text-red-400 space-y-2">
@@ -1535,6 +1742,16 @@ export const ShortVideoGeneratorLibrary: React.FC<ShortVideoGeneratorLibraryProp
           </div>
         </div>
       )}
+      {/* Relink Modal */}
+      <MediaRelinkModal
+        isOpen={!!relinkTargetAsset}
+        onClose={() => setRelinkTargetAsset(null)}
+        asset={relinkTargetAsset}
+        onSuccess={() => {
+          loadVideos();
+          setRelinkTargetAsset(null);
+        }}
+      />
     </div>
   );
 };

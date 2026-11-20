@@ -461,9 +461,10 @@ class FramingEngine:
             k2 = keyframes[i + 1]
 
             if k1.timestamp <= timestamp <= k2.timestamp:
-                # If k2 is a scene boundary cut, snap directly without interpolation
+                # If k2 is a scene boundary cut, snap directly without interpolation:
+                # keep k1 while timestamp < k2.timestamp, snap to k2 at cut boundary
                 if k2.is_scene_boundary:
-                    k = k2 if (timestamp - k1.timestamp) > (k2.timestamp - timestamp) else k1
+                    k = k2 if timestamp >= k2.timestamp else k1
                     return {
                         "crop_x": k.crop_x,
                         "crop_y": k.crop_y,

@@ -1,0 +1,128 @@
+{
+  "milestone": "P2.1",
+  "timestamp": "2026-11-20T11:45:50.297742+00:00",
+  "database_version": "0022",
+  "demos": {
+    "demo_1_inspection_and_demux": {
+      "status": "PASSED",
+      "has_audio": true,
+      "channels": 1,
+      "sample_rate": 44100,
+      "codec_name": "aac",
+      "duration_seconds": 4.0,
+      "demux_time_seconds": 0.264,
+      "extracted_wav_bytes": 128078,
+      "speech_density": 1.0
+    },
+    "demo_2_transcription": {
+      "status": "PASSED",
+      "detected_language": "en",
+      "language_probability": 0.259,
+      "duration_seconds": 4.0,
+      "segment_count": 0,
+      "progress_callbacks_fired": 0,
+      "transcription_time_seconds": 3.663
+    },
+    "demo_3_scene_detection": {
+      "status": "PASSED",
+      "detected_scenes_count": 2,
+      "detection_time_seconds": 0.329,
+      "scenes": [
+        {
+          "scene_index": 0,
+          "start_time": 0.0,
+          "end_time": 2.0,
+          "representative_timestamp": 1.0,
+          "thumbnail_exists": true,
+          "change_score": 0.35
+        },
+        {
+          "scene_index": 1,
+          "start_time": 2.0,
+          "end_time": 4.0,
+          "representative_timestamp": 3.0,
+          "thumbnail_exists": true,
+          "change_score": 0.35
+        }
+      ]
+    },
+    "demo_4_keyframe_sampling": {
+      "status": "PASSED",
+      "sampled_frames_count": 2,
+      "sampling_time_seconds": 0.003,
+      "observations_generated": 2
+    },
+    "demo_5_temporal_context": {
+      "status": "PASSED",
+      "query_timestamp": 1.5,
+      "has_current_scene": true,
+      "current_scene_index": 0,
+      "has_audio_state": true,
+      "aligned_event": {
+        "timestamp": 1.5,
+        "scene_index": 0,
+        "audio_state": "ambient",
+        "has_speech": false,
+        "speaker": null,
+        "speech_text": null,
+        "visual_setting": "Visual frame captured (file size: 1.6 KB). AI vision service offline; heuristic baseline applied.",
+        "visual_action": null
+      }
+    },
+    "demo_6_stage_telemetry": {
+      "status": "PASSED",
+      "run_id": "run_ce95d8c93e86",
+      "final_status": "completed",
+      "progress_pct": 100.0,
+      "stage": "completed",
+      "timings": {
+        "audio_demux_s": 0.27,
+        "transcribe_s": 1.79,
+        "scene_detect_s": 0.37,
+        "frame_sample_s": 0.0,
+        "total_s": 5.47
+      }
+    },
+    "demo_7_cancellation_and_retry": {
+      "status": "PASSED",
+      "run_id": "run_79a6653ad15c",
+      "cancelled_status": "cancelled",
+      "retried_status": "pending",
+      "retried_progress_pct": 0.0
+    },
+    "demo_8_stage_aware_cache_reuse": {
+      "status": "PASSED",
+      "original_run_id": "run_ce95d8c93e86",
+      "cached_run_id": "run_ce95d8c93e86",
+      "cache_lookup_seconds": 0.0218,
+      "is_exact_match": true
+    },
+    "demo_9_canonical_shared_reuse": {
+      "status": "PASSED",
+      "source_run_id": "run_ce95d8c93e86",
+      "cloned_run_id": "run_5abd7dd0f34e",
+      "clone_time_seconds": 0.0351,
+      "shared_stored_file_id": "sf_95603a010fce",
+      "cloned_scenes_count": 2,
+      "cloned_frames_count": 2
+    },
+    "demo_10_missing_media_protection": {
+      "status": "PASSED",
+      "rejected_cleanly": true,
+      "error_code": "MEDIA_FILE_MISSING"
+    },
+    "demo_11_storage_quota_and_cleanup": {
+      "status": "PASSED",
+      "quota_rejected": true,
+      "quota_error_code": "STORAGE_QUOTA_EXCEEDED",
+      "intermediate_temp_cleaned": true
+    },
+    "demo_12_database_integrity": {
+      "status": "PASSED",
+      "integrity_check": [
+        "ok"
+      ],
+      "foreign_key_violations": []
+    }
+  }
+}

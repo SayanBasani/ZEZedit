@@ -57,6 +57,10 @@ class DiscoverHighlightsRequest(BaseModel):
     excluded_scene_ids: Optional[List[str]] = None
     auto_render: bool = Field(default=True)
     tracking_mode: Optional[str] = Field(default="saliency")
+    force_rediscovery: bool = Field(default=False)
+    custom_weights: Optional[Dict[str, float]] = None
+    min_score: float = Field(default=0.0)
+    min_separation_seconds: float = Field(default=0.0)
 
 
 class UpdateCandidateRequest(BaseModel):
@@ -94,6 +98,11 @@ class CandidateResponse(BaseModel):
     category: str
     secondary_categories: List[str] = Field(default_factory=list)
     quality_score: float
+    rank_position: Optional[int] = None
+    evidence_coverage: float = 1.0
+    signal_scores: Dict[str, float] = Field(default_factory=dict)
+    generation_reason: Optional[str] = None
+    transcript_excerpt: Optional[str] = None
     natural_boundary_confidence: Optional[float] = 1.0
     score_breakdown: Dict[str, Any] = Field(default_factory=dict)
     gate_results: Dict[str, Any] = Field(default_factory=dict)
@@ -130,6 +139,10 @@ class CandidateGenerationRunResponse(BaseModel):
     candidates_selected: int
     candidates_rejected: int
     novelty_exclusions: int
+    score_weights: Dict[str, float] = Field(default_factory=dict)
+    min_score: float = 0.0
+    min_separation_seconds: float = 0.0
+    source_signature: Optional[str] = None
     error_message: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
     generation_type: Optional[str] = "initial"
@@ -176,6 +189,10 @@ def _row_to_candidate_dict(row: sqlite3.Row) -> Dict[str, Any]:
     d = dict(row)
     d["is_user_modified"] = bool(d.get("is_user_modified", 0))
     d["queued_for_render"] = bool(d.get("queued_for_render", 0))
+    d["rank_position"] = d.get("rank_position")
+    d["evidence_coverage"] = float(d.get("evidence_coverage", 1.0) if d.get("evidence_coverage") is not None else 1.0)
+    d["generation_reason"] = d.get("generation_reason")
+    d["transcript_excerpt"] = d.get("transcript_excerpt")
 
     json_fields = [
         ("secondary_categories", "secondary_categories_json", []),
@@ -183,6 +200,7 @@ def _row_to_candidate_dict(row: sqlite3.Row) -> Dict[str, Any]:
         ("gate_results", "gate_results_json", {}),
         ("warnings", "warnings_json", []),
         ("missing_evidence", "missing_evidence_json", []),
+        ("signal_scores", "signal_scores_json", {}),
         ("transcript_references", "transcript_references_json", []),
         ("scene_references", "scene_references_json", []),
         ("visual_evidence", "visual_evidence_json", []),
@@ -227,6 +245,10 @@ def _run_discovery_background(
             use_ai_explanations=payload.use_ai_explanations,
             selected_scene_ids=payload.selected_scene_ids,
             excluded_scene_ids=payload.excluded_scene_ids,
+            force_rediscovery=payload.force_rediscovery,
+            custom_weights=payload.custom_weights,
+            min_score=payload.min_score,
+            min_separation_seconds=payload.min_separation_seconds,
         )
         if getattr(payload, "auto_render", True) and db_path:
             try:
@@ -294,8 +316,27 @@ def start_highlight_discovery(
         settings = get_settings()
     job_orchestrator = JobOrchestrator(settings=settings, db_path=db_path)
 
-    # Check for existing active candidate_generation job for this media asset to prevent duplicate work
+    # Validate asset existence and project isolation
     with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        asset_row = conn.execute("SELECT id, project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not asset_row:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        if asset_row["project_id"] != project_id:
+            raise HTTPException(status_code=403, detail=f"Media asset '{media_asset_id}' does not belong to project '{project_id}'.")
+
+        # Verify completed video analysis run exists
+        completed_analysis = conn.execute(
+            "SELECT id FROM analysis_runs WHERE media_asset_id = ? AND status = 'completed'",
+            (media_asset_id,),
+        ).fetchone()
+        if not completed_analysis:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No completed video analysis run found for asset '{media_asset_id}'. Please analyze the video first.",
+            )
+
+        # Check for existing active candidate_generation job for this media asset to prevent duplicate work
         existing_job = conn.execute(
             """
             SELECT id FROM jobs
@@ -329,6 +370,10 @@ def start_highlight_discovery(
             "min_duration": payload.min_duration,
             "max_duration": payload.max_duration,
             "analysis_run_id": payload.analysis_run_id,
+            "force_rediscovery": payload.force_rediscovery,
+            "custom_weights": payload.custom_weights,
+            "min_score": payload.min_score,
+            "min_separation_seconds": payload.min_separation_seconds,
         },
     )
     if response is not None:
@@ -353,6 +398,10 @@ def start_highlight_discovery(
                 use_ai_explanations=payload.use_ai_explanations,
                 selected_scene_ids=payload.selected_scene_ids,
                 excluded_scene_ids=payload.excluded_scene_ids,
+                force_rediscovery=payload.force_rediscovery,
+                custom_weights=payload.custom_weights,
+                min_score=payload.min_score,
+                min_separation_seconds=payload.min_separation_seconds,
             )
             if not results:
                 job_orchestrator.complete_job(job.id, result_summary={"status": "completed", "count": 0})
@@ -364,7 +413,7 @@ def start_highlight_discovery(
                     """
                     SELECT * FROM shorts_candidates
                     WHERE project_id = ? AND media_asset_id = ? AND generation_run_id = ?
-                    ORDER BY quality_score DESC
+                    ORDER BY CASE WHEN rank_position IS NOT NULL THEN rank_position ELSE 999999 END ASC, quality_score DESC, start_time ASC
                     """,
                     (project_id, media_asset_id, gen_run_id),
                 ).fetchall()
@@ -531,6 +580,11 @@ def list_candidate_generation_runs(
                 d["warnings"] = json.loads(d.get("warnings_json") or "[]")
             except Exception:
                 d["warnings"] = []
+            try:
+                d["score_weights"] = json.loads(d.get("score_weights_json") or "{}")
+            except Exception:
+                d["score_weights"] = {}
+            d["is_novelty_exhausted"] = bool(d.get("is_novelty_exhausted", 0))
             runs.append(CandidateGenerationRunResponse(**d))
         return runs
 
@@ -562,6 +616,11 @@ def get_candidate_generation_run(
             d["warnings"] = json.loads(d.get("warnings_json") or "[]")
         except Exception:
             d["warnings"] = []
+        try:
+            d["score_weights"] = json.loads(d.get("score_weights_json") or "{}")
+        except Exception:
+            d["score_weights"] = {}
+        d["is_novelty_exhausted"] = bool(d.get("is_novelty_exhausted", 0))
         return CandidateGenerationRunResponse(**d)
 
 
@@ -595,17 +654,68 @@ def get_candidate_novelty_history(
         )
 
 
+@router.get("/media/{media_asset_id}/highlights/recommendations", response_model=List[CandidateResponse])
+def get_media_recommendations(
+    project_id: str,
+    media_asset_id: str,
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    min_score: Optional[float] = Query(None, ge=0.0, le=100.0),
+    db_path: Path = Depends(get_db_path),
+):
+    """Retrieve ranked highlight recommendations for a media asset."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        asset = conn.execute("SELECT id, project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not asset:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        if asset["project_id"] != project_id:
+            raise HTTPException(status_code=403, detail=f"Media asset '{media_asset_id}' does not belong to project '{project_id}'.")
+
+        query = """
+            SELECT * FROM shorts_candidates
+            WHERE project_id = ? AND media_asset_id = ?
+              AND review_status IN ('recommended', 'approved')
+        """
+        params: List[Any] = [project_id, media_asset_id]
+        if min_score is not None:
+            query += " AND quality_score >= ?"
+            params.append(min_score)
+
+        query += " ORDER BY CASE WHEN rank_position IS NOT NULL THEN rank_position ELSE 999999 END ASC, quality_score DESC, start_time ASC"
+        if limit:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
+        rows = conn.execute(query, tuple(params)).fetchall()
+        return [_row_to_candidate_dict(r) for r in rows]
+
+
 @router.get("/media/{media_asset_id}/highlights", response_model=List[CandidateResponse])
 def list_media_candidates(
     project_id: str,
     media_asset_id: str,
     generation_run_id: Optional[str] = Query(None, description="Filter candidates by generation run ID"),
     review_status: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    min_score: Optional[float] = Query(None, ge=0.0, le=100.0),
+    min_duration: Optional[float] = Query(None, ge=0.0),
+    max_duration: Optional[float] = Query(None, ge=0.0),
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("rank", pattern="^(rank|score|duration|start_time)$"),
+    order: Optional[str] = Query("asc", pattern="^(asc|desc)$"),
     db_path: Path = Depends(get_db_path),
 ):
-    """List highlight candidates for a specific media asset."""
+    """List highlight candidates for a specific media asset with rich filtering, pagination, and sorting."""
     with sqlite_session(db_path) as conn:
         conn.row_factory = sqlite3.Row
+        asset = conn.execute("SELECT id, project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not asset:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        if asset["project_id"] != project_id:
+            raise HTTPException(status_code=403, detail=f"Media asset '{media_asset_id}' does not belong to project '{project_id}'.")
+
         query = "SELECT * FROM shorts_candidates WHERE project_id = ? AND media_asset_id = ?"
         params: List[Any] = [project_id, media_asset_id]
 
@@ -617,7 +727,38 @@ def list_media_candidates(
             query += " AND review_status = ?"
             params.append(review_status)
 
-        query += " ORDER BY quality_score DESC"
+        if min_score is not None:
+            query += " AND quality_score >= ?"
+            params.append(min_score)
+
+        if min_duration is not None:
+            query += " AND duration >= ?"
+            params.append(min_duration)
+
+        if max_duration is not None:
+            query += " AND duration <= ?"
+            params.append(max_duration)
+
+        if category:
+            query += " AND category = ?"
+            params.append(category)
+
+        order_dir = "ASC" if order.lower() == "asc" else "DESC"
+        if sort_by == "rank":
+            query += f" ORDER BY CASE WHEN rank_position IS NOT NULL THEN rank_position ELSE 999999 END {order_dir}, quality_score DESC"
+        elif sort_by == "score":
+            query += f" ORDER BY quality_score {order_dir}"
+        elif sort_by == "duration":
+            query += f" ORDER BY duration {order_dir}"
+        elif sort_by == "start_time":
+            query += f" ORDER BY start_time {order_dir}"
+        else:
+            query += " ORDER BY quality_score DESC"
+
+        if limit is not None:
+            query += " LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+
         rows = conn.execute(query, tuple(params)).fetchall()
         return [_row_to_candidate_dict(r) for r in rows]
 
@@ -906,3 +1047,114 @@ def bulk_review_candidates(
 
         res = conn.execute(sql, tuple(params))
         return {"updated_count": res.rowcount, "action": payload.action}
+
+
+# --- Global Highlights Router (Asset-direct access) ---
+
+global_highlights_router = APIRouter(tags=["highlights-global"])
+
+
+@global_highlights_router.post(
+    "/media/{media_asset_id}/highlights/discover",
+    response_model=List[CandidateResponse],
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def global_start_highlight_discovery(
+    media_asset_id: str,
+    payload: DiscoverHighlightsRequest,
+    response: Response,
+    background_tasks: BackgroundTasks,
+    request: Request,
+    engine: HighlightDiscoveryEngine = Depends(get_discovery_engine),
+    db_path: Path = Depends(get_db_path),
+):
+    """Global route to trigger AI Highlight Discovery resolving project automatically."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        project_id = row["project_id"]
+
+    return start_highlight_discovery(
+        project_id=project_id,
+        media_asset_id=media_asset_id,
+        payload=payload,
+        response=response,
+        background_tasks=background_tasks,
+        request=request,
+        engine=engine,
+        db_path=db_path,
+    )
+
+
+@global_highlights_router.get(
+    "/media/{media_asset_id}/highlights/recommendations",
+    response_model=List[CandidateResponse],
+)
+def global_get_media_recommendations(
+    media_asset_id: str,
+    limit: Optional[int] = Query(None, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    min_score: Optional[float] = Query(None, ge=0.0, le=100.0),
+    db_path: Path = Depends(get_db_path),
+):
+    """Global route to get recommendations for a media asset."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        project_id = row["project_id"]
+
+    return get_media_recommendations(
+        project_id=project_id,
+        media_asset_id=media_asset_id,
+        limit=limit,
+        offset=offset,
+        min_score=min_score,
+        db_path=db_path,
+    )
+
+
+@global_highlights_router.get(
+    "/media/{media_asset_id}/highlights",
+    response_model=List[CandidateResponse],
+)
+def global_list_media_candidates(
+    media_asset_id: str,
+    generation_run_id: Optional[str] = Query(None),
+    review_status: Optional[str] = Query(None),
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    min_score: Optional[float] = Query(None, ge=0.0, le=100.0),
+    min_duration: Optional[float] = Query(None, ge=0.0),
+    max_duration: Optional[float] = Query(None, ge=0.0),
+    category: Optional[str] = Query(None),
+    sort_by: Optional[str] = Query("rank", pattern="^(rank|score|duration|start_time)$"),
+    order: Optional[str] = Query("asc", pattern="^(asc|desc)$"),
+    db_path: Path = Depends(get_db_path),
+):
+    """Global route to list candidates for a media asset."""
+    with sqlite_session(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute("SELECT project_id FROM media_assets WHERE id = ?", (media_asset_id,)).fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail=f"Media asset '{media_asset_id}' not found.")
+        project_id = row["project_id"]
+
+    return list_media_candidates(
+        project_id=project_id,
+        media_asset_id=media_asset_id,
+        generation_run_id=generation_run_id,
+        review_status=review_status,
+        limit=limit,
+        offset=offset,
+        min_score=min_score,
+        min_duration=min_duration,
+        max_duration=max_duration,
+        category=category,
+        sort_by=sort_by,
+        order=order,
+        db_path=db_path,
+    )
